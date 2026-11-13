@@ -35,7 +35,7 @@ index 7dbb8752..381a2fcb 100644
  		size_t buf_size;
  	} jitter_buffer[8];
 diff --git a/lib/include/chiaki/session.h b/lib/include/chiaki/session.h
-index e90ecea4..4e2a04eb 100644
+index e90ecea4..9963f25c 100644
 --- a/lib/include/chiaki/session.h
 +++ b/lib/include/chiaki/session.h
 @@ -17,6 +17,7 @@
@@ -46,7 +46,16 @@ index e90ecea4..4e2a04eb 100644
  
  #include <stdint.h>
  
-@@ -250,6 +251,9 @@ typedef struct chiaki_session_t
+@@ -110,6 +111,8 @@ typedef enum {
+ } ChiakiQuitReason;
+ 
+ CHIAKI_EXPORT const char *chiaki_quit_reason_string(ChiakiQuitReason reason);
++/* Preserve explicit server registration/identity rejection as a typed reason. */
++CHIAKI_EXPORT ChiakiQuitReason chiaki_session_reason_from_application_reason(uint32_t reason);
+ 
+ static inline bool chiaki_quit_reason_is_error(ChiakiQuitReason reason)
+ {
+@@ -250,6 +253,9 @@ typedef struct chiaki_session_t
  	void *video_sample_cb_user;
  	ChiakiAudioSink audio_sink;
  	ChiakiAudioSink haptics_sink;
@@ -56,7 +65,7 @@ index e90ecea4..4e2a04eb 100644
  	ChiakiCtrlDisplaySink display_sink;
  
  	ChiakiThread session_thread;
-@@ -283,6 +287,9 @@ typedef struct chiaki_session_t
+@@ -283,6 +289,9 @@ typedef struct chiaki_session_t
  CHIAKI_EXPORT ChiakiErrorCode chiaki_session_init(ChiakiSession *session, ChiakiConnectInfo *connect_info, ChiakiLog *log);
  CHIAKI_EXPORT void chiaki_session_fini(ChiakiSession *session);
  CHIAKI_EXPORT ChiakiErrorCode chiaki_session_start(ChiakiSession *session);
@@ -288,10 +297,35 @@ index 47f0061e..8039561e 100644
  	{
  		free(frame_processor->frame_buf);
 diff --git a/lib/src/session.c b/lib/src/session.c
-index 41c6bbf0..81481013 100644
+index 41c6bbf0..dac0a3b1 100644
 --- a/lib/src/session.c
 +++ b/lib/src/session.c
-@@ -302,15 +302,49 @@ CHIAKI_EXPORT void chiaki_session_fini(ChiakiSession *session)
+@@ -135,6 +135,24 @@ CHIAKI_EXPORT void chiaki_connect_video_profile_preset(ChiakiConnectVideoProfile
+ 	}
+ }
+ 
++CHIAKI_EXPORT ChiakiQuitReason chiaki_session_reason_from_application_reason(uint32_t reason)
++{
++	switch(reason)
++	{
++		case CHIAKI_RP_APPLICATION_REASON_REGIST_FAILED:
++		case CHIAKI_RP_APPLICATION_REASON_INVALID_PSN_ID:
++			return CHIAKI_QUIT_REASON_PSN_REGIST_FAILED;
++		case CHIAKI_RP_APPLICATION_REASON_IN_USE:
++			return CHIAKI_QUIT_REASON_SESSION_REQUEST_RP_IN_USE;
++		case CHIAKI_RP_APPLICATION_REASON_CRASH:
++			return CHIAKI_QUIT_REASON_SESSION_REQUEST_RP_CRASH;
++		case CHIAKI_RP_APPLICATION_REASON_RP_VERSION:
++			return CHIAKI_QUIT_REASON_SESSION_REQUEST_RP_VERSION_MISMATCH;
++		default:
++			return CHIAKI_QUIT_REASON_SESSION_REQUEST_UNKNOWN;
++	}
++}
++
+ CHIAKI_EXPORT const char *chiaki_quit_reason_string(ChiakiQuitReason reason)
+ {
+ 	switch(reason)
+@@ -302,15 +320,49 @@ CHIAKI_EXPORT void chiaki_session_fini(ChiakiSession *session)
  	freeaddrinfo(session->connect_info.host_addrinfos);
  }
  
@@ -341,6 +375,32 @@ index 41c6bbf0..81481013 100644
  CHIAKI_EXPORT ChiakiErrorCode chiaki_session_stop(ChiakiSession *session)
  {
  	ChiakiErrorCode err = chiaki_mutex_lock(&session->state_mutex);
+@@ -1072,22 +1124,9 @@ static ChiakiErrorCode session_thread_request_session(ChiakiSession *session, Ch
+ 	else
+ 	{
+ 		CHIAKI_LOGE(session->log, "Reported Application Reason: %#x (%s)", (unsigned int)response.error_code, chiaki_rp_application_reason_string(response.error_code));
+-		switch(response.error_code)
+-		{
+-			case CHIAKI_RP_APPLICATION_REASON_IN_USE:
+-				session->quit_reason = CHIAKI_QUIT_REASON_SESSION_REQUEST_RP_IN_USE;
+-				break;
+-			case CHIAKI_RP_APPLICATION_REASON_CRASH:
+-				session->quit_reason = CHIAKI_QUIT_REASON_SESSION_REQUEST_RP_CRASH;
+-				break;
+-			case CHIAKI_RP_APPLICATION_REASON_RP_VERSION:
+-				session->quit_reason = CHIAKI_QUIT_REASON_SESSION_REQUEST_RP_VERSION_MISMATCH;
+-				r = CHIAKI_ERR_VERSION_MISMATCH;
+-				break;
+-			default:
+-				session->quit_reason = CHIAKI_QUIT_REASON_SESSION_REQUEST_UNKNOWN;
+-				break;
+-		}
++		session->quit_reason = chiaki_session_reason_from_application_reason(response.error_code);
++		if(session->quit_reason == CHIAKI_QUIT_REASON_SESSION_REQUEST_RP_VERSION_MISMATCH)
++			r = CHIAKI_ERR_VERSION_MISMATCH;
+ 	}
+ 
+ 	chiaki_http_response_fini(&http_response);
 diff --git a/lib/src/streamconnection.c b/lib/src/streamconnection.c
 index afa1a60a..4d9f903c 100644
 --- a/lib/src/streamconnection.c

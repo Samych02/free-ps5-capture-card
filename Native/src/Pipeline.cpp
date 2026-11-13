@@ -18,6 +18,7 @@ struct MediaPipeline::Impl {
     capture_error error=CAPTURE_ERROR_NONE;
     const char *message="";
     uint64_t videoCount=0,audioCount=0,videoGeneration=0,audioGeneration=0,signature=0;
+    uint64_t videoLosses=0,audioHoles=0;
     uint64_t firstHeaderUs=0,originUs=0,lastVideoUs=0,lastAudioUs=0;
     ChiakiEncodedAudioConfig audio{};
     std::optional<ChiakiEncodedPacket> firstVideo,firstAudio;
@@ -69,6 +70,7 @@ struct MediaPipeline::Impl {
         VideoAccess access=VideoAccess::Predicted;
         if(p.size>PacketQueue::MaxPacket || (p.size && !p.data) || p.first_receipt_us>now) throw std::runtime_error("Invalid source packet bounds or timestamp");
         if(isAudio) {
+            if(p.flags&CHIAKI_ENCODED_MISSING) ++audioHoles;
             if(!(p.flags&CHIAKI_ENCODED_MISSING)) {
                 if(p.size>65536 || opusPacketSamples(p.data,p.size)!=audio.samples_per_frame || p.samples!=audio.samples_per_frame)
                     throw std::runtime_error("Unexpected Opus sample duration");
@@ -79,6 +81,7 @@ struct MediaPipeline::Impl {
             auto info=inspectAccessUnit(static_cast<ChiakiCodec>(options.codec),p.data,p.size);
             if(!info.hasPicture) return true;
             access=info.access; ++videoCount; lastVideoUs=p.first_receipt_us;
+            videoLosses+=p.lost_frames;
             if(!clock) { firstVideo=p; firstVideo->data=nullptr; firstVideo->size=0; }
             auto current=parameterSetSignature(static_cast<ChiakiCodec>(options.codec),p.data,p.size);
             if(current && signature && current!=signature) { failLocked(CAPTURE_ERROR_CONNECTION,"In-band video headers changed. Reconnecting both tracks.",true); return true; }
@@ -200,6 +203,9 @@ SessionSnapshot MediaPipeline::snapshot() {
     SessionSnapshot s; s.done=p.failed; s.retry=p.retry; s.status.state=p.failed?CAPTURE_FAILED:p.outputReady?CAPTURE_STREAMING:CAPTURE_WAITING_OBS;
     s.status.error=p.error; strncpy(s.status.message,p.message,sizeof(s.status.message)-1);
     s.status.video_packets=p.videoCount; s.status.audio_packets=p.audioCount; s.status.queued_bytes=stats.bytes;
+    s.status.lost_video_frames=p.videoLosses;s.status.missing_audio_packets=p.audioHoles;
+    auto now=chiaki_time_now_monotonic_us();
+    s.status.queue_age_us=stats.oldestReceiptUs && now>=stats.oldestReceiptUs?now-stats.oldestReceiptUs:0;
     s.status.codec=p.options.codec;
     if(p.format) { s.status.width=p.format->parameters->width; s.status.height=p.format->parameters->height; s.status.fps_num=p.format->frameRate.num; s.status.fps_den=p.format->frameRate.den; }
     return s;

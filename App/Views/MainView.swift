@@ -68,6 +68,8 @@ struct MainView: View {
                         if model.status.width > 0 {
                             Text("Received: \(model.status.width)×\(model.status.height) · \(cadence) fps · video \(model.status.videoPackets) · audio \(model.status.audioPackets)")
                                 .font(.caption).monospacedDigit().accessibilityIdentifier("receivedMediaStatus")
+                            Text("Queue: \(model.status.queuedBytes / 1024) KiB / \(model.status.queueAgeMicroseconds / 1000) ms · video lost \(model.status.lostVideoFrames) · audio missing \(model.status.missingAudioPackets) · source retries \(model.status.reconnects)")
+                                .font(.caption).foregroundStyle(.secondary).monospacedDigit()
                         }
                         HStack {
                             Button("Start Capture", systemImage: "play.fill") {

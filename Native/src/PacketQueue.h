@@ -45,7 +45,7 @@ public:
     static constexpr uint64_t MaxAgeUs = 250000, KeyframeWaitUs = 5000000;
     enum class Result { Accepted, Dropped, Stale, Reset, Invalid };
     enum class Reason { None, Detached, Overflow, StaleMedia, ConfigurationChanged, InvalidData, Timestamp, MissingTrack, KeyframeTimeout };
-    struct Stats { size_t bytes, entries, queued; uint64_t epoch; bool connected, ready; Reason reason; };
+    struct Stats { size_t bytes, entries, queued; uint64_t epoch; bool connected, ready; Reason reason; uint64_t oldestReceiptUs=0; };
     explicit PacketQueue(size_t storageLimit = MaxBytes);
     Result configureVideo(const ChiakiEncodedVideoConfig &);
     Result configureAudio(const ChiakiEncodedAudioConfig &);

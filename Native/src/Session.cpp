@@ -4,6 +4,13 @@
 #include <cstring>
 #include <stdexcept>
 namespace capture {
+ChiakiErrorCode initializeCaptureCore() {
+    // Process-wide FEC tables and certificate-cache mutex must exist before
+    // any live session. C++ local-static initialization serializes concurrent
+    // engine instances; chiaki_lib_init itself is not a repeatable per-session API.
+    static const ChiakiErrorCode result=chiaki_lib_init();
+    return result;
+}
 namespace {
 void wipe(void *p,size_t n) {auto b=static_cast<volatile uint8_t *>(p);while(n--) *b++=0;}
 class LiveSession final:public SessionBackend {
@@ -29,6 +36,7 @@ class LiveSession final:public SessionBackend {
 public:
     explicit LiveSession(LiveSessionAPI api):api_(api) {}
     void start(const capture_options &o,const capture_connection &c,LocalTCPServer &server) {
+        if(api_.libraryInit()!=CHIAKI_ERR_SUCCESS) throw std::runtime_error("Capture core initialization failed");
         // Raw core logs can contain keys, tokens and PINs. No logging callback.
         chiaki_log_init(&log_,0,nullptr,nullptr);
         ChiakiConnectInfo info{};

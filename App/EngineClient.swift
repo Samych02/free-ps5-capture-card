@@ -6,6 +6,7 @@ struct EngineStatus: Equatable {
     var message = ""
     var width: UInt32 = 0, height: UInt32 = 0, fpsNumerator: UInt32 = 0, fpsDenominator: UInt32 = 1
     var videoPackets: UInt64 = 0, audioPackets: UInt64 = 0, reconnects: UInt64 = 0, queuedBytes: UInt64 = 0
+    var lostVideoFrames: UInt64 = 0, missingAudioPackets: UInt64 = 0, queueAgeMicroseconds: UInt64 = 0
 }
 @MainActor
 protocol EngineControlling: AnyObject {
@@ -95,7 +96,9 @@ final class NativeEngineClient: EngineControlling {
         let message = withUnsafeBytes(of: value.message) { String(decoding: $0.prefix(while: { $0 != 0 }), as: UTF8.self) }
         return EngineStatus(message: message, width: value.width, height: value.height, fpsNumerator: value.fps_num,
                             fpsDenominator: value.fps_den, videoPackets: value.video_packets, audioPackets: value.audio_packets,
-                            reconnects: value.reconnects, queuedBytes: value.queued_bytes)
+                            reconnects: value.reconnects, queuedBytes: value.queued_bytes,
+                            lostVideoFrames: value.lost_video_frames, missingAudioPackets: value.missing_audio_packets,
+                            queueAgeMicroseconds: value.queue_age_us)
     }
     func submitPIN(_ pin: String) -> Bool {
         guard let handle, pin.utf8.count == 4, pin.utf8.allSatisfy({ (48...57).contains($0) }) else { return false }

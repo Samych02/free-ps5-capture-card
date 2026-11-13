@@ -203,6 +203,8 @@ std::optional<QueueConfiguration> PacketQueue::configuration() const {
 }
 PacketQueue::Stats PacketQueue::stats() const {
     std::lock_guard<std::mutex> lock(mutex_);
-    return {budget_->bytes.load(), budget_->buffers.load()+1, queued(), epoch_, connected_, ready_, reason_};
+    uint64_t oldest=0;
+    for(const auto &packet:packets_) if(packet && (!oldest || packet->metadata.first_receipt_us<oldest)) oldest=packet->metadata.first_receipt_us;
+    return {budget_->bytes.load(), budget_->buffers.load()+1, queued(), epoch_, connected_, ready_, reason_,oldest};
 }
 }

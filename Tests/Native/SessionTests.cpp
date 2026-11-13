@@ -134,12 +134,23 @@ static MunitResult transport_faults(const MunitParameter[],void *) {
     munit_assert_true(std::chrono::steady_clock::now()-before<std::chrono::milliseconds(100));
     return MUNIT_OK;
 }
-static int nativeInit=0,nativeStart=0,nativeStop=0,nativeJoin=0,nativeFini=0,nativePin=0;
+static MunitResult core_initialization_is_serialized(const MunitParameter[],void *) {
+    std::vector<std::thread> workers;ChiakiErrorCode results[8]{};
+    for(size_t i=0;i<8;++i) workers.emplace_back([&,i]{results[i]=initializeCaptureCore();});
+    for(auto &worker:workers) worker.join();
+    for(auto result:results) munit_assert_int(result,==,CHIAKI_ERR_SUCCESS);
+    munit_assert_int(initializeCaptureCore(),==,CHIAKI_ERR_SUCCESS);
+    return MUNIT_OK;
+}
+static int nativeLibraryInit=0,nativeInit=0,nativeStart=0,nativeStop=0,nativeJoin=0,nativeFini=0,nativePin=0;
 static bool failStart=false;
+static bool failLibraryInit=false;
 static ChiakiSession *borrowedSession=nullptr;
 static MunitResult native_lifecycle(const MunitParameter[],void *) {
     LiveSessionAPI api;
+    api.libraryInit=[] {++nativeLibraryInit;return failLibraryInit?CHIAKI_ERR_UNKNOWN:CHIAKI_ERR_SUCCESS;};
     api.init=[](ChiakiSession *s,ChiakiConnectInfo *info,ChiakiLog *log) {
+        munit_assert_int(nativeLibraryInit,==,nativeInit+1);
         ++nativeInit; borrowedSession=s;
         munit_assert_true(info->ps5); munit_assert_false(info->video_profile_auto_downgrade);
         munit_assert_false(info->enable_keyboard); munit_assert_false(info->enable_dualsense);
@@ -178,6 +189,10 @@ static MunitResult native_lifecycle(const MunitParameter[],void *) {
     try {makeLiveSessionWithAPI(o,c,server,api);}catch(...){rejected=true;}
     failStart=false;munit_assert_true(rejected);
     munit_assert_int(nativeFini,==,2);munit_assert_int(nativeJoin,==,1);
+    failLibraryInit=true;rejected=false;
+    try {makeLiveSessionWithAPI(o,c,server,api);}catch(...){rejected=true;}
+    failLibraryInit=false;munit_assert_true(rejected);
+    munit_assert_int(nativeInit,==,2);munit_assert_int(nativeFini,==,2);
     return MUNIT_OK;
 }
 int main(int argc,char **argv) {
@@ -188,6 +203,7 @@ int main(int argc,char **argv) {
         {const_cast<char *>("/native-lifecycle"),native_lifecycle,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
         {const_cast<char *>("/retry-cancel"),retry_and_cancel,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
         {const_cast<char *>("/transport-faults"),transport_faults,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
+        {const_cast<char *>("/core-initialization"),core_initialization_is_serialized,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
         {nullptr,nullptr,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr}};
     MunitSuite suite{const_cast<char *>("/session"),tests,nullptr,1,MUNIT_SUITE_OPTION_NONE}; return munit_suite_main(&suite,nullptr,argc,argv);
 }

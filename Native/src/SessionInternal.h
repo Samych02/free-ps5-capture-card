@@ -2,7 +2,9 @@
 #include "Session.h"
 #include <chiaki/session.h>
 namespace capture {
+ChiakiErrorCode initializeCaptureCore();
 struct LiveSessionAPI {
+    decltype(&chiaki_lib_init) libraryInit=initializeCaptureCore;
     decltype(&chiaki_session_init) init=chiaki_session_init;
     decltype(&chiaki_session_set_encoded_media_sink) sink=chiaki_session_set_encoded_media_sink;
     decltype(&chiaki_session_start) start=chiaki_session_start;
