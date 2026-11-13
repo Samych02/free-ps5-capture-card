@@ -82,6 +82,22 @@ installing the required Homebrew dependencies.
   ASan/UBSan passes the media target 10 times. Debug/Release builds and signatures
   pass. Task 6 (shared timeline, bounded queues, live remux validation) is next;
   live capture remains disabled. Independent review remains a release gate.
+- Task 6, first verified batch (not full Task 6 completion): added one common
+  monotonic-clock mapping with frozen per-track least-delay estimates, independent
+  source-counter unwrapping and rational time; a fixed-slot, shared-budget packet
+  queue with owned headers/packets and leased-buffer accounting; bounded pre-roll,
+  generation/epoch guards, no-consumer discard, required two-track readiness and
+  reset signals; actual NAL-type random-access classification; and live stereo
+  OpusHead/TOC-duration helpers. Five timeline, twelve queue and five codec-unit
+  cases pass, including the two-hour simulation and concurrent producers.
+- Task 6 integration is still pending: validate actual SPS/VUI cadence/reordering
+  and HDR/SEI/colour metadata without decoder contexts, connect the borrowed-input
+  queue admission to live receiver callbacks, harden and measure mux-owned total
+  buffering, and validate live Annex-B/Opus remux equivalence. The queue's 16 MiB
+  budget is owned queue/configuration storage (including held leases), not proof
+  of a total-process or combined FFmpeg memory bound. A reset epoch is a signal
+  the future output owner must use to close TCP/mux state, not a socket close by
+  the queue itself. Do not enable capture or mark Task 6 complete yet.
 
 
 **Goal:** Build a minimal standalone macOS app that connects a PS5 to OBS, delivering equally important game video and game audio together without a playback window, local sound, or intermediate media decoding/encoding.

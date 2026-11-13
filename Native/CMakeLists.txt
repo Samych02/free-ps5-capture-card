@@ -2,7 +2,7 @@ add_library(CaptureEngine SHARED src/Engine.cpp src/Pairing.cpp src/Discovery.cp
 target_compile_features(CaptureEngine PRIVATE cxx_std_17)
 target_include_directories(CaptureEngine PUBLIC include)
 target_link_libraries(CaptureEngine PRIVATE chiaki-lib)
-add_library(capture-encoded STATIC src/EncodedMedia.cpp)
+add_library(capture-encoded STATIC src/EncodedMedia.cpp src/Timeline.cpp src/PacketQueue.cpp src/AnnexB.cpp src/AudioFormat.cpp)
 target_compile_features(capture-encoded PUBLIC cxx_std_17)
 target_include_directories(capture-encoded PUBLIC src)
 target_link_libraries(capture-encoded PUBLIC chiaki-lib)

@@ -14,13 +14,16 @@ local port (default 9295). HDR passthrough and audio are required scope.
 
 The native engine framework and SwiftUI development shell build in Debug and
 Release. Tests cover the 118 upstream core cases, 3 engine-interface cases,
-5 native pairing/discovery cases, 14 encoded-media cases, 41 app/account/pairing/adapter cases, synthetic
+5 native pairing/discovery cases, 14 encoded-media cases, 22 timing/queue/codec-unit
+cases, 41 app/account/pairing/adapter cases, synthetic
 transport, and 4 bootstrap cases. PSN sign-in has worked on the user's setup.
 Local PS5 discovery, manual IP pairing, and Keychain recovery are implemented;
 the user confirmed real-console pairing and persistence after relaunch. The core
 now exposes compressed video/Opus with configuration, source counters, receipt
-times and recovery metadata through a separate tested sink. Shared A/V timing,
-bounded live queues, and the live PS5-to-OBS connection are still being built.
+times and recovery metadata through a separate tested sink. Shared-clock mapping,
+bounded owned packet storage, random-access NAL classification and live Opus
+header helpers now pass synthetic tests. Codec cadence/HDR metadata validation,
+full live mux buffering, and the live PS5-to-OBS connection are still being built.
 Start Capture is intentionally disabled.
 The installed Homebrew
 libraries require macOS 26; macOS-15 distribution is not yet supported/verified.
@@ -48,12 +51,14 @@ python3 -m unittest discover -s Tests/Bootstrap -v
 Build the app shell with `scripts/build.sh --config Debug`; its output is
 `build/xcode/Build/Products/Debug/FreePS5CaptureCard.app`. Run native and app tests
 with `scripts/test.sh --native --app`. Both commands print their underlying build
-commands. Test filters currently support native `interface`, `pairing`, and
-`media-sink` suites and app
+commands. Test filters currently support native `interface`, `pairing`,
+`media-sink`, `timeline`, `queue`, `codec-units` suites and app
 classes `AppModelTests`, `EngineClientTests`, `AuthTests`, `CredentialStoreTests`,
 `AccountModelTests`, and `PairingTests`; unknown filters are rejected.
 Native filters `mux` and `tcp` run the new synthetic transport checks. The full
 native suite includes those integration tests automatically.
+`python3 Tests/Support/integration.py --build-dir build/native --case synthetic-clock`
+runs the two-hour source-clock simulation and owned-queue tests without a PS5.
 
 ## Synthetic OBS transport prototype
 

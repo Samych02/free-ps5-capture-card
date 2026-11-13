@@ -34,6 +34,14 @@ def first_frame(path):
                           str(path)).stdout)["frames"][0]
 
 
+class ClockTests(unittest.TestCase):
+    def test_two_hour_clock_and_owned_queue(self):
+        for binary, count in (("capture-timeline-tests", 5), ("capture-queue-tests", 12)):
+            with self.subTest(suite=binary):
+                result = run(str(BUILD / "Tests/Native" / binary), timeout=30)
+                self.assertIn(f"{count} of {count} (100%) tests successful".encode(), result.stdout)
+
+
 class RemuxTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -188,7 +196,7 @@ class RemuxTests(unittest.TestCase):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--build-dir", default="build/native")
-    parser.add_argument("--case", choices=["remux-equivalence", "tcp", "all"], default="all")
+    parser.add_argument("--case", choices=["remux-equivalence", "tcp", "synthetic-clock", "all"], default="all")
     args = parser.parse_args()
     BUILD = (ROOT / args.build_dir).resolve()
     names = unittest.defaultTestLoader.getTestCaseNames(RemuxTests)
@@ -198,5 +206,10 @@ if __name__ == "__main__":
     elif args.case == "tcp":
         names = [n for n in names if n in ("test_tcp_streams_both_tracks_with_fresh_headers_on_reconnect",
                  "test_invalid_port_is_rejected", "test_occupied_port_is_not_silently_changed")]
-    result = unittest.TextTestRunner(verbosity=2).run(unittest.TestSuite(RemuxTests(n) for n in names))
+    suite = unittest.TestSuite()
+    if args.case in ("synthetic-clock", "all"):
+        suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(ClockTests))
+    if args.case != "synthetic-clock":
+        suite.addTests(RemuxTests(n) for n in names)
+    result = unittest.TextTestRunner(verbosity=2).run(suite)
     sys.exit(0 if result.wasSuccessful() and result.testsRun else 1)

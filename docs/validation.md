@@ -249,3 +249,47 @@ discovery/manual-IP/failure-path coverage or proof of live audio/video.
   live Matroska session delivery are NOT yet established. Capture remains
   disabled; no test streamed the user's PS5. See the pending review request in
   `docs/reviews/encoded-media.md`.
+
+## Task 6 partial checkpoint — shared clock and owned storage
+
+- Added 5 Timeline, 12 PacketQueue and 5 codec-unit cases. Initial red runs used
+  `scripts/test.sh --native --filter timeline`, `--filter queue`, and
+  `--filter codec-units` against empty implementations. Additional red tests
+  exposed premature reset on initial headers, capacity-driven pre-roll reset,
+  missing configuration epoch, a fresh source-counter reset ignored forever as
+  reordering, and stale pre-roll incorrectly producing readiness. All are fixed.
+- Timeline uses exact rational/sample progression through repeated source-counter
+  wraps, a 250 ms frozen least-delay mapping and one shared media origin. Tests
+  retain audio holes, positive/negative fixed offset and cross-track phase on
+  reconnect; no accumulated per-frame rounding is used. This is constructed
+  source-clock evidence, not measured real-console synchronization.
+- Owned queue storage is capped before copying, including fixed metadata,
+  configuration buffers and leases outside the queue. Tests fill all logical
+  entries with leased buffers, then pass an invalid pointer to prove denial
+  occurs before copying. Buffers remain valid after queue destruction and are
+  charged until their final reference releases. Logical storage accounting and
+  conservative metadata allowances are not a claim of a strict process-RSS cap.
+- `python3 Tests/Support/integration.py --build-dir build/native --case
+  synthetic-clock` passes its C++ two-hour clock/queue suites. The `all` case now
+  includes this check as well as the existing six synthetic transport methods.
+  Existing remux tests remain unchanged evidence for the old fixture sender;
+  they do not prove the new live queue/mux connection works.
+- Full app/native regression run passes 8/8 CTest targets and 41/41 XCTest cases;
+  bootstrap 4/4 passes. Final Debug/Release builds and both ad-hoc signature
+  checks pass.
+- Separate `build/native-asan` uses ASan/UBSan; timeline/queue/codec targets pass
+  10 repeats each. Separate `build/native-tsan` uses `-fsanitize=thread
+  -fno-omit-frame-pointer`; `TSAN_OPTIONS=halt_on_error=1` with
+  `capture-queue-tests --no-fork` and `capture-timeline-tests --no-fork` passes
+  without reported races. These are synthetic/injected tests, not live network
+  receiver or end-to-end shutdown coverage.
+- NAL-header utilities classify true H264/HEVC random access and leading pictures
+  without decoding; they do not parse actual SPS/VUI cadence, reorder capacity
+  or HDR. OpusHead/TOC-duration helpers establish the stereo/48 kHz, pre-skip-0
+  candidate only; live packets/startup alignment remain untested.
+- **Task 6 is not complete:** codec metadata validation, borrowed-callback queue
+  integration, measured mux/AVIO/cluster memory bounds and live Annex-B/Opus
+  remux equivalence remain. The output owner must react to queue reset epochs and
+  recreate both track states; the queue itself does not close sockets. Capture
+  remains disabled, and no PS5 session was started. Review scope is in
+  `docs/reviews/timing-storage.md`.
