@@ -46,11 +46,37 @@
 
 ## Pending checks
 
-- Engine framework, SwiftUI app shell, and runtime dependency checks.
+- Remaining app functionality, visual/UI automation and distributable dependency checks.
 - Synthetic video/audio transport, all three codec modes, and OBS ingestion.
 - Real PSN login, console pairing, A/V synchronization, HDR, and reconnect gates.
 - macOS-15 compatibility: the requested target is not proof that installed
   Homebrew binaries run on that OS; check bundled deployment metadata later.
 
-No PS5 capture or runnable app has been produced yet. Do not interpret bootstrap
-tests or encoder availability as media-path verification.
+## Native interface and app shell milestone
+
+- The baseline was pushed to `origin/feat/native-app-shell`; no push to main.
+- Native contract red run: 0/3 cases passed with deliberately unimplemented
+  stubs. Then real worker/lifecycle/validation implementation: 3/3 pass.
+- App contract red run: five tests failed for missing model/adapter behavior;
+  a second red run exposed two missing shutdown guarantees. Final result:
+  7/7 app tests pass, including real framework callbacks on the main actor,
+  no automatic capture, unavailable capture reporting, and joined shutdown.
+- Full `scripts/test.sh --native --app`: pass, CTest 2/2 targets (118 upstream
+  core cases + 3 interface cases) and XCTest 7/7 cases.
+- `scripts/build.sh --config Release`: pass. Debug build also passes as part of
+  the full test command. XCTest launches the app as its test host.
+- `python3 -m unittest discover -s Tests/Bootstrap -v`: 4/4 pass.
+- `codesign --verify --deep --strict` on both final Debug and Release apps: pass.
+  Ad-hoc development signing is not notarized distribution approval.
+- `otool -L` on the engine shows no Qt/SDL/rendering library dependencies; local
+  Homebrew runtime dependencies remain and are not yet bundled.
+- macOS default Bash exposed an empty-array expansion issue in the unfiltered
+  app test command. Reproduced failure, fixed to use a nonempty argument array,
+  and verified the full unfiltered command passes.
+- Xcode reports an outdated **iOS** simulator service and missing optional
+  AppIntents metadata; the selected destination is native macOS and tests pass.
+  No simulator upgrade/system service change was performed.
+
+The app is a runnable development shell, NOT a functional capture app. No PSN,
+pairing, OBS, HDR, audio, or live-media capability has been verified. Visual
+inspection and independent code review are still pending.

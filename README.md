@@ -12,8 +12,11 @@ local port (default 9295). HDR passthrough and audio are required scope.
 
 ## Current status
 
-Native dependency baseline builds, with 118/118 upstream core tests passing.
-No capture interface or PS5-to-OBS stream exists yet. The installed Homebrew
+The native engine framework and SwiftUI development shell build in Debug and
+Release. Tests cover the 118 upstream core cases, 3 engine-interface cases,
+7 app/adapter cases, and 4 bootstrap cases. No PSN login, console pairing, or
+PS5-to-OBS stream exists yet; Start Capture is intentionally disabled.
+The installed Homebrew
 libraries require macOS 26; macOS-15 distribution is not yet supported/verified.
 See [the execution plan](docs/plans/free-ps5-capture-card.md) and
 [validation evidence](docs/validation.md).
@@ -35,6 +38,18 @@ bash scripts/build-native.sh --config Debug --tests
 ctest --test-dir build/native --output-on-failure
 python3 -m unittest discover -s Tests/Bootstrap -v
 ```
+
+Build the app shell with `scripts/build.sh --config Debug`; its output is
+`build/xcode/Build/Products/Debug/FreePS5CaptureCard.app`. Run native and app tests
+with `scripts/test.sh --native --app`. Both commands print their underlying build
+commands. Test filters currently support the native `interface` suite and app
+classes `AppModelTests` / `EngineClientTests`; unknown filters are rejected.
+
+The shell uses a deliberately minimal native utility layout, supports system
+appearance/accessibility, opens no playback devices, and does not auto-start
+capture. Closing the window keeps the app alive; Quit joins engine cleanup
+asynchronously. The framework still links local Homebrew libraries; the app is
+not yet a self-contained distributable bundle.
 
 Dependencies are fetched into ignored build directories, never into an existing
 Chiaki checkout. Bootstrap uses an isolated Python environment and never installs

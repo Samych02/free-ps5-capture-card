@@ -19,7 +19,14 @@ installing the required Homebrew dependencies.
 - Linked Homebrew libraries require macOS 26; macOS-15 deployment remains
   unverified and is a distribution blocker, not silently claimed supported.
 - Initial scope remains all three codec modes, mandatory audio/video, and a
-  configurable port. No user interface, pairing, or live capture exists yet.
+  configurable port. Pairing and live capture are not implemented.
+- Task 1: native C framework, worker/Stop/join ownership, Swift adapter, and a
+  minimal native utility shell implemented; Debug and Release builds pass.
+  Native tests 3/3 and app tests 7/7 pass after observed red runs. Full core and
+  bootstrap regression suites remain green. Start Capture is intentionally
+  disabled and engine Start returns unavailable, not fictitious success.
+- Baseline pushed to `origin/feat/native-app-shell`. Independent code review and
+  manual visual inspection remain pending; no merge to main is requested.
 
 
 **Goal:** Build a minimal standalone macOS app that connects a PS5 to OBS, delivering equally important game video and game audio together without a playback window, local sound, or intermediate media decoding/encoding.

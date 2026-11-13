@@ -1,0 +1,4 @@
+framework module CaptureEngine {
+    umbrella header "CaptureEngine.h"
+    export *
+}

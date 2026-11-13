@@ -1,0 +1,5 @@
+add_executable(capture-core-tests main.cpp InterfaceTests.cpp)
+target_compile_features(capture-core-tests PRIVATE cxx_std_17)
+target_link_libraries(capture-core-tests PRIVATE CaptureEngine munit)
+add_test(NAME capture-interface COMMAND capture-core-tests /capture/interface)
+set_tests_properties(capture-interface PROPERTIES TIMEOUT 15)
