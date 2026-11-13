@@ -78,10 +78,10 @@
   No simulator upgrade/system service change was performed.
 
 The app is a runnable development shell, NOT a functional capture app. No PSN,
-pairing, actual OBS ingestion, or live-PS5 media capability has been verified. Visual
+pairing, or live-PS5 media capability has been verified. Visual
 inspection and independent code review are still pending.
 
-## Synthetic transport implementation (Gate A manual check pending)
+## Synthetic transport implementation (OBS compatibility confirmed by user)
 
 - Working branch is now `main`, as explicitly requested by the user. No extra
   milestone branch or PR is required to continue development.
@@ -104,6 +104,32 @@ inspection and independent code review are still pending.
 - Full `scripts/test.sh --native --app`: CTest 3/3 targets pass (118 core, 3
   interface cases, 6 integration test methods), and XCTest 7/7 pass. Bootstrap
   tests remain 4/4 green. Fixtures are small 320x180/30 fps synthetic samples.
-- Pending: actual OBS tests in all three modes, observed A/V sync and HDR output,
+- The user tested the live feeds at ports 9295 (H265 SDR), 9296 (H264 SDR), and
+  9297 (H265 HDR) and reported that all work. Combined with the observed Media
+  source meter, this confirms basic A/V ingestion in the installed OBS setup for
+  all three required modes. The transport compatibility checkpoint is accepted
+  for progressing to account setup; this is not a calibrated HDR-output or
+  precise lip-sync measurement.
+- Pending: measured A/V sync and correct final HDR output/color configuration,
   high-bitrate backpressure/soak, live Annex-B delivery, and PS5 clock behavior.
   These are not inferred from FFmpeg ingestion or packet hash preservation.
+
+### User OBS screen-recording observation
+
+The user supplied a 5.84-second macOS screen recording. Extracted frames show
+the test pattern moving in the OBS canvas, with its displayed time advancing
+approximately one second per second. Mixer activity is visible. This is evidence
+that the displayed test video is reaching OBS, not yet end-to-end A/V acceptance.
+
+`ffprobe` reports only one H264 video stream in the submitted screen recording;
+there is **no audio track**. Consequently the clip cannot verify the test tone,
+the audible result or precise audio/video synchronization. On closer inspection,
+the **Media source's own mixer meter is active**, not only microphone/desktop
+meters. Together with moving video this supports the basic OBS A/V arrival smoke
+check; the lack of an audio track in the screen recording does not invalidate
+that visual evidence. A direct OBS recording would be needed for waveform/listening
+analysis or precise synchronization measurements, not merely to establish meter
+activity. The user subsequently confirmed all three codec feeds work in OBS.
+Measured HDR output, exact synchronization, and manual reconnect checks remain
+separate validation items. The private
+screen recording was not copied into Git.

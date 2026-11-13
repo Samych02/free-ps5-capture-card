@@ -55,6 +55,11 @@ settings, visual result, audio result, and reconnect behavior.
 
 ## Automated checks
 
+Current manual result: the user confirmed all three feeds work in the installed
+OBS setup. This accepts basic A/V ingestion compatibility for progressing to
+account setup. It does not replace final sync measurement, calibrated HDR/output
+checks, manual reconnect verification, or real PS5 testing.
+
 ```sh
 scripts/test.sh --native --filter mux
 scripts/test.sh --native --filter tcp

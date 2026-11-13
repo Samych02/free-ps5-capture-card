@@ -52,8 +52,9 @@ native suite includes those integration tests automatically.
 A no-transcode Matroska/TCP replay sender is now available independently of the
 app shell. It sends both compressed video and Opus audio, including a validated
 10-bit PQ/BT.2020 HDR fixture. See [run and OBS instructions](docs/obs-transport-prototype.md).
-Automated FFmpeg-receiver checks pass; **actual OBS compatibility is still a
-manual gate**, not a completed feature claim. This is not connected to a PS5 yet.
+Automated FFmpeg-receiver checks pass, and the user confirmed all three synthetic
+codec feeds work in OBS with audio/video. Precise sync and HDR output/color
+validation remain pending. This is not connected to a PS5 yet.
 
 The shell uses a deliberately minimal native utility layout, supports system
 appearance/accessibility, opens no playback devices, and does not auto-start

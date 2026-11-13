@@ -32,8 +32,12 @@ installing the required Homebrew dependencies.
   publication. Task 2's automated prototype now works: compressed video+Opus
   Matroska remuxing, loopback replay, all three required fixtures, payload/hash and
   HDR signaling tests, TCP reconnect/port/cancellation checks. Six integration
-  methods pass along with previous suites. Actual OBS Gate A remains pending;
-  independent login/pairing must not start until that manual gate passes.
+   methods pass along with previous suites. The user subsequently confirmed that
+   the H264, H265 SDR, and H265 HDR feeds all work in their OBS setup. Basic OBS
+   A/V compatibility is accepted for progressing to Task 3 (independent account
+   setup). Precise A/V measurements, final HDR color/output correctness, manual
+   reconnect behavior, and live-PS5 tests remain explicit validation items; the
+   user's smoke-test report is not treated as proof of those properties.
 
 
 **Goal:** Build a minimal standalone macOS app that connects a PS5 to OBS, delivering equally important game video and game audio together without a playback window, local sound, or intermediate media decoding/encoding.
