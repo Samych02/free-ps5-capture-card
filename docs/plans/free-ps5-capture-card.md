@@ -41,9 +41,17 @@ installing the required Homebrew dependencies.
 - Task 3 implementation: native PSN account flow, Keychain abstraction/system
   store, account model, masked browser-redirect UI and restore/forget controls
   added. Mocked auth/storage/model tests pass; current app suite totals 25 cases.
-  Real Sony state/HTTP compatibility and Keychain persistence are manual Gate B
-  checks and remain pending. Do not claim pairing or start Task 4 before the
-  account flow is validated on the user's actual setup. Replay feeds stay stopped.
+  The user subsequently reported completing manual sign-in, accepting the real
+  account flow for progression to Task 4. No console pairing is claimed yet;
+  precise persistence/access-policy diagnostics remain separate if needed.
+  Replay feeds stay stopped.
+- The user reported completing manual PSN sign-in, then requested external-browser
+  deep-link return (explicitly not an embedded browser). They authorized skipping
+  it if not straightforward. A credential-free check rejected the proposed custom
+  callback with HTTP 400/invalid-redirect; Apple's HTTPS auth callback requires
+  association with the Sony-owned domain. Automatic return is deferred, with no
+  change to the working external-browser flow. See docs/account-setup.md. The next
+  implementation milestone is local PS5 discovery/pairing, not browser tooling.
 
 
 **Goal:** Build a minimal standalone macOS app that connects a PS5 to OBS, delivering equally important game video and game audio together without a playback window, local sound, or intermediate media decoding/encoding.
