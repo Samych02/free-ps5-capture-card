@@ -1,4 +1,4 @@
-add_library(CaptureEngine SHARED src/Engine.cpp include/CaptureEngine.h)
+add_library(CaptureEngine SHARED src/Engine.cpp src/Pairing.cpp src/Discovery.cpp include/CaptureEngine.h)
 target_compile_features(CaptureEngine PRIVATE cxx_std_17)
 target_include_directories(CaptureEngine PUBLIC include)
 target_link_libraries(CaptureEngine PRIVATE chiaki-lib)

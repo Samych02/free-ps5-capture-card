@@ -157,3 +157,41 @@ screen recording was not copied into Git.
 - See `docs/account-setup.md` for the real sign-in/Keychain/relaunch gate. If Sony
   omits/rejects state or changes the API, stop and investigate rather than
   disabling validation. Synthetic replay feeds remain stopped as requested.
+
+## Local discovery and pairing implementation — Gate C pending
+
+- Added pinned-core registration/discovery adapters with copied values, owned
+  workers and joined teardown. Raw registration logging is disabled. Discovery
+  only recognizes explicit permission failures without forwarding raw log text;
+  an empty list is not reported as permission denial.
+- Added the native pairing sheet, numeric-IP fallback, leading-zero-preserving
+  eight-digit code validation, account/MAC/target checks, and one atomic Keychain
+  record for account plus optional console. Legacy account records migrate on
+  write. Failed/cancelled replacement, stale callbacks and denied saves preserve
+  the existing pairing. Forgetting account deletes console keys too.
+- Red evidence: `scripts/test.sh --native --filter pairing` initially failed all
+  four stubbed cases. Initial Swift pairing/model/store tests failed against
+  stubs, then native bridge conversion tests failed against empty conversions.
+  Additional red runs reproduced discovery permission suppression, missing key
+  payload acceptance, and shutdown returning while a native join was outstanding.
+- Final `scripts/test.sh --native --app`: 4/4 CTest targets and 41/41 XCTest cases
+  pass. Pairing adds 5 native test cases with multiple lifecycle/error modes and
+  16 app cases. Bootstrap 4/4 pass. Final Release build passes.
+- Debug/Release ad-hoc signature checks pass. A separate `build/native-asan`
+  configuration instruments C/C++ with `-fsanitize=address,undefined
+  -fno-omit-frame-pointer`, reuses the pinned fetched source via
+  `FETCHCONTENT_SOURCE_DIR_CHIAKI`, and builds `capture-pairing-tests`.
+  `ctest --test-dir build/native-asan -R '^capture-pairing$' --repeat
+  until-fail:10 --output-on-failure` passes all 10 runs. This covers injected
+  setup workers/copies, not real network registration, Swift, or all media code;
+  TSAN has not been run. No sanitizer finding was reported.
+- User-guide audit before/after reports no broken links in its managed scope,
+  but this app has no cookbook-managed guide tree (`docs/skills/README.md` is
+  absent). Pairing instructions and their README/account-guide links were checked
+  directly rather than adding an unrelated cookbook documentation tree.
+- No real console/network discovery, pairing PIN, or real Keychain data was used
+  by automated tests. Manual PS5 registration, quit/relaunch persistence, actual
+  permission behavior, and invalid/expired-code UX remain Gate C. See
+  `docs/pairing.md`. Live media and TV/controller/account behavior are not yet
+  tested; Start Capture remains disabled. Independent review is requested in
+  `docs/reviews/pairing.md`, not claimed completed.

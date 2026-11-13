@@ -1,7 +1,8 @@
 # PSN account setup — manual Gate B
 
-This build implements account identification only. Console discovery/pairing and
-live PS5 capture are not implemented yet. Synthetic transport tests are separate.
+This build implements account identification and local PS5 discovery/pairing.
+See [pairing your PS5](pairing.md) after signing in. Live PS5 capture is not
+implemented yet; synthetic transport tests are separate.
 
 ## Try the native flow
 
@@ -16,8 +17,9 @@ live PS5 capture are not implemented yet. Synthetic transport tests are separate
    identity and saves that identity in this app's local, non-synchronizing Keychain
    record. OAuth access/refresh tokens and the redirect URL are not persisted.
 5. Quit and reopen the app. The saved account should restore without contacting
-   Sony. **Forget Account…** removes this app's identity record after confirmation.
-   No console credentials exist in this milestone.
+   Sony. **Forget Account…** removes this app's identity and any paired PS5 keys
+   after confirmation. **Forget PS5…** removes the console keys but retains the
+   account identity. Account-only records migrate when the next write succeeds.
 
 macOS may require Keychain authorization for the development app. If access is
 denied or the item is unreadable, the app reports an error and does not silently

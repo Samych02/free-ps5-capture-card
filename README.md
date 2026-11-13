@@ -14,9 +14,11 @@ local port (default 9295). HDR passthrough and audio are required scope.
 
 The native engine framework and SwiftUI development shell build in Debug and
 Release. Tests cover the 118 upstream core cases, 3 engine-interface cases,
-25 app/account/adapter cases, and 4 bootstrap cases. PSN account setup is
-implemented for manual validation; console pairing and live PS5-to-OBS capture
-are not implemented yet. Start Capture is intentionally disabled.
+5 native pairing/discovery cases, 41 app/account/pairing/adapter cases, synthetic
+transport, and 4 bootstrap cases. PSN sign-in has worked on the user's setup.
+Local PS5 discovery, manual IP pairing, and Keychain recovery are implemented;
+real-console pairing still needs validation. Live PS5-to-OBS capture is not
+implemented yet. Start Capture is intentionally disabled.
 The installed Homebrew
 libraries require macOS 26; macOS-15 distribution is not yet supported/verified.
 See [the execution plan](docs/plans/free-ps5-capture-card.md) and
@@ -43,9 +45,9 @@ python3 -m unittest discover -s Tests/Bootstrap -v
 Build the app shell with `scripts/build.sh --config Debug`; its output is
 `build/xcode/Build/Products/Debug/FreePS5CaptureCard.app`. Run native and app tests
 with `scripts/test.sh --native --app`. Both commands print their underlying build
-commands. Test filters currently support the native `interface` suite and app
+commands. Test filters currently support native `interface` / `pairing` suites and app
 classes `AppModelTests`, `EngineClientTests`, `AuthTests`, `CredentialStoreTests`,
-and `AccountModelTests`; unknown filters are rejected.
+`AccountModelTests`, and `PairingTests`; unknown filters are rejected.
 Native filters `mux` and `tcp` run the new synthetic transport checks. The full
 native suite includes those integration tests automatically.
 
@@ -67,10 +69,11 @@ not yet a self-contained distributable bundle.
 ## PSN sign-in / account storage
 
 The native window now supports Sony browser sign-in followed by a masked final
-redirect-URL field. Only the derived pairing identity is saved in Keychain; OAuth
-tokens are transient. See [account setup and privacy instructions](docs/account-setup.md).
-Real Sony login/state compatibility and real Keychain persistence remain manual
-Gate B checks. Do not paste authorization URLs or credentials into chat.
+redirect-URL field. The derived account identity and paired PS5 registration keys
+are saved in Keychain; OAuth tokens are transient. See [account setup and privacy
+instructions](docs/account-setup.md) and [pairing your PS5](docs/pairing.md).
+The user confirmed manual sign-in; real PS5 pairing and quit/relaunch recovery
+remain Gate C checks. Do not paste authorization URLs, pairing codes, or keys into chat.
 
 Dependencies are fetched into ignored build directories, never into an existing
 Chiaki checkout. Bootstrap uses an isolated Python environment and never installs

@@ -3,6 +3,7 @@ import SwiftUI
 struct MainView: View {
     @ObservedObject var model: AppModel
     @ObservedObject var account: AccountModel
+    @ObservedObject var pairing: PairingModel
     var body: some View {
         ScrollView {
         VStack(alignment: .leading, spacing: 24) {
@@ -15,11 +16,11 @@ struct MainView: View {
                     Text("A direct connection to OBS.").foregroundStyle(.secondary)
                 }
             }
-            AccountConsoleView(model: account)
+            AccountConsoleView(model: account, pairing: pairing)
             GroupBox {
                 VStack(alignment: .leading, spacing: 14) {
                     LabeledContent("Engine", value: status)
-                    Text("Development build: console pairing and live PS5 audio/video capture are not implemented yet.")
+                    Text("Development build: live PS5 audio/video capture is not implemented yet.")
                         .font(.callout).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }.padding(8)

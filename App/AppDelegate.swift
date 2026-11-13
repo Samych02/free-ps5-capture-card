@@ -4,6 +4,7 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
     weak var model: AppModel?
     weak var account: AccountModel?
+    weak var pairing: PairingModel?
     private var terminating = false
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
@@ -12,6 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             terminating = true
             account?.cancel()
             Task { @MainActor in
+                await pairing?.shutdown()
                 await model.shutdown()
                 sender.reply(toApplicationShouldTerminate: true)
             }

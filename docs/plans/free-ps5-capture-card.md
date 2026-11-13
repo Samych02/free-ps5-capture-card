@@ -52,6 +52,18 @@ installing the required Homebrew dependencies.
   association with the Sony-owned domain. Automatic return is deferred, with no
   change to the working external-browser flow. See docs/account-setup.md. The next
   implementation milestone is local PS5 discovery/pairing, not browser tooling.
+- Task 4 implementation: owned native discovery/registration workers, immediate
+  credential/snapshot copies, nonblocking cancellation plus joined teardown,
+  Swift adapters, local discovery/manual-IP pairing sheet, account/MAC/target
+  validation, and atomic versioned account+console Keychain storage are added.
+  Existing account-only records migrate on a successful write; failed/cancelled
+  replacements preserve prior pairing. Capture remains disabled.
+- Task 4 automated gate passes: 4 CTest targets (including 5 new native setup
+  cases), 41 XCTest cases, and 4 bootstrap cases; Debug/Release builds pass.
+  A test-reproduced shutdown-vs-join race was fixed with tracked async cleanup.
+  Real PS5 pairing/relaunch, invalid code/manual-IP behavior, and actual macOS
+  permission/Keychain policy are pending Gate C. Do not begin live-session work
+  on the assumption that mocked registration establishes console compatibility.
 
 
 **Goal:** Build a minimal standalone macOS app that connects a PS5 to OBS, delivering equally important game video and game audio together without a playback window, local sound, or intermediate media decoding/encoding.

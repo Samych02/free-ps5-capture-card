@@ -14,14 +14,14 @@ while (($#)); do
     esac
 done
 if (( !NATIVE && !APP )); then echo "Select --native and/or --app" >&2; exit 2; fi
-case "$FILTER" in ""|interface|mux|tcp) ;; *) echo "Unknown native suite: $FILTER" >&2; exit 2 ;; esac
+case "$FILTER" in ""|interface|pairing|mux|tcp) ;; *) echo "Unknown native suite: $FILTER" >&2; exit 2 ;; esac
 if [[ -n $FILTER && $NATIVE != 1 ]]; then echo "--filter requires --native" >&2; exit 2; fi
 if [[ -n $ONLY && $APP != 1 ]]; then echo "--only requires --app" >&2; exit 2; fi
 cd "$ROOT"
 if ((NATIVE)); then
     "$ROOT/scripts/build-native.sh" --config Debug --tests
-    if [[ $FILTER == interface ]]; then
-        ctest --test-dir build/native --no-tests=error -R '^capture-interface$' --output-on-failure
+    if [[ $FILTER == interface || $FILTER == pairing ]]; then
+        ctest --test-dir build/native --no-tests=error -R "^capture-$FILTER$" --output-on-failure
     elif [[ $FILTER == mux || $FILTER == tcp ]]; then
         case_name=remux-equivalence
         if [[ $FILTER == tcp ]]; then case_name=tcp; fi
@@ -38,7 +38,7 @@ if ((APP)); then
     if [[ -n $ONLY ]]; then
         IFS=',' read -r -a classes <<< "$ONLY"
         for name in "${classes[@]}"; do
-            case "$name" in AppModelTests|EngineClientTests|AuthTests|CredentialStoreTests|AccountModelTests) ;; *) echo "Unknown app test class: $name" >&2; exit 2 ;; esac
+            case "$name" in AppModelTests|EngineClientTests|AuthTests|CredentialStoreTests|AccountModelTests|PairingTests) ;; *) echo "Unknown app test class: $name" >&2; exit 2 ;; esac
             args+=("-only-testing:FreePS5CaptureCardTests/$name")
         done
     fi
