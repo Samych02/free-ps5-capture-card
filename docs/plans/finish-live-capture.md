@@ -35,22 +35,38 @@ and the user confirmed relaunch recovery. Keep normal external-browser PSN login
   Native utility direction, system controls, codec order/default, bitrate and port
   tests; secure passcode retry/cancel; disabled setup until Stop acknowledgement.
   Manual visual/VoiceOver inspection and XCUITest remain unpassed gates below.
-- [ ] Task 10: bundle checks/developer packaging, CI, setup docs and explicit
+- [x] Task 10 implementation: bundle checks/developer packaging, CI, setup docs and explicit
   review handoff; final user tests remain clearly listed.
 
 ### Current verification and remaining acceptance
 
 - Latest ordinary native run: 10/10 CTest targets pass
-  (`build/final-native-app-rerun.log`).
+  (`build/verified-native.log`).
 - Fresh final ASan/UBSan: 10/10 targets; TSAN: 7/7 selected targets, including
-  receiver/transport (`build/final-asan-tests.log`, `build/final-tsan-tests.log`).
+  receiver/transport (`build/verified-asan.log`, `build/verified-tsan.log`).
 - Final direct Debug XCTest: 47/47; reproducible explicit unit-only runner
-  `scripts/test-app-unit-direct.sh`, log `build/direct-unit-script.log`.
+  `scripts/test-app-unit-direct.sh`, log `build/verified-app.log`.
 - Normal Xcode unit-host startup subsequently stalled in XCTest's IDE-session
   setup. Direct execution is not app-launch or UI acceptance. UI runner separately
   timed out enabling macOS automation. No permission/service changes were made.
-- Developer bundle implementation and recursive/signature validation exist;
-  final refreshed bundle is being assembled under `build/package-final`.
+- Final Release developer bundle: `build/package-handoff/Free PS5 Capture Card.app`.
+  Recursive checker passes 28 Mach-O files with 26 copied dylibs, no external
+  runtime references/rpaths, compatible arm64/minimum-OS metadata and signatures.
+  Full Chiaki/static-library and formula notices are included. Direct compiled
+  import checks find no codec-opening/decoding/encoding calls from the engine;
+  the Debug UI-test launch flag is absent from the Release executable.
+- Final inspection fixed missing process-wide core initialization before live
+  session setup and preserved explicit registration/identity error codes instead
+  of retrying them as generic connection failures. Red/green logs:
+  `build/core-init-{red,green}.log`, `build/auth-rejection-{red,green}.log`.
+  Eight-thread initialization and partial-initialization cleanup tests pass.
+  The current locked sink patch SHA-256 is
+  `177585e8b2281287730a2297775ece23595f363f8a6b35a0c8552e96c13cc125`.
+  Fresh sequential application reproduces all changed core files byte-for-byte
+  under `build/patch-verify-handoff`.
+- Checkpoint commits: `99095c1` live session/pipeline; `a6f0b68` recovery/native UI;
+  `271caa9` core initialization/identity failure fixes and loss/queue diagnostics;
+  packaging/docs/CI closeout follows on `main`. Nothing was pushed.
 - Real PS5/OBS testing, accurate sync/drift/HDR, 30-minute per-mode runs,
   controller/TV/offline/sleep behaviour, actual recovery/resource measurements,
   clean-machine launch and independent code/security/license review remain open.
@@ -124,10 +140,12 @@ and the user confirmed relaunch recovery. Keep normal external-browser PSN login
 - Normal IDE/UI harness failures remain visible. The named direct Debug XCTest
   runner uses a minimal environment and tests unit code only, never silently
   converting a failed UI/app-launch run into a pass.
+- Keep all remaining actual-device/clean-machine/review gates open, but hand off
+  the implemented developer build now for the user's explicitly deferred tests.
 
 ## Outcomes & Retrospective
 
-Implementation has reached the final verification/packaging checkpoint. Native
+Implementation reached the final verified developer-packaging checkpoint. Native
 session and receiver tests never contacted the user's console. User-deferred
 hands-on gates, blocked GUI automation and independent review remain separate
 from green unit/native/sanitizer evidence. No push, publishing, installation to

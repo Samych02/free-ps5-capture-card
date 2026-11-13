@@ -1,5 +1,98 @@
 # Validation evidence
 
+## Current continuation snapshot — 2026-11-13
+
+**Final handoff artifact:** `build/package-handoff/Free PS5 Capture Card.app`.
+The latest checks supersede older candidate paths/logs below:
+
+- `build/verified-native.log`: 10/10 native targets pass.
+- `build/verified-app.log`: direct Debug XCTest, 47/47 pass.
+- `build/verified-asan.log`: ASan/UBSan, 10/10 targets pass.
+- `build/verified-tsan.log`: TSAN, 7/7 selected targets pass.
+- `build/verified-package.log` and a fresh `check_bundle.py` invocation:
+  recursive closure/minimum-OS/architecture/signature checks pass, 28 Mach-O files.
+- Final code initializes process-wide FEC/cache state exactly once before live
+  setup, reports queue age and both loss/hole counts, wipes copied credentials on
+  Stop, and preserves explicit server registration rejection as a nonretryable
+  identity failure. Concurrent initialization and typed rejection tests pass.
+- Locked patch SHA-256 and fresh sequential application reproduce every tested
+  changed core file byte-for-byte in `build/patch-verify-handoff`.
+
+These are development checks, not real-device or independent review approval.
+
+Historical milestones below are a chronological log, not the current feature
+list. The live session and native UI are now implemented; they are not yet
+accepted on real PS5 media.
+
+- Real core ownership (init/sink/start/stop/join/fini), port-before-console,
+  transient login PINs, retries and both-track receiver/TCP output are wired.
+- `build/live-session-regression.log`: full native/app pass after session wiring.
+- `build/recovery-regression.log`: 10/10 native CTest targets pass, including
+  upstream core, receiver, clocks/queue, lifecycle, diagnostics and transport.
+  Recovery tests cover delayed audio config, missing audio, OBS reconnect,
+  cancellation in backoff, 100 raw-loopback reconnects, rejected second client,
+  cancellable accept/send and a nonreading client's bounded write. The 100-cycle
+  socket stress is not 100 decoded PS5 or full receiver-pipeline sessions.
+- `build/sanitize-live-tests.log`: fresh ASan+UBSan build, all 10 CTest targets
+  pass, including the receiver pipeline. No sanitizer failure was suppressed.
+- `build/ui-regression.log`: 45 app unit tests pass; **XCUITest did not run**:
+  runner initialization timed out enabling macOS automation. Do not count this
+  as a passing UI smoke or a product-test assertion failure. No system automation
+  permission/service was changed on the user's machine.
+- Release developer packaging passes recursive closure checks: **26 copied
+  non-system libraries, 28 Mach-O files**, arm64, no external runtime dependencies
+  or rpaths, compatible declared minimum OS and ad-hoc signatures. See
+  `build/package-release.log`. Current project targets explicitly reflect the
+  actual macOS 26 dependency floor; older macOS remains unsupported.
+- Locked patch digests and sequential application pass in a fresh isolated
+  checkout under `build/patch-verify-final`; the reference checkout is untouched.
+- Source-policy/entry-point suite: 6/6 pass. Codec-opening, decode/encode/device
+  calls are forbidden in app/native sources. Linked FFmpeg codec symbols alone
+  are neither proof of decoding nor independent call-boundary review.
+- Final native run: 10/10 pass in `build/final-native-app-rerun.log`. Subsequent
+  Xcode unit-host runs stalled before tests while XCTest awaited its IDE session;
+  sampled stacks show `_prepareTestConfigurationAndIDESession`, with the capture
+  worker idle. The explicit direct Debug XCTest invocation passes **47/47** in
+  `build/direct-unit.log`, including new exact mode/bitrate/port/persistence cases.
+  This is not app-launch/UI acceptance. A named unit-only alternative script
+  documents the distinct path instead of hiding the normal harness failure.
+- Final refreshed native sanitizer matrix passes in `build/final-asan-tests.log`
+  (10/10) and `build/final-tsan-tests.log` (7/7). The explicit direct unit script
+  builds and passes 47/47 in `build/direct-unit-script.log`.
+- Final Release package is `build/package-final/Free PS5 Capture Card.app`;
+  `check_bundle.py` passes again after adding full embedded Chiaki/gf-complete/
+  Jerasure/nanopb notices. Release contains no Debug UI-test launch flag, and
+  `nm -u` on CaptureEngine finds no direct codec-opening/decoding/encoding imports.
+  The CI workflow is configured but has not been run remotely.
+- One parallel cold native/TSAN run exceeded a pre-existing 3-second test-tool
+  startup timeout for invalid port input. Direct rechecks exit correctly in
+  0.03–0.08 seconds; sequential native and TSAN reruns pass. No production timeout
+  was raised to hide the failure.
+
+### Still required before release/acceptance
+
+- Actual PS5 → OBS smoke for H264, H265 default and H265 HDR, with picture and
+  source-mixer activity for audio arrival. Do not repeat already-confirmed basic
+  pairing/relaunch or synthetic-OBS feasibility merely as a development gate.
+- Real encoded cadence/reorder/Opus behaviour; timing measurements near minute 1
+  and minute 30 for each mode: residual A/V mismatch ≤40 ms, drift ≤20 ms.
+  Measure any fixed correction rather than assuming arrival-offset calibration
+  establishes phase. Current UI has no A/V correction control.
+- Genuine HDR source/output bit depth, range, PQ/BT.2020 and signalled static
+  metadata; calibrated/visual output checks. No hidden fallback or app tone map.
+- Real high-bitrate/720p/1080p/30/60 behaviour, consumer/network recovery latency,
+  RSS/CPU trends and OBS drops. Targets remain ≤10 s consumer recovery and ≤20 s
+  source recovery after network return, not guarantees under arbitrary delays.
+- PS5 login prompts, controller/TV/account behaviour, saved-key operation without
+  fresh OAuth/Internet, macOS sleep/wake and real permission-denial scenarios.
+- Manual accessible/light/dark/keyboard UI inspection, window reopen/quit and
+  working XCUITest automation environment.
+- Packaged clean-account/machine launch without developer paths; real onboarding
+  and permissions. Recursive static closure checks do not establish this.
+- Independent code/security/license review, actual FFmpeg configuration and all
+  transitive notice/source obligations. Nothing is published, installed into
+  Applications, notarized or enabled at login by this work.
+
 ## Baseline setup
 
 - Architecture: arm64.

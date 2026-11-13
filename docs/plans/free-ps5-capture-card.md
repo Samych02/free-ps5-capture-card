@@ -2,6 +2,14 @@
 
 ## Execution status
 
+Latest continuation: Tasks 6–10 are implemented through the native live session,
+recovery/UI, recursive developer packaging and CI configuration. See
+[`finish-live-capture.md`](finish-live-capture.md) for current checkpoint commits
+and [`../validation.md`](../validation.md) for fresh evidence. Real PS5/OBS media,
+sync/HDR/soak, GUI automation, clean-machine launch and independent review remain
+open acceptance gates. Historical task/gate text below remains the design
+contract; user instruction deferred hands-on checks until final handoff.
+
 This repository copy is the active execution artifact. The text describing Plan
 mode and an empty repository below records the review-time state, not current
 restrictions. The user approved starting implementation and explicitly approved

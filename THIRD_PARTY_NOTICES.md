@@ -27,13 +27,18 @@ claimed. A regression fixes the core's failed-video-frame loss count across a
 16-bit frame-index wrap. H264/HEVC header and slice bytes used in
 `Tests/Native/MediaSinkTests.cpp` come from the pinned upstream `test/bitstream.c`
 under the same AGPL/exception terms. This work does not add a media decoder.
+The patch also bounds core frame/header allocation and preserves explicit server
+account/registration rejection codes as typed nonretryable identity failures.
 
 ## Build/runtime dependencies
 
 FFmpeg, OpenSSL, curl, nanopb, MUnit, gf-complete/Jerasure, json-c, miniupnpc,
 libevent, protobuf and build tools retain their respective licenses. No binaries
-are distributed at this stage. Before bundling or redistribution, enumerate the
-actual linked libraries and FFmpeg build options and include their full notices.
+are published at this stage. Local developer bundles enumerate recursive linked
+libraries in `Contents/Resources/RuntimeNotices/runtime-manifest.json` and include
+top-level formula license texts/build recipes alongside this project's notices.
+Independent license compatibility and source-obligation review is still required
+before redistribution; actual Homebrew FFmpeg options matter.
 
 New project code is licensed under AGPL-3.0-only. This notice is not a claim that
 an arbitrary third-party binary configuration has passed redistribution review.

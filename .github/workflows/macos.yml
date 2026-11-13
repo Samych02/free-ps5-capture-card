@@ -1,0 +1,27 @@
+name: macOS capture checks
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  synthetic:
+    runs-on: macos-26
+    timeout-minutes: 40
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bootstrap isolated build dependencies
+        run: scripts/bootstrap.sh
+      - name: Build and test without PSN or a console
+        run: scripts/test.sh --native --app
+      - name: Policy and entry-point tests
+        run: python3 -m unittest discover -s Tests/Bootstrap -v
+      - name: Enable UI automation on disposable runner
+        run: sudo DevToolsSecurity -enable
+      - name: Credential-free UI smoke
+        run: scripts/test.sh --ui
+      - name: Assemble and verify developer bundle
+        run: scripts/package-dev-app.sh --config Release --output build/package
