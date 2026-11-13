@@ -2,7 +2,7 @@ import Foundation
 import Darwin
 
 enum PairingError: Error, Equatable, LocalizedError {
-    case address, pin, failed, cancelled, storage, identity, permission
+    case address, pin, failed, cancelled, storage, identity, permission, pairingChanged
     var errorDescription: String? {
         switch self {
         case .address: return "Enter the PS5’s IP address, without a URL or port."
@@ -11,6 +11,7 @@ enum PairingError: Error, Equatable, LocalizedError {
         case .cancelled: return "Pairing cancelled."
         case .storage: return "Could not save PS5 credentials in Keychain. The previous pairing was kept."
         case .identity: return "The returned PS5 identity does not match this pairing request. No credentials were saved."
+        case .pairingChanged: return "The saved PS5 or account changed, or pairing is in progress. Close Change IP and try again after pairing finishes."
         case .permission: return "Local network access was denied. Allow this app in System Settings → Privacy & Security → Local Network. You can also try the PS5’s IP address."
         }
     }
@@ -46,7 +47,7 @@ struct PairingRequest {
         return text.lowercased()
     }
 }
-struct PairedConsole: Codable, Equatable {
+struct PairedConsole: Codable, Equatable, Identifiable {
     let accountID: Data
     let address: String
     let mac: Data
@@ -56,6 +57,10 @@ struct PairedConsole: Codable, Equatable {
     let sessionKey: Data
     let keyType: UInt32
     var id: String { mac.map { String(format: "%02x", $0) }.joined() }
+    func replacingAddress(_ text: String) throws -> PairedConsole {
+        PairedConsole(accountID: accountID, address: try PairingRequest.validAddress(text), mac: mac,
+                      name: name, target: target, registrationKey: registrationKey, sessionKey: sessionKey, keyType: keyType)
+    }
     func validate(for account: Account) throws {
         guard accountID == account.accountID, mac.count == 6, mac.contains(where: { $0 != 0 }),
               registrationKey.count == 16, sessionKey.count == 16, target == 1000100,

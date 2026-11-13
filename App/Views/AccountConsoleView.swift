@@ -4,12 +4,14 @@ import AppKit
 struct AccountConsoleView: View {
     @ObservedObject var model: AccountModel
     @ObservedObject var pairing: PairingModel
+    @ObservedObject var capture: AppModel
     @State private var redirect = ""
     @State private var request: Task<Void, Never>?
     @State private var confirmForget = false
     @State private var browserError: String?
     @State private var showPairing = false
     @State private var confirmForgetConsole = false
+    @State private var addressToEdit: PairedConsole?
 
     var body: some View {
         GroupBox {
@@ -60,6 +62,10 @@ struct AccountConsoleView: View {
                     Button(pairing.paired == nil ? "Pair PS5…" : "Replace Pairing…") { showPairing = true }
                         .disabled(model.account == nil || model.awaitingRedirect || model.busy)
                     if pairing.paired != nil {
+                        Button("Change IP…") {
+                            guard !capture.active, !pairing.busy else { return }
+                            addressToEdit = pairing.paired
+                        }.disabled(model.awaitingRedirect || model.busy || pairing.busy || capture.active)
                         Button("Forget PS5…", role: .destructive) { confirmForgetConsole = true }
                     }
                 }
@@ -69,6 +75,9 @@ struct AccountConsoleView: View {
             }.padding(8)
         }
         .sheet(isPresented: $showPairing) { PairingSheet(model: pairing) }
+        .sheet(item: $addressToEdit) { console in
+            ChangeAddressSheet(pairing: pairing, capture: capture, console: console)
+        }
         .onChange(of: model.account) { _, account in pairing.setAccount(account) }
         .confirmationDialog("Forget the paired PS5?", isPresented: $confirmForgetConsole) {
             Button("Forget PS5", role: .destructive) { pairing.forget() }

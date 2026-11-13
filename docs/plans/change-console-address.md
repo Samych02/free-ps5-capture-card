@@ -64,6 +64,17 @@ the sheet; connectivity is verified only on the next capture attempt.
 ## Progress
 
 - [x] Existing store/view/model inspected; user-approved manual-only scope.
-- [ ] Red/green model/store tests.
-- [ ] Native sheet and stopped-state submission guard.
-- [ ] Regression checks, updated developer package and checkpoint commit.
+- [x] Red/green model/store tests (`build/change-ip-red.log`,
+  `build/change-ip-green.log`). Added deletion-during-save regression
+  (`build/change-ip-no-upsert-red.log`): address edits use update-only writes,
+  never the generic record upsert path.
+- [x] Native sheet and stopped-state submission guard.
+- [x] Regression checks: 56/56 app tests (`build/change-ip-app.log`), 10/10 native
+  targets (`build/change-ip-native.log`), and recursive/signature checks on the
+  new Release bundle (`build/change-ip-package.log`).
+- [x] Updated developer package:
+  `build/package-address-update/Free PS5 Capture Card.app`.
+- [x] Final diff/documentation review; implementation checkpoint on `main`.
+
+Manual GUI interaction/VoiceOver and real-device capture remain unverified.
+The feature tests use isolated fake Keychain data and never contact a PS5.

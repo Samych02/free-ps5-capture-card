@@ -1,7 +1,8 @@
-# Pair your PS5 — manual Gate C
+# Pair your PS5
 
-The app now discovers and pairs a local PS5 independently of Chiaki settings.
-Live capture is the next milestone; **Start Capture remains disabled**.
+The app discovers and pairs a local PS5 independently of Chiaki settings.
+Live capture is implemented; actual-device acceptance is tracked separately in
+[validation](validation.md).
 
 ## Before you start
 
@@ -29,6 +30,20 @@ Live capture is the next milestone; **Start Capture remains disabled**.
 
 Pairing success means the registration response passed validation and its keys
 were saved to Keychain. It does not yet prove a live Remote Play session works.
+
+## If the PS5's IP changes
+
+You do **not** need to pair again just because its IP changed.
+
+1. Stop capture, then choose **Change IP…** beside the paired PS5.
+2. Enter the new numeric IP address of the same PS5 and click **Save IP**.
+3. Start Capture again. No Link Device code or fresh PSN login is needed.
+
+Only the address changes; account identity, console identity and pairing keys
+remain intact. Cancel, invalid input or a failed Keychain update leaves the old
+address unchanged. A stale dialog cannot replace a newer saved pairing. Save IP
+does not test connectivity: the next capture attempt checks the console.
+For a different PS5 or invalidated registration keys, use **Replace Pairing…**.
 
 ## Failure and replacement checks
 

@@ -21,6 +21,9 @@
   An occupied port is an error; the app never silently picks another.
 - Start Capture opens no preview or speakers. Received dimensions, cadence and
   both packet counters appear after headers arrive.
+- If the same PS5 gets a new IP, stop capture and choose **Change IP…**. Enter
+  the new address and save; existing keys are retained, with no re-pairing or
+  new sign-in. Connectivity is checked when capture next starts.
 
 ## OBS Media Source
 

@@ -14,6 +14,27 @@ final class FakeEngine: EngineControlling {
 }
 
 final class AppModelTests: XCTestCase {
+    @MainActor func testAddressCanOnlyChangeAfterCaptureStops() throws {
+        let account = try Account(decimalID: "42")
+        let original = PairedConsole(accountID: account.accountID, address: "192.168.1.20", mac: Data(repeating: 1, count: 6), name: "PS5",
+                                     target: 1000100, registrationKey: Data(repeating: 2, count: 16), sessionKey: Data(repeating: 3, count: 16), keyType: 0)
+        let access = FakeKeychainAccess(), engine = FakeEngine()
+        let store = KeychainCredentialStore(access: access)
+        try store.saveAccount(account); try store.savePairing(original)
+        let pairing = PairingModel(service: FakeConsoleService(), store: store); pairing.setAccount(account)
+        engine.available = true
+        let model = AppModel(engine: engine)
+        model.requestStart(account: account, console: original)
+        let writes = access.writeAttempts
+        XCTAssertFalse(model.updateConsoleAddress("192.168.1.35", expected: original, pairing: pairing))
+        XCTAssertEqual(access.writeAttempts, writes); XCTAssertEqual(pairing.paired, original)
+        XCTAssertEqual(model.state, .connecting)
+        model.stop()
+        XCTAssertTrue(model.updateConsoleAddress("192.168.1.35", expected: original, pairing: pairing))
+        XCTAssertEqual(pairing.paired?.address, "192.168.1.35")
+        XCTAssertEqual(pairing.paired?.registrationKey, original.registrationKey)
+        XCTAssertEqual(engine.starts, 1)
+    }
     @MainActor func testCaptureLocksSetupUntilStopAcknowledgement() throws {
         let engine = FakeEngine(); engine.available = true
         let model = AppModel(engine: engine)

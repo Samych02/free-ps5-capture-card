@@ -1,5 +1,24 @@
 # Validation evidence
 
+## Address-update follow-up
+
+The latest developer bundle is
+`build/package-address-update/Free PS5 Capture Card.app`. It adds stopped-only
+**Change IP…**, preserving existing account/console identity and all keys without
+discovery, registration or a new login. Save does not claim network connectivity.
+
+- Missing update behaviour failed first in `build/change-ip-red.log`.
+- Deletion-during-save exposed record resurrection through generic upsert;
+  the narrow update-only path fixes it (`build/change-ip-no-upsert-red.log`).
+- `build/change-ip-app.log`: 56/56 app unit tests pass, including preservation,
+  relaunch, IPv4/IPv6 validation, denied writes, stale/forgotten/replaced records,
+  busy pairing and active-capture guards.
+- `build/change-ip-native.log`: 10/10 native targets pass (native code unchanged).
+- `build/change-ip-package.log` and fresh bundle checker: Release build,
+  28-file recursive runtime closure, minimum OS, architecture and signatures pass.
+- GUI automation and the existing real-media/clean-machine/independent-review
+  gates below remain open; no actual user Keychain or console was used by tests.
+
 ## Current continuation snapshot — 2026-11-13
 
 **Final handoff artifact:** `build/package-handoff/Free PS5 Capture Card.app`.

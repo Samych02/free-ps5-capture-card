@@ -6,13 +6,19 @@ import Security
 final class FakeKeychainAccess: KeychainAccess {
     var data: Data?
     var denied = false
+    var denyUpdates = false
+    var removeOnNextUpdate = false
+    var writeAttempts = 0
     func read() -> (OSStatus, Data?) { denied ? (errSecInteractionNotAllowed, nil) : (data == nil ? errSecItemNotFound : errSecSuccess, data) }
     func update(_ value: Data) -> OSStatus {
-        if denied { return errSecInteractionNotAllowed }
+        writeAttempts += 1
+        if denied || denyUpdates { return errSecInteractionNotAllowed }
+        if removeOnNextUpdate { removeOnNextUpdate = false; data = nil; return errSecItemNotFound }
         if data == nil { return errSecItemNotFound }
         data = value; return errSecSuccess
     }
     func add(_ value: Data) -> OSStatus {
+        writeAttempts += 1
         if denied { return errSecInteractionNotAllowed }
         data = value; return errSecSuccess
     }

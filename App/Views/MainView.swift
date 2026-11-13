@@ -16,7 +16,7 @@ struct MainView: View {
                         Text("Compressed audio and video. Straight to OBS.").foregroundStyle(.secondary)
                     }
                 }
-                AccountConsoleView(model: account, pairing: pairing)
+                AccountConsoleView(model: account, pairing: pairing, capture: model)
                     .disabled(model.active)
                     .help(model.active ? "Stop capture before changing or forgetting credentials." : "Configure your PSN identity and PS5.")
                 GroupBox("Stream options") {

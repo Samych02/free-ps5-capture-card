@@ -67,6 +67,107 @@ final class PairingTests: XCTestCase {
                       name: "PS5", target: 1000100, registrationKey: Data(repeating: 2, count: 16),
                       sessionKey: Data(repeating: 3, count: 16), keyType: 1)
     }
+    @MainActor func testAddressChangePreservesAllPairingFieldsAndRestores() throws {
+        let account = try Account(decimalID: "42"), original = console(account)
+        let store = KeychainCredentialStore(access: FakeKeychainAccess())
+        try store.saveAccount(account); try store.savePairing(original)
+        let service = FakeConsoleService(), model = PairingModel(service: FakeConsoleService(), store: store)
+        let subject = PairingModel(service: service, store: store); subject.setAccount(account)
+        XCTAssertTrue(subject.updateAddress(" 192.168.1.35\n", expected: original))
+        let expected = console(account, address: "192.168.1.35")
+        XCTAssertEqual(subject.paired, expected)
+        XCTAssertEqual(try store.loadPairing(), expected)
+        XCTAssertEqual(try store.loadAccount(), account)
+        XCTAssertTrue(service.requests.isEmpty)
+        model.setAccount(account); XCTAssertEqual(model.paired, expected)
+    }
+    @MainActor func testAddressChangeAcceptsNormalizedIPv6() throws {
+        let account = try Account(decimalID: "42"), original = console(account)
+        let store = KeychainCredentialStore(access: FakeKeychainAccess())
+        try store.saveAccount(account); try store.savePairing(original)
+        let model = PairingModel(service: FakeConsoleService(), store: store); model.setAccount(account)
+        XCTAssertTrue(model.updateAddress(" 2001:DB8::12\n", expected: original))
+        XCTAssertEqual(model.paired, console(account, address: "2001:db8::12"))
+    }
+    @MainActor func testInvalidAddressChangeNeverWritesOrLosesKeys() throws {
+        let account = try Account(decimalID: "42"), original = console(account)
+        let access = FakeKeychainAccess(), service = FakeConsoleService()
+        let store = KeychainCredentialStore(access: access)
+        try store.saveAccount(account); try store.savePairing(original)
+        let model = PairingModel(service: service, store: store); model.setAccount(account)
+        let writes = access.writeAttempts
+        for text in ["", "localhost", "http://192.168.1.35", "192.168.1.35:9295", "127.0.0.1", "::1", "192.168.1.35\0"] {
+            XCTAssertFalse(model.updateAddress(text, expected: original))
+            XCTAssertNotNil(model.message)
+            XCTAssertEqual(model.paired, original)
+        }
+        XCTAssertEqual(access.writeAttempts, writes)
+        XCTAssertEqual(try store.loadPairing(), original)
+        XCTAssertTrue(service.requests.isEmpty)
+    }
+    @MainActor func testAddressSaveFailureRetainsOldRecordAndModel() throws {
+        let account = try Account(decimalID: "42"), original = console(account)
+        let access = FakeKeychainAccess()
+        let subjectStore = KeychainCredentialStore(access: access)
+        try subjectStore.saveAccount(account); try subjectStore.savePairing(original)
+        let model = PairingModel(service: FakeConsoleService(), store: subjectStore); model.setAccount(account)
+        let data = access.data, writes = access.writeAttempts
+        access.denyUpdates = true
+        XCTAssertFalse(model.updateAddress("192.168.1.35", expected: original))
+        XCTAssertEqual(access.writeAttempts, writes + 1)
+        XCTAssertEqual(model.paired, original); XCTAssertEqual(access.data, data)
+        XCTAssertNotNil(model.message)
+    }
+    @MainActor func testAddressEditNeverRecreatesDeletedKeychainItem() throws {
+        let account = try Account(decimalID: "42"), original = console(account)
+        let access = FakeKeychainAccess(), service = FakeConsoleService()
+        let store = KeychainCredentialStore(access: access)
+        try store.saveAccount(account); try store.savePairing(original)
+        let model = PairingModel(service: service, store: store); model.setAccount(account)
+        let writes = access.writeAttempts
+        access.removeOnNextUpdate = true
+        XCTAssertFalse(model.updateAddress("192.168.1.35", expected: original))
+        XCTAssertEqual(access.writeAttempts, writes + 1)
+        XCTAssertNil(access.data)
+        XCTAssertEqual(model.paired, original)
+    }
+    @MainActor func testStaleAddressSheetCannotRestoreForgottenOrReplacedPairing() throws {
+        let account = try Account(decimalID: "42"), original = console(account)
+        let access = FakeKeychainAccess()
+        let subjectStore = KeychainCredentialStore(access: access)
+        try subjectStore.saveAccount(account); try subjectStore.savePairing(original)
+        let model = PairingModel(service: FakeConsoleService(), store: subjectStore); model.setAccount(account)
+        try subjectStore.forgetPairing()
+        var writes = access.writeAttempts
+        XCTAssertFalse(model.updateAddress("192.168.1.35", expected: original))
+        XCTAssertEqual(access.writeAttempts, writes); XCTAssertNil(try subjectStore.loadPairing())
+        let replacement = console(account, address: "192.168.1.99")
+        try subjectStore.savePairing(replacement); writes = access.writeAttempts
+        XCTAssertFalse(model.updateAddress("192.168.1.35", expected: original))
+        XCTAssertEqual(access.writeAttempts, writes); XCTAssertEqual(try subjectStore.loadPairing(), replacement)
+    }
+    @MainActor func testChangedAccountRejectsOldAddressSheet() throws {
+        let account = try Account(decimalID: "42"), original = console(account)
+        let store = KeychainCredentialStore(access: FakeKeychainAccess())
+        try store.saveAccount(account); try store.savePairing(original)
+        let model = PairingModel(service: FakeConsoleService(), store: store); model.setAccount(account)
+        let other = try Account(decimalID: "43"); try store.saveAccount(other); model.setAccount(other)
+        XCTAssertFalse(model.updateAddress("192.168.1.35", expected: original))
+        XCTAssertNil(model.paired); XCTAssertNil(try store.loadPairing()); XCTAssertEqual(try store.loadAccount(), other)
+    }
+    @MainActor func testAddressChangeIsRejectedWhilePairing() async throws {
+        let account = try Account(decimalID: "42"), original = console(account)
+        let store = KeychainCredentialStore(access: FakeKeychainAccess())
+        try store.saveAccount(account); try store.savePairing(original)
+        let service = FakeConsoleService()
+        let subject = PairingModel(service: service, store: store); subject.setAccount(account)
+        let task = Task { await subject.pair(address: "192.168.1.99", pin: "01234567") }
+        await Task.yield(); XCTAssertTrue(subject.busy)
+        XCTAssertFalse(subject.updateAddress("192.168.1.35", expected: original))
+        XCTAssertEqual(try store.loadPairing(), original)
+        subject.cancel(); service.pending?.resume(throwing: PairingError.cancelled); service.pending = nil
+        await task.value
+    }
     func testEightDigitPairingCodePreservesLeadingZero() throws {
         let account = try Account(decimalID: "42")
         XCTAssertEqual(try PairingRequest(address: "192.168.1.20", pin: "01234567", account: account).pin, "01234567")

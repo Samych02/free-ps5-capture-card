@@ -36,6 +36,10 @@ final class AppModel: ObservableObject {
         active = true; state = .connecting
     }
     func submitPIN(_ value: String) -> Bool { engine.submitPIN(value) }
+    func updateConsoleAddress(_ address: String, expected: PairedConsole, pairing: PairingModel) -> Bool {
+        guard !active else { return false }
+        return pairing.updateAddress(address, expected: expected)
+    }
     var obsURL: String { "tcp://127.0.0.1:\(options.port)" }
     func stop() { engine.stop() }
     func shutdown() async {

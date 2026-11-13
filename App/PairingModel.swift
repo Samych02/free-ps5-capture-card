@@ -59,6 +59,21 @@ import Foundation
     func cancel() {
         generation = UUID(); discoveryGeneration = UUID(); service.cancelPairing(); busy = false; message = nil
     }
+    func updateAddress(_ address: String, expected: PairedConsole) -> Bool {
+        message = nil
+        guard !busy, let account, paired == expected else {
+            message = PairingError.pairingChanged.localizedDescription; return false
+        }
+        do {
+            try expected.validate(for: account)
+            let updated = try store.updatePairingAddress(address, expected: expected)
+            paired = updated
+            return true
+        } catch {
+            message = ((error as? PairingError) ?? .storage).localizedDescription
+            return false
+        }
+    }
     func forget() {
         cancel()
         do { try store.forgetPairing(); paired = nil } catch { message = PairingError.storage.localizedDescription }

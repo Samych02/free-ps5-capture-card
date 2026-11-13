@@ -8,6 +8,7 @@ protocol CredentialStore {
     func forgetAccount() throws
     func loadPairing() throws -> PairedConsole?
     func savePairing(_ console: PairedConsole) throws
+    func updatePairingAddress(_ address: String, expected: PairedConsole) throws -> PairedConsole
     func forgetPairing() throws
 }
 
@@ -54,6 +55,19 @@ final class KeychainCredentialStore: CredentialStore {
         guard var record = try load() else { return }
         record.console = nil
         try save(record)
+    }
+    func updatePairingAddress(_ address: String, expected: PairedConsole) throws -> PairedConsole {
+        guard var record = try load(), record.console == expected else { throw PairingError.pairingChanged }
+        let updated = try expected.replacingAddress(address)
+        try updated.validate(for: record.account)
+        if updated != expected {
+            record.console = updated
+            let data = try JSONEncoder().encode(record)
+            // Updating an address must never create a pairing/account record.
+            // If another process deleted the item after our read, fail closed.
+            guard access.update(data) == errSecSuccess else { throw AuthError.storage }
+        }
+        return updated
     }
     func saveAccount(_ account: Account) throws {
         let old = try load()
