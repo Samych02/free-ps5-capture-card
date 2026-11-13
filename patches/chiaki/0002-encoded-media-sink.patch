@@ -1,0 +1,587 @@
+diff --git a/lib/CMakeLists.txt b/lib/CMakeLists.txt
+index ba0a79bd..48896ccc 100644
+--- a/lib/CMakeLists.txt
++++ b/lib/CMakeLists.txt
+@@ -1,5 +1,6 @@
+ 
+ set(HEADER_FILES
++		include/chiaki/encodedmedia.h
+ 		include/chiaki/session.h
+ 		include/chiaki/common.h
+ 		include/chiaki/sock.h
+diff --git a/lib/include/chiaki/audioreceiver.h b/lib/include/chiaki/audioreceiver.h
+index 7dbb8752..381a2fcb 100644
+--- a/lib/include/chiaki/audioreceiver.h
++++ b/lib/include/chiaki/audioreceiver.h
+@@ -9,6 +9,7 @@
+ #include "takion.h"
+ #include "thread.h"
+ #include "packetstats.h"
++#include "encodedmedia.h"
+ 
+ #ifdef __cplusplus
+ extern "C" {
+@@ -38,9 +39,12 @@ typedef struct chiaki_audio_receiver_t
+ 	bool playback_started;
+ 	bool frame_index_startup; // whether frame_index_prev has definitely not wrapped yet
+ 	ChiakiPacketStats *packet_stats;
++	ChiakiEncodedAudioConfig encoded_config;
+ 	struct {
+ 		bool occupied;
+ 		ChiakiSeqNum16 frame_index;
++		uint64_t first_receipt_us;
++		uint32_t encoded_flags;
+ 		uint8_t *buf;
+ 		size_t buf_size;
+ 	} jitter_buffer[8];
+diff --git a/lib/include/chiaki/session.h b/lib/include/chiaki/session.h
+index e90ecea4..4e2a04eb 100644
+--- a/lib/include/chiaki/session.h
++++ b/lib/include/chiaki/session.h
+@@ -17,6 +17,7 @@
+ #include "remote/holepunch.h"
+ #include "remote/rudp.h"
+ #include "regist.h"
++#include "encodedmedia.h"
+ 
+ #include <stdint.h>
+ 
+@@ -250,6 +251,9 @@ typedef struct chiaki_session_t
+ 	void *video_sample_cb_user;
+ 	ChiakiAudioSink audio_sink;
+ 	ChiakiAudioSink haptics_sink;
++	ChiakiEncodedMediaSink encoded_sink;
++	bool encoded_sink_enabled;
++	bool media_started;
+ 	ChiakiCtrlDisplaySink display_sink;
+ 
+ 	ChiakiThread session_thread;
+@@ -283,6 +287,9 @@ typedef struct chiaki_session_t
+ CHIAKI_EXPORT ChiakiErrorCode chiaki_session_init(ChiakiSession *session, ChiakiConnectInfo *connect_info, ChiakiLog *log);
+ CHIAKI_EXPORT void chiaki_session_fini(ChiakiSession *session);
+ CHIAKI_EXPORT ChiakiErrorCode chiaki_session_start(ChiakiSession *session);
++/* Only before first start. Caller serializes setup/start/fini. Sink copied;
++ * user context must outlive session join. Legacy setters retain their API. */
++CHIAKI_EXPORT ChiakiErrorCode chiaki_session_set_encoded_media_sink(ChiakiSession *session, const ChiakiEncodedMediaSink *sink);
+ CHIAKI_EXPORT ChiakiErrorCode chiaki_session_stop(ChiakiSession *session);
+ CHIAKI_EXPORT ChiakiErrorCode chiaki_session_join(ChiakiSession *session);
+ 
+diff --git a/lib/include/chiaki/streamconnection.h b/lib/include/chiaki/streamconnection.h
+index 56ec7b61..63ad46cf 100644
+--- a/lib/include/chiaki/streamconnection.h
++++ b/lib/include/chiaki/streamconnection.h
+@@ -69,6 +69,9 @@ typedef struct chiaki_stream_connection_t
+ 	 * protects state, state_finished, state_failed and should_stop
+ 	 */
+ 	ChiakiMutex state_mutex;
++	/* Serializes IDR sends against transport close, never held during join. */
++	ChiakiMutex idr_mutex;
++	bool idr_transport_active;
+ 
+ 	int state;
+ 	bool state_finished;
+diff --git a/lib/include/chiaki/videoreceiver.h b/lib/include/chiaki/videoreceiver.h
+index 64623114..fb2894ad 100644
+--- a/lib/include/chiaki/videoreceiver.h
++++ b/lib/include/chiaki/videoreceiver.h
+@@ -38,6 +38,8 @@ typedef struct chiaki_video_receiver_t
+ 	ChiakiMutex waiting_for_idr_mutex;
+ 	bool waiting_for_idr;
+ 	uint64_t idr_request_last_ms; // when the IDR being waited for was last requested
++	uint64_t encoded_generation;
++	uint64_t first_receipt_us;
+ 	ChiakiMutex frames_lost_mutex;
+ } ChiakiVideoReceiver;
+ 
+diff --git a/lib/src/audioreceiver.c b/lib/src/audioreceiver.c
+index af919103..5944b44a 100644
+--- a/lib/src/audioreceiver.c
++++ b/lib/src/audioreceiver.c
+@@ -2,6 +2,7 @@
+ 
+ #include <chiaki/audioreceiver.h>
+ #include <chiaki/session.h>
++#include <chiaki/time.h>
+ 
+ #include <stdlib.h>
+ #include <string.h>
+@@ -9,9 +10,9 @@
+ #define CHIAKI_AUDIO_JITTER_PREFILL 3
+ #define CHIAKI_AUDIO_JITTER_BUFFER_SIZE 8
+ 
+-static void chiaki_audio_receiver_frame(ChiakiAudioReceiver *audio_receiver, ChiakiSeqNum16 frame_index, bool is_haptics, uint8_t *buf, size_t buf_size);
++static void chiaki_audio_receiver_frame(ChiakiAudioReceiver *audio_receiver, ChiakiSeqNum16 frame_index, bool is_haptics, uint8_t *buf, size_t buf_size, uint64_t received_us, uint32_t encoded_flags);
+ static void chiaki_audio_receiver_clear_jitter_buffer(ChiakiAudioReceiver *audio_receiver);
+-static bool chiaki_audio_receiver_store_audio_frame_locked(ChiakiAudioReceiver *audio_receiver, ChiakiSeqNum16 frame_index, const uint8_t *buf, size_t buf_size);
++static bool chiaki_audio_receiver_store_audio_frame_locked(ChiakiAudioReceiver *audio_receiver, ChiakiSeqNum16 frame_index, const uint8_t *buf, size_t buf_size, uint64_t received_us, uint32_t encoded_flags);
+ static int chiaki_audio_receiver_find_audio_slot(const ChiakiAudioReceiver *audio_receiver, ChiakiSeqNum16 frame_index);
+ static int chiaki_audio_receiver_find_oldest_audio_slot(const ChiakiAudioReceiver *audio_receiver);
+ static int chiaki_audio_receiver_find_newest_audio_slot(const ChiakiAudioReceiver *audio_receiver);
+@@ -28,6 +29,7 @@ CHIAKI_EXPORT ChiakiErrorCode chiaki_audio_receiver_init(ChiakiAudioReceiver *au
+ 	audio_receiver->playback_started = false;
+ 	audio_receiver->frame_index_startup = true;
+ 	audio_receiver->jitter_buffer_count = 0;
++	memset(&audio_receiver->encoded_config, 0, sizeof(audio_receiver->encoded_config));
+ 	memset(audio_receiver->jitter_buffer, 0, sizeof(audio_receiver->jitter_buffer));
+ 
+ 	ChiakiErrorCode err = chiaki_mutex_init(&audio_receiver->mutex, false);
+@@ -72,8 +74,11 @@ CHIAKI_EXPORT void chiaki_audio_receiver_stream_info(ChiakiAudioReceiver *audio_
+ 	audio_receiver->frame_index_startup = true;
+ 	chiaki_audio_receiver_clear_jitter_buffer(audio_receiver);
+ 
+-	if(header_cb)
+-		header_cb(audio_header, header_cb_user);
++	audio_receiver->encoded_config.generation++;
++	audio_receiver->encoded_config.channels = audio_header->channels;
++	audio_receiver->encoded_config.sample_rate = audio_header->rate;
++	audio_receiver->encoded_config.samples_per_frame = audio_header->frame_size;
++	ChiakiEncodedAudioConfig config = audio_receiver->encoded_config;
+ 
+ 	err = chiaki_mutex_unlock(&audio_receiver->mutex);
+ 	if(err != CHIAKI_ERR_SUCCESS)
+@@ -81,10 +86,15 @@ CHIAKI_EXPORT void chiaki_audio_receiver_stream_info(ChiakiAudioReceiver *audio_
+ 		CHIAKI_LOGE(audio_receiver->log, "Failed to unlock audio receiver mutex: %s", chiaki_error_string(err));
+ 		return;
+ 	}
++	if(audio_receiver->session->encoded_sink_enabled)
++		audio_receiver->session->encoded_sink.audio_config(&config, audio_receiver->session->encoded_sink.user);
++	else if(header_cb)
++		header_cb(audio_header, header_cb_user);
+ }
+ 
+ CHIAKI_EXPORT void chiaki_audio_receiver_av_packet(ChiakiAudioReceiver *audio_receiver, ChiakiTakionAVPacket *packet)
+ {
++	uint64_t received_us = chiaki_time_now_monotonic_us();
+ 	if(packet->codec != 5)
+ 	{
+ 		CHIAKI_LOGE(audio_receiver->log, "Received Audio Packet with unknown Codec");
+@@ -131,14 +141,15 @@ CHIAKI_EXPORT void chiaki_audio_receiver_av_packet(ChiakiAudioReceiver *audio_re
+ 			frame_index = packet->frame_index - fec_units_count + fec_index;
+ 		}
+ 
+-		chiaki_audio_receiver_frame(audio_receiver, frame_index, packet->is_haptics, packet->data + unit_size * i, unit_size);
++		chiaki_audio_receiver_frame(audio_receiver, frame_index, packet->is_haptics, packet->data + unit_size * i, unit_size,
++			received_us, i >= source_units_count ? CHIAKI_ENCODED_FEC_RECOVERED : 0);
+ 	}
+ 
+ 	if(audio_receiver->packet_stats)
+ 		chiaki_packet_stats_push_seq(audio_receiver->packet_stats, packet->frame_index);
+ }
+ 
+-static void chiaki_audio_receiver_frame(ChiakiAudioReceiver *audio_receiver, ChiakiSeqNum16 frame_index, bool is_haptics, uint8_t *buf, size_t buf_size)
++static void chiaki_audio_receiver_frame(ChiakiAudioReceiver *audio_receiver, ChiakiSeqNum16 frame_index, bool is_haptics, uint8_t *buf, size_t buf_size, uint64_t received_us, uint32_t encoded_flags)
+ {
+ 	while(true)
+ 	{
+@@ -147,6 +158,8 @@ static void chiaki_audio_receiver_frame(ChiakiAudioReceiver *audio_receiver, Chi
+ 		uint8_t *deliver_buf = NULL;
+ 		size_t deliver_buf_size = 0;
+ 		bool deliver_owned_buf = false;
++		bool encoded_deliver = false;
++		ChiakiEncodedPacket encoded_packet = { 0 };
+ 
+ 		ChiakiErrorCode err = chiaki_mutex_lock(&audio_receiver->mutex);
+ 		if(err != CHIAKI_ERR_SUCCESS)
+@@ -176,12 +189,15 @@ static void chiaki_audio_receiver_frame(ChiakiAudioReceiver *audio_receiver, Chi
+ 			return;
+ 		}
+ 
++		if(audio_receiver->session->encoded_sink_enabled && !audio_receiver->encoded_config.generation)
++			goto unlock_and_exit;
++
+ 		if(buf)
+ 		{
+ 			if(audio_receiver->next_frame_index_valid && chiaki_seq_num_16_lt(frame_index, audio_receiver->next_frame_index))
+ 				goto unlock_and_exit;
+ 
+-			if(!chiaki_audio_receiver_store_audio_frame_locked(audio_receiver, frame_index, buf, buf_size))
++			if(!chiaki_audio_receiver_store_audio_frame_locked(audio_receiver, frame_index, buf, buf_size, received_us, encoded_flags))
+ 				goto unlock_and_exit;
+ 			buf = NULL;
+ 			buf_size = 0;
+@@ -200,6 +216,9 @@ static void chiaki_audio_receiver_frame(ChiakiAudioReceiver *audio_receiver, Chi
+ 
+ 		if(audio_receiver->playback_started && audio_receiver->next_frame_index_valid)
+ 		{
++			encoded_packet.generation = audio_receiver->encoded_config.generation;
++			encoded_packet.samples = audio_receiver->encoded_config.samples_per_frame;
++			encoded_packet.frame_index = audio_receiver->next_frame_index;
+ 			int slot = chiaki_audio_receiver_find_audio_slot(audio_receiver, audio_receiver->next_frame_index);
+ 			if(slot >= 0)
+ 			{
+@@ -208,6 +227,9 @@ static void chiaki_audio_receiver_frame(ChiakiAudioReceiver *audio_receiver, Chi
+ 				deliver_buf = audio_receiver->jitter_buffer[slot].buf;
+ 				deliver_buf_size = audio_receiver->jitter_buffer[slot].buf_size;
+ 				deliver_owned_buf = true;
++				encoded_deliver = audio_receiver->session->encoded_sink_enabled;
++				encoded_packet.first_receipt_us = audio_receiver->jitter_buffer[slot].first_receipt_us;
++				encoded_packet.flags = audio_receiver->jitter_buffer[slot].encoded_flags;
+ 				audio_receiver->jitter_buffer[slot].buf = NULL;
+ 				audio_receiver->jitter_buffer[slot].buf_size = 0;
+ 				audio_receiver->jitter_buffer[slot].occupied = false;
+@@ -236,6 +258,9 @@ static void chiaki_audio_receiver_frame(ChiakiAudioReceiver *audio_receiver, Chi
+ 				}
+ 				if(can_conceal_loss)
+ 				{
++					encoded_deliver = audio_receiver->session->encoded_sink_enabled;
++					encoded_packet.first_receipt_us = received_us;
++					encoded_packet.flags = CHIAKI_ENCODED_MISSING;
+ 					frame_cb = audio_receiver->session->audio_sink.frame_cb;
+ 					frame_cb_user = audio_receiver->session->audio_sink.user;
+ 					deliver_buf = NULL;
+@@ -256,10 +281,19 @@ unlock_and_exit:
+ 			return;
+ 		}
+ 
+-		if(!frame_cb)
++		if(!frame_cb && !encoded_deliver)
++		{
++			if(deliver_owned_buf) free(deliver_buf);
+ 			return;
++		}
+ 
+-		frame_cb(deliver_buf, deliver_buf_size, frame_cb_user);
++		if(encoded_deliver)
++		{
++			encoded_packet.data = deliver_buf; encoded_packet.size = deliver_buf_size;
++			audio_receiver->session->encoded_sink.audio_packet(&encoded_packet, audio_receiver->session->encoded_sink.user);
++		}
++		else
++			frame_cb(deliver_buf, deliver_buf_size, frame_cb_user);
+ 		if(deliver_owned_buf)
+ 			free(deliver_buf);
+ 	}
+@@ -315,7 +349,7 @@ static int chiaki_audio_receiver_find_newest_audio_slot(const ChiakiAudioReceive
+ 	return newest;
+ }
+ 
+-static bool chiaki_audio_receiver_store_audio_frame_locked(ChiakiAudioReceiver *audio_receiver, ChiakiSeqNum16 frame_index, const uint8_t *buf, size_t buf_size)
++static bool chiaki_audio_receiver_store_audio_frame_locked(ChiakiAudioReceiver *audio_receiver, ChiakiSeqNum16 frame_index, const uint8_t *buf, size_t buf_size, uint64_t received_us, uint32_t encoded_flags)
+ {
+ 	if(chiaki_audio_receiver_find_audio_slot(audio_receiver, frame_index) >= 0)
+ 		return false;
+@@ -356,6 +390,8 @@ static bool chiaki_audio_receiver_store_audio_frame_locked(ChiakiAudioReceiver *
+ 
+ 	audio_receiver->jitter_buffer[free_slot].occupied = true;
+ 	audio_receiver->jitter_buffer[free_slot].frame_index = frame_index;
++	audio_receiver->jitter_buffer[free_slot].first_receipt_us = received_us;
++	audio_receiver->jitter_buffer[free_slot].encoded_flags = encoded_flags;
+ 	audio_receiver->jitter_buffer[free_slot].buf = copy;
+ 	audio_receiver->jitter_buffer[free_slot].buf_size = buf_size;
+ 	audio_receiver->jitter_buffer_count++;
+diff --git a/lib/src/session.c b/lib/src/session.c
+index 41c6bbf0..81481013 100644
+--- a/lib/src/session.c
++++ b/lib/src/session.c
+@@ -302,15 +302,49 @@ CHIAKI_EXPORT void chiaki_session_fini(ChiakiSession *session)
+ 	freeaddrinfo(session->connect_info.host_addrinfos);
+ }
+ 
++static bool encoded_sink_valid(ChiakiSession *session, const ChiakiEncodedMediaSink *sink)
++{
++	return sink->video_config && sink->audio_config && sink->video_packet && sink->audio_packet
++		&& !session->video_sample_cb && !session->audio_sink.header_cb && !session->audio_sink.frame_cb;
++}
++
+ CHIAKI_EXPORT ChiakiErrorCode chiaki_session_start(ChiakiSession *session)
+ {
++	chiaki_mutex_lock(&session->state_mutex);
++	if(session->media_started || session->should_stop ||
++		(session->encoded_sink_enabled && !encoded_sink_valid(session, &session->encoded_sink)))
++	{
++		chiaki_mutex_unlock(&session->state_mutex);
++		return CHIAKI_ERR_INVALID_DATA;
++	}
++	session->media_started = true;
+ 	ChiakiErrorCode err = chiaki_thread_create(&session->session_thread, session_thread_func, session);
+ 	if(err != CHIAKI_ERR_SUCCESS)
++	{
++		session->media_started = false;
++		chiaki_mutex_unlock(&session->state_mutex);
+ 		return err;
++	}
+ 	chiaki_thread_set_name(&session->session_thread, "Chiaki Session");
++	chiaki_mutex_unlock(&session->state_mutex);
+ 	return err;
+ }
+ 
++CHIAKI_EXPORT ChiakiErrorCode chiaki_session_set_encoded_media_sink(ChiakiSession *session, const ChiakiEncodedMediaSink *sink)
++{
++	chiaki_mutex_lock(&session->state_mutex);
++	if(session->media_started || session->should_stop || (sink && !encoded_sink_valid(session, sink)))
++	{
++		chiaki_mutex_unlock(&session->state_mutex);
++		return CHIAKI_ERR_INVALID_DATA;
++	}
++	if(sink) session->encoded_sink = *sink;
++	else memset(&session->encoded_sink, 0, sizeof(session->encoded_sink));
++	session->encoded_sink_enabled = sink != NULL;
++	chiaki_mutex_unlock(&session->state_mutex);
++	return CHIAKI_ERR_SUCCESS;
++}
++
+ CHIAKI_EXPORT ChiakiErrorCode chiaki_session_stop(ChiakiSession *session)
+ {
+ 	ChiakiErrorCode err = chiaki_mutex_lock(&session->state_mutex);
+diff --git a/lib/src/streamconnection.c b/lib/src/streamconnection.c
+index afa1a60a..b1bc5a6d 100644
+--- a/lib/src/streamconnection.c
++++ b/lib/src/streamconnection.c
+@@ -97,6 +97,13 @@ CHIAKI_EXPORT ChiakiErrorCode chiaki_stream_connection_init(ChiakiStreamConnecti
+ 	err = chiaki_mutex_init(&stream_connection->feedback_sender_mutex, false);
+ 	if(err != CHIAKI_ERR_SUCCESS)
+ 		goto error_packet_stats;
++	err = chiaki_mutex_init(&stream_connection->idr_mutex, false);
++	if(err != CHIAKI_ERR_SUCCESS)
++	{
++		chiaki_mutex_fini(&stream_connection->feedback_sender_mutex);
++		goto error_packet_stats;
++	}
++	stream_connection->idr_transport_active = false;
+ 
+ 	stream_connection->state = STATE_IDLE;
+ 	stream_connection->state_finished = false;
+@@ -131,6 +138,7 @@ CHIAKI_EXPORT void chiaki_stream_connection_fini(ChiakiStreamConnection *stream_
+ 	chiaki_packet_stats_fini(&stream_connection->packet_stats);
+ 
+ 	chiaki_mutex_fini(&stream_connection->feedback_sender_mutex);
++	chiaki_mutex_fini(&stream_connection->idr_mutex);
+ 
+ 	chiaki_cond_fini(&stream_connection->state_cond);
+ 	chiaki_mutex_fini(&stream_connection->state_mutex);
+@@ -219,6 +227,9 @@ CHIAKI_EXPORT ChiakiErrorCode chiaki_stream_connection_run(ChiakiStreamConnectio
+ 		goto err_video_receiver;
+ 	}
+ 
++	chiaki_mutex_lock(&stream_connection->idr_mutex);
++	stream_connection->idr_transport_active = true;
++	chiaki_mutex_unlock(&stream_connection->idr_mutex);
+ 	err = chiaki_congestion_control_start(&stream_connection->congestion_control, &stream_connection->takion, &stream_connection->packet_stats, stream_connection->packet_loss_max);
+ 	if(err != CHIAKI_ERR_SUCCESS)
+ 	{
+@@ -356,6 +367,9 @@ err_congestion_control:
+ 	chiaki_congestion_control_stop(&stream_connection->congestion_control);
+ 
+ close_takion:
++	chiaki_mutex_lock(&stream_connection->idr_mutex);
++	stream_connection->idr_transport_active = false;
++	chiaki_mutex_unlock(&stream_connection->idr_mutex);
+ 	chiaki_mutex_unlock(&stream_connection->state_mutex);
+ 
+ 	chiaki_takion_close(&stream_connection->takion);
+@@ -389,6 +403,9 @@ CHIAKI_EXPORT ChiakiErrorCode chiaki_stream_connection_stop(ChiakiStreamConnecti
+ 	if(err != CHIAKI_ERR_SUCCESS)
+ 		return err;
+ 	stream_connection->should_stop = true;
++	chiaki_mutex_lock(&stream_connection->idr_mutex);
++	stream_connection->idr_transport_active = false;
++	chiaki_mutex_unlock(&stream_connection->idr_mutex);
+ 	ChiakiErrorCode unlock_err = chiaki_mutex_unlock(&stream_connection->state_mutex);
+ 	err = chiaki_cond_signal(&stream_connection->state_cond);
+ 	return err == CHIAKI_ERR_SUCCESS ? unlock_err : err;
+@@ -1282,7 +1299,7 @@ CHIAKI_EXPORT ChiakiErrorCode stream_connection_send_corrupt_frame(ChiakiStreamC
+ 	return chiaki_takion_send_message_data(&stream_connection->takion, 1, 2, buf, stream.bytes_written, NULL);
+ }
+ 
+-CHIAKI_EXPORT ChiakiErrorCode stream_connection_send_idr_request(ChiakiStreamConnection *stream_connection)
++static ChiakiErrorCode stream_connection_send_idr_request_active(ChiakiStreamConnection *stream_connection)
+ {
+ 	tkproto_TakionMessage msg = { 0 };
+ 	msg.type = tkproto_TakionMessage_PayloadType_IDRREQUEST;
+@@ -1300,3 +1317,12 @@ CHIAKI_EXPORT ChiakiErrorCode stream_connection_send_idr_request(ChiakiStreamCon
+ 	CHIAKI_LOGI(stream_connection->log, "StreamConnection requesting IDR frame");
+ 	return chiaki_takion_send_message_data(&stream_connection->takion, 1, 2, buf, stream.bytes_written, NULL);
+ }
++
++CHIAKI_EXPORT ChiakiErrorCode stream_connection_send_idr_request(ChiakiStreamConnection *stream_connection)
++{
++	chiaki_mutex_lock(&stream_connection->idr_mutex);
++	ChiakiErrorCode err = stream_connection->idr_transport_active
++		? stream_connection_send_idr_request_active(stream_connection) : CHIAKI_ERR_UNINITIALIZED;
++	chiaki_mutex_unlock(&stream_connection->idr_mutex);
++	return err;
++}
+diff --git a/lib/src/videoreceiver.c b/lib/src/videoreceiver.c
+index c20c9b6f..53743c4c 100644
+--- a/lib/src/videoreceiver.c
++++ b/lib/src/videoreceiver.c
+@@ -60,6 +60,8 @@ CHIAKI_EXPORT void chiaki_video_receiver_init(ChiakiVideoReceiver *video_receive
+ 	chiaki_mutex_init(&video_receiver->waiting_for_idr_mutex, false);
+ 	video_receiver->waiting_for_idr = false;
+ 	video_receiver->idr_request_last_ms = 0;
++	video_receiver->encoded_generation = 0;
++	video_receiver->first_receipt_us = 0;
+ 	chiaki_mutex_init(&video_receiver->frames_lost_mutex, false);
+ }
+ 
+@@ -144,6 +146,7 @@ CHIAKI_EXPORT void chiaki_video_receiver_stream_info(ChiakiVideoReceiver *video_
+ 
+ CHIAKI_EXPORT void chiaki_video_receiver_av_packet(ChiakiVideoReceiver *video_receiver, ChiakiTakionAVPacket *packet)
+ {
++	uint64_t received_us = chiaki_time_now_monotonic_us();
+ 	// old frame?
+ 	ChiakiSeqNum16 frame_index = packet->frame_index;
+ 	ChiakiErrorCode err = CHIAKI_ERR_SUCCESS;
+@@ -154,6 +157,16 @@ CHIAKI_EXPORT void chiaki_video_receiver_av_packet(ChiakiVideoReceiver *video_re
+ 		return;
+ 	}
+ 
++	// Flush using the OLD configuration before changing adaptive profile.
++	if(video_receiver->frame_index_cur >= 0 &&
++		chiaki_seq_num_16_gt(frame_index, (ChiakiSeqNum16)video_receiver->frame_index_cur) &&
++		video_receiver->frame_index_prev != video_receiver->frame_index_cur)
++	{
++		err = chiaki_video_receiver_flush_frame(video_receiver);
++		if(err != CHIAKI_ERR_SUCCESS)
++			CHIAKI_LOGW(video_receiver->log, "Video receiver could not flush frame.");
++	}
++
+ 	// check adaptive stream index
+ 	if(video_receiver->profile_cur < 0 || video_receiver->profile_cur != packet->adaptive_stream_index)
+ 	{
+@@ -167,8 +180,20 @@ CHIAKI_EXPORT void chiaki_video_receiver_av_packet(ChiakiVideoReceiver *video_re
+ 		video_receiver->profile_cur = packet->adaptive_stream_index;
+ 
+ 		ChiakiVideoProfile *profile = video_receiver->profiles + video_receiver->profile_cur;
++		video_receiver->encoded_generation++;
+ 		CHIAKI_LOGI(video_receiver->log, "Switched to profile %d, resolution: %ux%u", video_receiver->profile_cur, profile->width, profile->height);
+-		if(video_receiver->session->video_sample_cb)
++		if(video_receiver->session->encoded_sink_enabled)
++		{
++			ChiakiEncodedVideoConfig config = { 0 };
++			config.generation = video_receiver->encoded_generation;
++			config.codec = video_receiver->session->connect_info.video_profile.codec;
++			config.width = profile->width; config.height = profile->height;
++			config.nominal_fps_num = video_receiver->session->connect_info.video_profile.max_fps;
++			config.nominal_fps_den = 1;
++			config.header = profile->header; config.header_size = profile->header_sz;
++			video_receiver->session->encoded_sink.video_config(&config, video_receiver->session->encoded_sink.user);
++		}
++		else if(video_receiver->session->video_sample_cb)
+ 			video_receiver->session->video_sample_cb(profile->header, profile->header_sz, 0, false, video_receiver->session->video_sample_cb_user);
+ 		if(!chiaki_bitstream_header(&video_receiver->bitstream, profile->header, profile->header_sz))
+ 			CHIAKI_LOGW(video_receiver->log, "Failed to parse video header");
+@@ -181,13 +206,6 @@ CHIAKI_EXPORT void chiaki_video_receiver_av_packet(ChiakiVideoReceiver *video_re
+ 		if(video_receiver->packet_stats)
+ 			chiaki_frame_processor_report_packet_stats(&video_receiver->frame_processor, video_receiver->packet_stats);
+ 
+-		// last frame not flushed yet?
+-		if(video_receiver->frame_index_cur >= 0 && video_receiver->frame_index_prev != video_receiver->frame_index_cur)
+-			err = chiaki_video_receiver_flush_frame(video_receiver);
+-
+-		if(err != CHIAKI_ERR_SUCCESS)
+-			CHIAKI_LOGW(video_receiver->log, "Video receiver could not flush frame.");
+-
+ 		ChiakiSeqNum16 next_frame_expected = (ChiakiSeqNum16)(video_receiver->frame_index_prev_complete + 1);
+ 		if(chiaki_seq_num_16_gt(frame_index, next_frame_expected)
+ 			&& !(frame_index == 1 && video_receiver->frame_index_cur < 0)) // ok for frame 1
+@@ -199,6 +217,7 @@ CHIAKI_EXPORT void chiaki_video_receiver_av_packet(ChiakiVideoReceiver *video_re
+ 		}
+ 
+ 		video_receiver->frame_index_cur = frame_index;
++		video_receiver->first_receipt_us = received_us;
+ 		err = chiaki_frame_processor_alloc_frame(&video_receiver->frame_processor, packet);
+ 		if(err != CHIAKI_ERR_SUCCESS)
+ 			CHIAKI_LOGW(video_receiver->log, "Video receiver could not allocate frame for packet.");
+@@ -261,7 +280,7 @@ static ChiakiErrorCode chiaki_video_receiver_flush_frame(ChiakiVideoReceiver *vi
+ 				event.video_fec_failure.idr_request_sent = idr_request_sent;
+ 				chiaki_session_send_event(video_receiver->session, &event);
+ 			}
+-		int32_t lost = video_receiver->frame_index_cur - next_frame_expected + 1;
++		int32_t lost = (uint16_t)(video_receiver->frame_index_cur - next_frame_expected) + 1;
+ 		chiaki_mutex_lock(&video_receiver->frames_lost_mutex);
+ 		video_receiver->frames_lost += lost;
+ 		video_receiver->frames_lost_total += lost;
+@@ -275,7 +294,7 @@ static ChiakiErrorCode chiaki_video_receiver_flush_frame(ChiakiVideoReceiver *vi
+ 	bool succ = flush_result != CHIAKI_FRAME_PROCESSOR_FLUSH_RESULT_FEC_FAILED;
+ 	bool recovered = false;
+ 
+-	ChiakiBitstreamSlice slice;
++	ChiakiBitstreamSlice slice = { 0 };
+ 	if(chiaki_bitstream_slice(&video_receiver->bitstream, frame, frame_size, &slice))
+ 	{
+ 		if(chiaki_video_receiver_get_waiting_for_idr(video_receiver))
+@@ -325,9 +344,23 @@ static ChiakiErrorCode chiaki_video_receiver_flush_frame(ChiakiVideoReceiver *vi
+ 		}
+ 	}
+ 
+-	if(succ && video_receiver->session->video_sample_cb)
++	if(succ && (video_receiver->session->encoded_sink_enabled || video_receiver->session->video_sample_cb))
+ 	{
+-		bool cb_succ = video_receiver->session->video_sample_cb(frame, frame_size, video_receiver->frames_lost, recovered, video_receiver->session->video_sample_cb_user);
++		bool cb_succ;
++		if(video_receiver->session->encoded_sink_enabled)
++		{
++			ChiakiEncodedPacket packet = { 0 };
++			packet.generation = video_receiver->encoded_generation;
++			packet.first_receipt_us = video_receiver->first_receipt_us;
++			packet.frame_index = (uint16_t)video_receiver->frame_index_cur;
++			packet.flags = (flush_result == CHIAKI_FRAME_PROCESSOR_FLUSH_RESULT_FEC_SUCCESS ? CHIAKI_ENCODED_FEC_RECOVERED : 0)
++				| (recovered ? CHIAKI_ENCODED_REFERENCE_REWRITTEN : 0);
++			packet.lost_frames = video_receiver->frames_lost;
++			packet.data = frame; packet.size = frame_size;
++			cb_succ = video_receiver->session->encoded_sink.video_packet(&packet, video_receiver->session->encoded_sink.user);
++		}
++		else
++			cb_succ = video_receiver->session->video_sample_cb(frame, frame_size, video_receiver->frames_lost, recovered, video_receiver->session->video_sample_cb_user);
+ 		chiaki_mutex_lock(&video_receiver->frames_lost_mutex);
+ 		video_receiver->frames_lost = 0;
+ 		chiaki_mutex_unlock(&video_receiver->frames_lost_mutex);
+diff --git a/lib/include/chiaki/encodedmedia.h b/lib/include/chiaki/encodedmedia.h
+new file mode 100644
+index 00000000..be773c7b
+--- /dev/null
++++ b/lib/include/chiaki/encodedmedia.h
+@@ -0,0 +1,52 @@
++// SPDX-License-Identifier: LicenseRef-AGPL-3.0-only-OpenSSL
++#ifndef CHIAKI_ENCODEDMEDIA_H
++#define CHIAKI_ENCODEDMEDIA_H
++#include "common.h"
++#include <stddef.h>
++#include <stdint.h>
++#ifdef __cplusplus
++extern "C" {
++#endif
++
++/* Alternate pre-start consumer, NOT a tee. All pointers are borrowed only for
++ * the duration of the callback. Never stop/join/finalize from these callbacks.
++ * Configuration generations are per track and reset with a new session.
++ * Headers retain authoritative codec/VUI/SEI metadata; nominal fps is the
++ * effective request, NOT evidence of actual coded cadence or A/V phase. */
++typedef struct chiaki_encoded_video_config_t {
++    uint64_t generation;
++    ChiakiCodec codec;
++    uint32_t width, height, nominal_fps_num, nominal_fps_den;
++    const uint8_t *header;
++    size_t header_size;
++} ChiakiEncodedVideoConfig;
++typedef struct chiaki_encoded_audio_config_t {
++    uint64_t generation;
++    uint32_t channels, sample_rate, samples_per_frame;
++    /* Game audio is Opus. No encoder lookahead/pre-skip is supplied on wire. */
++} ChiakiEncodedAudioConfig;
++enum {
++    CHIAKI_ENCODED_FEC_RECOVERED = 1,
++    CHIAKI_ENCODED_REFERENCE_REWRITTEN = 2,
++    CHIAKI_ENCODED_MISSING = 4
++};
++typedef struct chiaki_encoded_packet_t {
++    uint64_t generation, first_receipt_us;
++    uint16_t frame_index;
++    uint32_t flags, samples, lost_frames;
++    const uint8_t *data;
++    size_t size;
++} ChiakiEncodedPacket;
++typedef struct chiaki_encoded_media_sink_t {
++    void *user;
++    void (*video_config)(const ChiakiEncodedVideoConfig *, void *);
++    void (*audio_config)(const ChiakiEncodedAudioConfig *, void *);
++    /* true means accept (including intentional discard with no consumer), not
++     * successful decoding. false preserves upstream reference-failure policy. */
++    bool (*video_packet)(const ChiakiEncodedPacket *, void *);
++    void (*audio_packet)(const ChiakiEncodedPacket *, void *);
++} ChiakiEncodedMediaSink;
++#ifdef __cplusplus
++}
++#endif
++#endif

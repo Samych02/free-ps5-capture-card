@@ -19,6 +19,15 @@ The original account-ID code credits grill2010's script. New native code retains
 the project's AGPL terms, does not copy Qt settings/UI dependencies, and adds
 strict redirect/state validation and sanitized error handling.
 
+`patches/chiaki/0002-encoded-media-sink.patch` adds a separate encoded-media
+consumer to the pinned core, receiver metadata, audio callbacks outside receiver
+locks, and guarded IDR transport lifetime. It preserves legacy callback signatures
+but changes internal/public core struct layouts; no binary ABI compatibility is
+claimed. A regression fixes the core's failed-video-frame loss count across a
+16-bit frame-index wrap. H264/HEVC header and slice bytes used in
+`Tests/Native/MediaSinkTests.cpp` come from the pinned upstream `test/bitstream.c`
+under the same AGPL/exception terms. This work does not add a media decoder.
+
 ## Build/runtime dependencies
 
 FFmpeg, OpenSSL, curl, nanopb, MUnit, gf-complete/Jerasure, json-c, miniupnpc,

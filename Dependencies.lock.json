@@ -4,7 +4,10 @@
     "repository": "https://github.com/chiaki-ng/chiaki-ng.git",
     "revision": "43728af2e639fecb8a7af1cd68c29820a40de973",
     "submodules": ["test/munit", "third-party/nanopb", "third-party/gf-complete", "third-party/jerasure", "third-party/curl"],
-    "patches": [{"file": "patches/chiaki/0001-embeddable-build.patch", "sha256": "6a5d30e12da836f6a61de7f052ccb467148673d322878b8ccbfc77771505d4a3"}]
+    "patches": [
+      {"file": "patches/chiaki/0001-embeddable-build.patch", "sha256": "6a5d30e12da836f6a61de7f052ccb467148673d322878b8ccbfc77771505d4a3"},
+      {"file": "patches/chiaki/0002-encoded-media-sink.patch", "sha256": "b6754b66d85eb66c7d6d257f61a596d543f0c2df34c4918cfe94c890217baa1b"}
+    ]
   },
   "python": {"protobuf": "5.29.6"},
   "systemDependencies": {

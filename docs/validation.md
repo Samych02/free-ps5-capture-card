@@ -195,3 +195,57 @@ screen recording was not copied into Git.
   `docs/pairing.md`. Live media and TV/controller/account behavior are not yet
   tested; Start Capture remains disabled. Independent review is requested in
   `docs/reviews/pairing.md`, not claimed completed.
+
+## Real pairing user report
+
+After the pairing build, the user reported **paired securely**. After the app
+was reopened they confirmed **yep still paired**. This accepts real registration
+and user-reported Keychain recovery for progressing beyond Task 4, not complete
+discovery/manual-IP/failure-path coverage or proof of live audio/video.
+
+## Encoded-media delivery — Task 5
+
+- Added `0002-encoded-media-sink.patch` and its SHA256 to the dependency lock.
+  Alternate video/audio configuration and packet callbacks include track
+  generations, source frame index, first receiver-entry monotonic time, samples,
+  explicit audio holes, and video/audio recovery metadata. Audio preserves entry
+  time through jitter; config/frame callbacks execute outside its mutex.
+- Alternate-sink conflicts are rejected at installation and before start. Legacy
+  callbacks remain available and are covered through the same real receivers.
+  Video callbacks still govern reference acceptance. An owning C++ adapter applies
+  64 KiB-header/4 MiB-packet caps before copying; default discard accepts frames.
+- IDR transport access is guarded across stop/close. The lifecycle owner can
+  detach under a request gate, then join/finalize outside receive callbacks.
+  Threaded tests issue requests during stop/detach and after session finalization.
+- Red evidence: `scripts/test.sh --native --filter media-sink` first failed five
+  new delivery/conflict/acceptance tests while the legacy regression passed.
+  Later runs failed the inactive-transport IDR expectation and all three empty
+  adapter/control stubs. The actual wrap-loss regression then produced -65534
+  instead of 2 after a failed FEC frame across the 16-bit wrap; sequence arithmetic
+  fixes it. The initial FEC test fixture's padding/parity layout was corrected
+  separately, not treated as a production receiver bug. An added HEVC rewrite
+  regression initially used a single-reference fixture that cannot encode a
+  fallback reference; inspection of the RBSP and upstream rewrite policy led to
+  using upstream's nine-reference fixture instead. Both HEVC mode values now
+  verify the existing reference rewrite and its metadata flag without changing
+  the library's recovery policy.
+- Final `scripts/test.sh --native --app` passes 5/5 CTest targets and 41/41
+  XCTest cases; `capture-media-sink-tests` reports 14/14 cases. Bootstrap 4/4 pass.
+  Debug/Release builds and ad-hoc signature verification pass. Existing unrelated
+  dependency warnings/macOS simulator diagnostics remain; no new native adapter
+  compiler failure is hidden.
+- Independent fetch/configure/build in `build/native-media-clean` passes all 5
+  native CTest targets. Checked pinned revision, both locked patch hashes,
+  already-applied reverse checks, and byte-for-byte equivalence of all 11 patched
+  files against the development dependency. Removing only the generated media
+  patch from that disposable tree and reconfiguring reapplied the locked series.
+  The reference checkout was never modified.
+- ASan/UBSan `capture-media-sink` in `build/native-asan` passes 10 repeated runs
+  with no reported finding. This is injected-receiver/lifetime coverage, not live
+  networking; TSAN and end-to-end session races remain future verification.
+- Source search under `Native/src` finds no media decoder/encoder-open or
+  send/receive/decode/encode calls. It is not a full future packaged-binary audit.
+  Actual HDR/cadence/phase, shared A/V timeline, combined bounded queues, and
+  live Matroska session delivery are NOT yet established. Capture remains
+  disabled; no test streamed the user's PS5. See the pending review request in
+  `docs/reviews/encoded-media.md`.

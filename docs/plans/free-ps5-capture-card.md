@@ -64,6 +64,24 @@ installing the required Homebrew dependencies.
   Real PS5 pairing/relaunch, invalid code/manual-IP behavior, and actual macOS
   permission/Keychain policy are pending Gate C. Do not begin live-session work
   on the assumption that mocked registration establishes console compatibility.
+- Gate C follow-up: the user reported **paired securely**, then confirmed the
+  PS5 was still paired after reopening. Real registration and user-reported
+  Keychain recovery are accepted for progression to encoded media. This does not
+  establish whether discovery or manual IP was used, invalid/expired-code or
+  denied-store behavior, or a successful live media session.
+- Task 5: added the alternate pinned-core encoded-media sink, explicit per-track
+  configuration generations, raw source counters, receiver-entry monotonic times,
+  audio timing through jitter/FEC, explicit missing-audio markers, video recovery
+  flags/reference acceptance, an owning bounded-copy adapter, and a synchronized
+  keyframe/stop/detach boundary. Headers carry the raw available codec/color
+  information; nominal fps and the effective codec selection are not treated as
+  proof of actual cadence, HDR signaling, or source A/V phase.
+- Task 5 verification: 14 new real-receiver/adapter/lifetime cases pass; the full
+  suite passes 5 CTest targets, 41 XCTest cases, and 4 bootstrap cases. Independent
+  fresh fetch, patch/hash/file-byte equivalence and complete native tests pass.
+  ASan/UBSan passes the media target 10 times. Debug/Release builds and signatures
+  pass. Task 6 (shared timeline, bounded queues, live remux validation) is next;
+  live capture remains disabled. Independent review remains a release gate.
 
 
 **Goal:** Build a minimal standalone macOS app that connects a PS5 to OBS, delivering equally important game video and game audio together without a playback window, local sound, or intermediate media decoding/encoding.

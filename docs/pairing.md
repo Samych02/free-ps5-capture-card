@@ -59,6 +59,8 @@ losing identity, then migrated atomically on the next successful write.
 Tell us whether discovery, manual IP, pairing, and quit/relaunch worked. On
 failure share **only the app's error text**, never pairing codes, keys, redirect
 URLs, account-ID bytes, or Keychain contents. Automated tests use fake library,
-network, and Keychain boundaries; real PS5 compatibility and macOS permission/
-Keychain behavior remain manual checks. TV/controller/account restrictions and
+network, and Keychain boundaries. The user subsequently confirmed real pairing
+and persistence after reopening. Discovery versus manual-IP coverage, failure
+paths, and broader macOS permission/Keychain behavior remain manual checks.
+TV/controller/account restrictions and
 streaming with saved keys will be checked with live capture, not bypassed.

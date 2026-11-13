@@ -2,6 +2,11 @@ add_library(CaptureEngine SHARED src/Engine.cpp src/Pairing.cpp src/Discovery.cp
 target_compile_features(CaptureEngine PRIVATE cxx_std_17)
 target_include_directories(CaptureEngine PUBLIC include)
 target_link_libraries(CaptureEngine PRIVATE chiaki-lib)
+add_library(capture-encoded STATIC src/EncodedMedia.cpp)
+target_compile_features(capture-encoded PUBLIC cxx_std_17)
+target_include_directories(capture-encoded PUBLIC src)
+target_link_libraries(capture-encoded PUBLIC chiaki-lib)
+target_link_libraries(CaptureEngine PRIVATE capture-encoded)
 set_target_properties(CaptureEngine PROPERTIES
     FRAMEWORK TRUE FRAMEWORK_VERSION A
     MACOSX_FRAMEWORK_IDENTIFIER org.freeps5capturecard.engine
