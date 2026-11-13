@@ -1,8 +1,10 @@
 #include "PacketQueue.h"
 #include <algorithm>
 #include <cstring>
+#include <stdexcept>
 namespace capture {
 struct QueueBudget {
+    size_t limit=PacketQueue::MaxBytes;
     std::atomic<size_t> bytes{sizeof(PacketQueue) + sizeof(QueueBudget) + 128};
     std::atomic<size_t> buffers{0};
 };
@@ -16,10 +18,13 @@ QueuedBuffer::~QueuedBuffer() {
     budget_->bytes.fetch_sub(charge_, std::memory_order_relaxed);
     budget_->buffers.fetch_sub(1, std::memory_order_relaxed);
 }
-PacketQueue::PacketQueue() : budget_(std::make_shared<QueueBudget>()) {}
+PacketQueue::PacketQueue(size_t limit) : budget_(std::make_shared<QueueBudget>()) {
+    if(limit<256*1024 || limit>MaxBytes) throw std::invalid_argument("Invalid owned-storage budget");
+    budget_->limit=limit;
+}
 bool PacketQueue::canCopy(size_t size) const {
     size_t charge = size + sizeof(QueuedBuffer) + 128;
-    return charge <= MaxBytes && budget_->buffers.load() < MaxEntries - 1 && budget_->bytes.load() <= MaxBytes - charge;
+    return charge <= budget_->limit && budget_->buffers.load() < MaxEntries - 1 && budget_->bytes.load() <= budget_->limit - charge;
 }
 std::shared_ptr<const QueuedBuffer> PacketQueue::copy(const uint8_t *data, size_t size) {
     // Includes owned data/metadata plus a conservative control-block allowance;

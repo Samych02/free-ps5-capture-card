@@ -6,7 +6,7 @@
 using namespace capture;
 struct Fixture {
     PacketQueue queue;
-    Fixture() {
+    explicit Fixture(size_t limit = PacketQueue::MaxBytes) : queue(limit) {
         uint8_t header[]{0,0,0,1,0x67};
         ChiakiEncodedVideoConfig video{1, CHIAKI_CODEC_H264, 1920,1080,60,1,header,sizeof(header)};
         ChiakiEncodedAudioConfig audio{1,2,48000,960};
@@ -117,6 +117,9 @@ static MunitResult bounds_and_timestamps(const MunitParameter[], void *) {
     ChiakiEncodedPacket bad{1,10000,1,0,0,0,&byte,1};
     munit_assert_true(f.queue.push(MediaTrack::Video,bad,{20000,10000},VideoAccess::Predicted,10000) == PacketQueue::Result::Reset);
     munit_assert_true(f.queue.stats().reason == PacketQueue::Reason::Timestamp);
+    Fixture live(3*1024*1024); live.queue.attach(0); live.push(MediaTrack::Audio,0);
+    munit_assert_true(live.push(MediaTrack::Video,0,VideoAccess::IDR,1,PacketQueue::MaxPacket) == PacketQueue::Result::Reset);
+    munit_assert_size(live.queue.stats().bytes, <=, 3*1024*1024);
     return MUNIT_OK;
 }
 static MunitResult concurrent_caps(const MunitParameter[], void *) {

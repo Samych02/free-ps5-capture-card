@@ -10,7 +10,7 @@ import subprocess
 import sys
 
 W, H, FPS, SECONDS = 320, 180, 30, 10
-RECIPE = 2
+RECIPE = 3
 
 
 def pq_code(nits):
@@ -53,7 +53,11 @@ def generate(out):
                 "-color_primaries", "bt2020" if hdr else "bt709",
                 "-color_trc", "smpte2084" if hdr else "bt709",
                 "-colorspace", "bt2020nc" if hdr else "bt709"]
-        if not mode.startswith("h264"):
+        if mode.startswith("h264"):
+            # Container colour tags alone did not make this encoder signal its
+            # VUI primaries/transfer. Live parsing must test real wire metadata.
+            cmd += ["-x264-params", "colorprim=bt709:transfer=bt709:colormatrix=bt709"]
+        else:
             params = "pools=1:frame-threads=1:log-level=error:scenecut=0:colorprim=" + ("9:transfer=16:colormatrix=9" if hdr else "1:transfer=1:colormatrix=1")
             if hdr:
                 params += ":hdr10=1:master-display=G(8500,39850)B(6550,2300)R(35400,14600)WP(15635,16450)L(10000000,1):max-cll=1000,1000"

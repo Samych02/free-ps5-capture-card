@@ -105,6 +105,61 @@ class RemuxTests(unittest.TestCase):
                     self.assertEqual(frame["color_transfer"], "smpte2084")
                     self.assertEqual(frame["color_primaries"], "bt2020")
 
+    def test_live_annexb_metadata_without_decoder(self):
+        for mode, name in enumerate(MODES):
+            with self.subTest(mode=name):
+                metadata = json.loads(run(str(BUILD / "bin/capture-live-format"), str(BUILD / "fixtures" / (name + ".mkv")), str(mode)).stdout)
+                self.assertEqual((metadata["width"],metadata["height"]),(320,180))
+                self.assertEqual(metadata["fps_num"] / metadata["fps_den"],30)
+                self.assertEqual(metadata["depth"],10 if mode == 2 else 8)
+                self.assertEqual(metadata["hdr"],mode == 2)
+                if mode == 2:
+                    self.assertEqual(metadata["primaries"],9)
+                    self.assertEqual(metadata["transfer"],16)
+                    self.assertGreaterEqual(metadata["side_data"],2)
+
+    def test_live_annexb_opus_remux(self):
+        for mode, name in enumerate(MODES):
+            with self.subTest(mode=name), tempfile.TemporaryDirectory() as tmp:
+                source = BUILD / "fixtures" / (name + ".mkv")
+                output = Path(tmp) / "live.mkv"
+                run(str(BUILD / "bin/capture-live-format"),str(source),str(mode),str(output))
+                streams = probe(output)["streams"]
+                self.assertEqual([s["codec_type"] for s in streams],["video","audio"])
+                before,after=probe(source,True),probe(output,True)
+                self.assertEqual([p["data_hash"] for p in before["packets"] if p["stream_index"]==1],
+                                 [p["data_hash"] for p in after["packets"] if p["stream_index"]==1])
+                def vcl(path):
+                    raw=run("ffmpeg","-v","error","-i",str(path),"-map","0:v:0","-c","copy","-bsf:v",
+                            "h264_mp4toannexb" if mode==0 else "hevc_mp4toannexb","-f","h264" if mode==0 else "hevc","pipe:1").stdout
+                    import re
+                    units=re.split(b"\x00\x00(?:\x00)?\x01",raw)
+                    return [n.rstrip(b"\0") for n in units if n and ((n[0]&31) in (1,2,3,4,5) if mode==0 else ((n[0]>>1)&63)<32)]
+                self.assertEqual(vcl(source),vcl(output))
+                run("ffmpeg","-v","error","-xerror","-i",str(output),"-f","null","-")
+                frame=first_frame(output)
+                self.assertEqual(frame["color_primaries"],"bt2020" if mode==2 else "bt709")
+                if mode==2:
+                    self.assertEqual(frame["color_transfer"],"smpte2084")
+                    side={d["side_data_type"]:d for d in frame["side_data_list"]}
+                    self.assertEqual(side["Content light level metadata"]["max_content"],1000)
+
+    def test_live_reordering_and_hdr_mismatch_are_rejected(self):
+        tool=str(BUILD / "bin/capture-live-format")
+        result=subprocess.run([tool,str(BUILD / "fixtures/hevc-opus.mkv"),"2"],capture_output=True)
+        self.assertNotEqual(result.returncode,0)
+        self.assertIn(b"HDR modes do not match",result.stderr)
+        with tempfile.TemporaryDirectory() as tmp:
+            source=Path(tmp) / "reordered.mkv"
+            run("ffmpeg","-v","error","-f","lavfi","-i","testsrc2=size=320x180:rate=30","-t","0.5",
+                "-c:v","libx264","-bf","2","-an",str(source))
+            result=subprocess.run([tool,str(source),"0"],capture_output=True)
+            self.assertNotEqual(result.returncode,0)
+            self.assertIn(b"reorder",result.stderr.lower())
+        # Public mux entry must reject before cloning/copying an oversized
+        # packet whose claimed data pointer is deliberately not readable.
+        run(tool,str(BUILD / "fixtures/h264-opus.mkv"),"0","--check-bounds")
+
     def test_tcp_streams_both_tracks_with_fresh_headers_on_reconnect(self):
         self.assertTrue(self.replay.exists(), "native replay is not implemented")
         with socket.socket() as reserve:
@@ -202,7 +257,9 @@ if __name__ == "__main__":
     names = unittest.defaultTestLoader.getTestCaseNames(RemuxTests)
     if args.case == "remux-equivalence":
         names = [n for n in names if n in ("test_nonseekable_remux_preserves_both_compressed_tracks",
-                 "test_required_fixtures_have_video_audio_and_real_hdr", "test_output_does_not_overwrite_existing_file")]
+                 "test_required_fixtures_have_video_audio_and_real_hdr", "test_output_does_not_overwrite_existing_file",
+                 "test_live_annexb_metadata_without_decoder", "test_live_annexb_opus_remux",
+                 "test_live_reordering_and_hdr_mismatch_are_rejected")]
     elif args.case == "tcp":
         names = [n for n in names if n in ("test_tcp_streams_both_tracks_with_fresh_headers_on_reconnect",
                  "test_invalid_port_is_rejected", "test_occupied_port_is_not_silently_changed")]

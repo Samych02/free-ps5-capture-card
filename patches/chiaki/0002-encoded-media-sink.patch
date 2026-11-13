@@ -269,6 +269,24 @@ index af919103..5944b44a 100644
  	audio_receiver->jitter_buffer[free_slot].buf = copy;
  	audio_receiver->jitter_buffer[free_slot].buf_size = buf_size;
  	audio_receiver->jitter_buffer_count++;
+diff --git a/lib/src/frameprocessor.c b/lib/src/frameprocessor.c
+index 47f0061e..8039561e 100644
+--- a/lib/src/frameprocessor.c
++++ b/lib/src/frameprocessor.c
+@@ -131,6 +131,13 @@ CHIAKI_EXPORT ChiakiErrorCode chiaki_frame_processor_alloc_frame(ChiakiFrameProc
+ 	if(frame_processor->unit_slots_size > SIZE_MAX / frame_processor->buf_stride_per_unit)
+ 		return CHIAKI_ERR_OVERFLOW;
+ 	size_t frame_buf_size_required = frame_processor->unit_slots_size * frame_processor->buf_stride_per_unit;
++	/* Bound compressed frame storage before allocation, including large units
++	 * from malformed peers. Caller must discard the frame on allocation error. */
++	if(frame_buf_size_required > 4 * 1024 * 1024)
++	{
++		frame_processor->flushed = true;
++		return CHIAKI_ERR_INVALID_DATA;
++	}
+ 	if(frame_processor->frame_buf_size < frame_buf_size_required)
+ 	{
+ 		free(frame_processor->frame_buf);
 diff --git a/lib/src/session.c b/lib/src/session.c
 index 41c6bbf0..81481013 100644
 --- a/lib/src/session.c
@@ -324,7 +342,7 @@ index 41c6bbf0..81481013 100644
  {
  	ChiakiErrorCode err = chiaki_mutex_lock(&session->state_mutex);
 diff --git a/lib/src/streamconnection.c b/lib/src/streamconnection.c
-index afa1a60a..b1bc5a6d 100644
+index afa1a60a..4d9f903c 100644
 --- a/lib/src/streamconnection.c
 +++ b/lib/src/streamconnection.c
 @@ -97,6 +97,13 @@ CHIAKI_EXPORT ChiakiErrorCode chiaki_stream_connection_init(ChiakiStreamConnecti
@@ -379,7 +397,20 @@ index afa1a60a..b1bc5a6d 100644
  	ChiakiErrorCode unlock_err = chiaki_mutex_unlock(&stream_connection->state_mutex);
  	err = chiaki_cond_signal(&stream_connection->state_cond);
  	return err == CHIAKI_ERR_SUCCESS ? unlock_err : err;
-@@ -1282,7 +1299,7 @@ CHIAKI_EXPORT ChiakiErrorCode stream_connection_send_corrupt_frame(ChiakiStreamC
+@@ -877,6 +894,12 @@ static bool pb_decode_resolution(pb_istream_t *stream, const pb_field_t *field,
+ 		return true;
+ 	}
+ 
++	if(header_buf.size > 64 * 1024 || ctx->video_profiles_count >= CHIAKI_VIDEO_PROFILES_MAX)
++	{
++		free(header_buf.buf);
++		CHIAKI_LOGE(ctx->stream_connection->session->log, "Video configuration exceeds supported bounds");
++		return true;
++	}
+ 	uint8_t *header_buf_padded = realloc(header_buf.buf, header_buf.size + CHIAKI_VIDEO_BUFFER_PADDING_SIZE);
+ 	if(!header_buf_padded)
+ 	{
+@@ -1282,7 +1305,7 @@ CHIAKI_EXPORT ChiakiErrorCode stream_connection_send_corrupt_frame(ChiakiStreamC
  	return chiaki_takion_send_message_data(&stream_connection->takion, 1, 2, buf, stream.bytes_written, NULL);
  }
  
@@ -388,7 +419,7 @@ index afa1a60a..b1bc5a6d 100644
  {
  	tkproto_TakionMessage msg = { 0 };
  	msg.type = tkproto_TakionMessage_PayloadType_IDRREQUEST;
-@@ -1300,3 +1317,12 @@ CHIAKI_EXPORT ChiakiErrorCode stream_connection_send_idr_request(ChiakiStreamCon
+@@ -1300,3 +1323,12 @@ CHIAKI_EXPORT ChiakiErrorCode stream_connection_send_idr_request(ChiakiStreamCon
  	CHIAKI_LOGI(stream_connection->log, "StreamConnection requesting IDR frame");
  	return chiaki_takion_send_message_data(&stream_connection->takion, 1, 2, buf, stream.bytes_written, NULL);
  }
@@ -402,7 +433,7 @@ index afa1a60a..b1bc5a6d 100644
 +	return err;
 +}
 diff --git a/lib/src/videoreceiver.c b/lib/src/videoreceiver.c
-index c20c9b6f..53743c4c 100644
+index c20c9b6f..19ed616d 100644
 --- a/lib/src/videoreceiver.c
 +++ b/lib/src/videoreceiver.c
 @@ -60,6 +60,8 @@ CHIAKI_EXPORT void chiaki_video_receiver_init(ChiakiVideoReceiver *video_receive
@@ -414,7 +445,7 @@ index c20c9b6f..53743c4c 100644
  	chiaki_mutex_init(&video_receiver->frames_lost_mutex, false);
  }
  
-@@ -144,6 +146,7 @@ CHIAKI_EXPORT void chiaki_video_receiver_stream_info(ChiakiVideoReceiver *video_
+@@ -144,9 +146,13 @@ CHIAKI_EXPORT void chiaki_video_receiver_stream_info(ChiakiVideoReceiver *video_
  
  CHIAKI_EXPORT void chiaki_video_receiver_av_packet(ChiakiVideoReceiver *video_receiver, ChiakiTakionAVPacket *packet)
  {
@@ -422,7 +453,13 @@ index c20c9b6f..53743c4c 100644
  	// old frame?
  	ChiakiSeqNum16 frame_index = packet->frame_index;
  	ChiakiErrorCode err = CHIAKI_ERR_SUCCESS;
-@@ -154,6 +157,16 @@ CHIAKI_EXPORT void chiaki_video_receiver_av_packet(ChiakiVideoReceiver *video_re
++	if(video_receiver->frame_index_cur >= 0 && frame_index == video_receiver->frame_index_cur &&
++		video_receiver->frame_index_prev == video_receiver->frame_index_cur)
++		return;
+ 	if(video_receiver->frame_index_cur >= 0
+ 		&& chiaki_seq_num_16_lt(frame_index, (ChiakiSeqNum16)video_receiver->frame_index_cur))
+ 	{
+@@ -154,6 +160,16 @@ CHIAKI_EXPORT void chiaki_video_receiver_av_packet(ChiakiVideoReceiver *video_re
  		return;
  	}
  
@@ -439,7 +476,7 @@ index c20c9b6f..53743c4c 100644
  	// check adaptive stream index
  	if(video_receiver->profile_cur < 0 || video_receiver->profile_cur != packet->adaptive_stream_index)
  	{
-@@ -167,8 +180,20 @@ CHIAKI_EXPORT void chiaki_video_receiver_av_packet(ChiakiVideoReceiver *video_re
+@@ -167,8 +183,20 @@ CHIAKI_EXPORT void chiaki_video_receiver_av_packet(ChiakiVideoReceiver *video_re
  		video_receiver->profile_cur = packet->adaptive_stream_index;
  
  		ChiakiVideoProfile *profile = video_receiver->profiles + video_receiver->profile_cur;
@@ -461,7 +498,7 @@ index c20c9b6f..53743c4c 100644
  			video_receiver->session->video_sample_cb(profile->header, profile->header_sz, 0, false, video_receiver->session->video_sample_cb_user);
  		if(!chiaki_bitstream_header(&video_receiver->bitstream, profile->header, profile->header_sz))
  			CHIAKI_LOGW(video_receiver->log, "Failed to parse video header");
-@@ -181,13 +206,6 @@ CHIAKI_EXPORT void chiaki_video_receiver_av_packet(ChiakiVideoReceiver *video_re
+@@ -181,13 +209,6 @@ CHIAKI_EXPORT void chiaki_video_receiver_av_packet(ChiakiVideoReceiver *video_re
  		if(video_receiver->packet_stats)
  			chiaki_frame_processor_report_packet_stats(&video_receiver->frame_processor, video_receiver->packet_stats);
  
@@ -475,15 +512,26 @@ index c20c9b6f..53743c4c 100644
  		ChiakiSeqNum16 next_frame_expected = (ChiakiSeqNum16)(video_receiver->frame_index_prev_complete + 1);
  		if(chiaki_seq_num_16_gt(frame_index, next_frame_expected)
  			&& !(frame_index == 1 && video_receiver->frame_index_cur < 0)) // ok for frame 1
-@@ -199,6 +217,7 @@ CHIAKI_EXPORT void chiaki_video_receiver_av_packet(ChiakiVideoReceiver *video_re
+@@ -199,9 +220,18 @@ CHIAKI_EXPORT void chiaki_video_receiver_av_packet(ChiakiVideoReceiver *video_re
  		}
  
  		video_receiver->frame_index_cur = frame_index;
 +		video_receiver->first_receipt_us = received_us;
  		err = chiaki_frame_processor_alloc_frame(&video_receiver->frame_processor, packet);
  		if(err != CHIAKI_ERR_SUCCESS)
++		{
  			CHIAKI_LOGW(video_receiver->log, "Video receiver could not allocate frame for packet.");
-@@ -261,7 +280,7 @@ static ChiakiErrorCode chiaki_video_receiver_flush_frame(ChiakiVideoReceiver *vi
++			video_receiver->frame_index_prev = video_receiver->frame_index_cur;
++			chiaki_mutex_lock(&video_receiver->frames_lost_mutex);
++			video_receiver->frames_lost++;
++			video_receiver->frames_lost_total++;
++			chiaki_mutex_unlock(&video_receiver->frames_lost_mutex);
++			return;
++		}
+ 	}
+ 
+ 	err = chiaki_frame_processor_put_unit(&video_receiver->frame_processor, packet);
+@@ -261,7 +291,7 @@ static ChiakiErrorCode chiaki_video_receiver_flush_frame(ChiakiVideoReceiver *vi
  				event.video_fec_failure.idr_request_sent = idr_request_sent;
  				chiaki_session_send_event(video_receiver->session, &event);
  			}
@@ -492,7 +540,7 @@ index c20c9b6f..53743c4c 100644
  		chiaki_mutex_lock(&video_receiver->frames_lost_mutex);
  		video_receiver->frames_lost += lost;
  		video_receiver->frames_lost_total += lost;
-@@ -275,7 +294,7 @@ static ChiakiErrorCode chiaki_video_receiver_flush_frame(ChiakiVideoReceiver *vi
+@@ -275,7 +305,7 @@ static ChiakiErrorCode chiaki_video_receiver_flush_frame(ChiakiVideoReceiver *vi
  	bool succ = flush_result != CHIAKI_FRAME_PROCESSOR_FLUSH_RESULT_FEC_FAILED;
  	bool recovered = false;
  
@@ -501,7 +549,7 @@ index c20c9b6f..53743c4c 100644
  	if(chiaki_bitstream_slice(&video_receiver->bitstream, frame, frame_size, &slice))
  	{
  		if(chiaki_video_receiver_get_waiting_for_idr(video_receiver))
-@@ -325,9 +344,23 @@ static ChiakiErrorCode chiaki_video_receiver_flush_frame(ChiakiVideoReceiver *vi
+@@ -325,9 +355,23 @@ static ChiakiErrorCode chiaki_video_receiver_flush_frame(ChiakiVideoReceiver *vi
  		}
  	}
  

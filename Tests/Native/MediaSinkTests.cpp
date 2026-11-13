@@ -364,6 +364,18 @@ static MunitResult hevc_configuration(const MunitParameter[], void *) {
     }
     return MUNIT_OK;
 }
+static MunitResult core_allocation_bounds(const MunitParameter[], void *) {
+    Fixture f; f.videoInfo();
+    uint8_t prefix[]{0,0}; ChiakiTakionAVPacket packet{};
+    packet.is_video=true; packet.frame_index=1; packet.units_in_frame_total=511;
+    packet.data=prefix; packet.data_size=8193;
+    munit_assert_int(chiaki_frame_processor_alloc_frame(&f.video.frame_processor,&packet), ==, CHIAKI_ERR_INVALID_DATA);
+    munit_assert_size(f.video.frame_processor.frame_buf_size, <=, 4*1024*1024);
+    chiaki_video_receiver_av_packet(&f.video,&packet);
+    chiaki_video_receiver_av_packet(&f.video,&packet);
+    munit_assert_size(f.videoPackets.size(), ==, 0);
+    return MUNIT_OK;
+}
 int main(int argc, char **argv) {
     munit_assert_int(chiaki_lib_init(), ==, CHIAKI_ERR_SUCCESS);
     MunitTest tests[] = {
@@ -381,6 +393,7 @@ int main(int argc, char **argv) {
         {const_cast<char *>("/adapter-bounds"), adapter_bounds, nullptr, nullptr, MUNIT_TEST_OPTION_NONE, nullptr},
         {const_cast<char *>("/control-lifetime"), control_lifetime, nullptr, nullptr, MUNIT_TEST_OPTION_NONE, nullptr},
         {const_cast<char *>("/hevc-configuration"), hevc_configuration, nullptr, nullptr, MUNIT_TEST_OPTION_NONE, nullptr},
+        {const_cast<char *>("/core-allocation-bounds"), core_allocation_bounds, nullptr, nullptr, MUNIT_TEST_OPTION_NONE, nullptr},
         {nullptr, nullptr, nullptr, nullptr, MUNIT_TEST_OPTION_NONE, nullptr}};
     MunitSuite suite{const_cast<char *>("/media-sink"), tests, nullptr, 1, MUNIT_SUITE_OPTION_NONE};
     return munit_suite_main(&suite, nullptr, argc, argv);

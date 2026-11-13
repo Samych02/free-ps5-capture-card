@@ -46,7 +46,7 @@ public:
     enum class Result { Accepted, Dropped, Stale, Reset, Invalid };
     enum class Reason { None, Detached, Overflow, StaleMedia, ConfigurationChanged, InvalidData, Timestamp, MissingTrack, KeyframeTimeout };
     struct Stats { size_t bytes, entries, queued; uint64_t epoch; bool connected, ready; Reason reason; };
-    PacketQueue();
+    explicit PacketQueue(size_t storageLimit = MaxBytes);
     Result configureVideo(const ChiakiEncodedVideoConfig &);
     Result configureAudio(const ChiakiEncodedAudioConfig &);
     bool attach(uint64_t nowUs);
