@@ -15,3 +15,10 @@ add_custom_command(TARGET CaptureEngine POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_CURRENT_SOURCE_DIR}/module.modulemap"
         "$<TARGET_BUNDLE_DIR:CaptureEngine>/Modules/module.modulemap")
+
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(CAPTURE_AV REQUIRED IMPORTED_TARGET libavformat libavcodec libavutil)
+add_library(capture-media STATIC src/MatroskaMuxer.cpp src/LocalTCPServer.cpp)
+target_compile_features(capture-media PUBLIC cxx_std_17)
+target_include_directories(capture-media PUBLIC src)
+target_link_libraries(capture-media PUBLIC PkgConfig::CAPTURE_AV)

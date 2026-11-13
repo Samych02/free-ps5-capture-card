@@ -14,14 +14,18 @@ while (($#)); do
     esac
 done
 if (( !NATIVE && !APP )); then echo "Select --native and/or --app" >&2; exit 2; fi
-if [[ -n $FILTER && $FILTER != interface ]]; then echo "Unknown native suite: $FILTER" >&2; exit 2; fi
+case "$FILTER" in ""|interface|mux|tcp) ;; *) echo "Unknown native suite: $FILTER" >&2; exit 2 ;; esac
 if [[ -n $FILTER && $NATIVE != 1 ]]; then echo "--filter requires --native" >&2; exit 2; fi
 if [[ -n $ONLY && $APP != 1 ]]; then echo "--only requires --app" >&2; exit 2; fi
 cd "$ROOT"
 if ((NATIVE)); then
     "$ROOT/scripts/build-native.sh" --config Debug --tests
-    if [[ -n $FILTER ]]; then
+    if [[ $FILTER == interface ]]; then
         ctest --test-dir build/native --no-tests=error -R '^capture-interface$' --output-on-failure
+    elif [[ $FILTER == mux || $FILTER == tcp ]]; then
+        case_name=remux-equivalence
+        if [[ $FILTER == tcp ]]; then case_name=tcp; fi
+        "$ROOT/build/python/bin/python3" Tests/Support/integration.py --build-dir build/native --case "$case_name"
     else
         ctest --test-dir build/native --no-tests=error --output-on-failure
     fi

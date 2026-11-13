@@ -27,6 +27,13 @@ installing the required Homebrew dependencies.
   disabled and engine Start returns unavailable, not fictitious success.
 - Baseline pushed to `origin/feat/native-app-shell`. Independent code review and
   manual visual inspection remain pending; no merge to main is requested.
+- User subsequently requested all work stay on `main`; main includes the verified
+  app-shell commit. Do not create per-milestone branches or block on remote-main
+  publication. Task 2's automated prototype now works: compressed video+Opus
+  Matroska remuxing, loopback replay, all three required fixtures, payload/hash and
+  HDR signaling tests, TCP reconnect/port/cancellation checks. Six integration
+  methods pass along with previous suites. Actual OBS Gate A remains pending;
+  independent login/pairing must not start until that manual gate passes.
 
 
 **Goal:** Build a minimal standalone macOS app that connects a PS5 to OBS, delivering equally important game video and game audio together without a playback window, local sound, or intermediate media decoding/encoding.

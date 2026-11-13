@@ -44,6 +44,16 @@ Build the app shell with `scripts/build.sh --config Debug`; its output is
 with `scripts/test.sh --native --app`. Both commands print their underlying build
 commands. Test filters currently support the native `interface` suite and app
 classes `AppModelTests` / `EngineClientTests`; unknown filters are rejected.
+Native filters `mux` and `tcp` run the new synthetic transport checks. The full
+native suite includes those integration tests automatically.
+
+## Synthetic OBS transport prototype
+
+A no-transcode Matroska/TCP replay sender is now available independently of the
+app shell. It sends both compressed video and Opus audio, including a validated
+10-bit PQ/BT.2020 HDR fixture. See [run and OBS instructions](docs/obs-transport-prototype.md).
+Automated FFmpeg-receiver checks pass; **actual OBS compatibility is still a
+manual gate**, not a completed feature claim. This is not connected to a PS5 yet.
 
 The shell uses a deliberately minimal native utility layout, supports system
 appearance/accessibility, opens no playback devices, and does not auto-start

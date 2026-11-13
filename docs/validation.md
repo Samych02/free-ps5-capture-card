@@ -78,5 +78,32 @@
   No simulator upgrade/system service change was performed.
 
 The app is a runnable development shell, NOT a functional capture app. No PSN,
-pairing, OBS, HDR, audio, or live-media capability has been verified. Visual
+pairing, actual OBS ingestion, or live-PS5 media capability has been verified. Visual
 inspection and independent code review are still pending.
+
+## Synthetic transport implementation (Gate A manual check pending)
+
+- Working branch is now `main`, as explicitly requested by the user. No extra
+  milestone branch or PR is required to continue development.
+- Initial red integration run failed for the missing fixture generator/sender.
+  TCP tests subsequently failed for unsupported server options. Additional red
+  tests caught a queued second consumer and overwriting of existing debug output.
+- HDR validation caught missing transfer/primaries in the encoded fixture VUI.
+  Bitstream tracing showed unspecified values; explicit x265 colorprim/transfer
+  parameters corrected the stream. Frame-level probing verifies PQ/BT.2020,
+  mastering metadata, MaxCLL, and actual decoded patch codes. Stream-only probing
+  can omit fields resolved after the first decoded frame.
+- `python3 Tests/Support/integration.py --build-dir build/native --case all`:
+  six test methods pass, exercising H264 SDR, H265 SDR, and H265 HDR subcases.
+  Compressed packet hashes match on both remuxed tracks for all modes; validation
+  decoding is test-only. Production mux/server/replay code opens no codec context.
+- TCP receives both tracks in a separate FFmpeg process. Tests cover ten fresh
+  header reconnects per mode, second-client rejection, port errors, read-only
+  fixture preservation, and cancellation within two seconds. An eleven-second
+  H265 capture crosses the ten-second fixture loop without timestamp rewind.
+- Full `scripts/test.sh --native --app`: CTest 3/3 targets pass (118 core, 3
+  interface cases, 6 integration test methods), and XCTest 7/7 pass. Bootstrap
+  tests remain 4/4 green. Fixtures are small 320x180/30 fps synthetic samples.
+- Pending: actual OBS tests in all three modes, observed A/V sync and HDR output,
+  high-bitrate backpressure/soak, live Annex-B delivery, and PS5 clock behavior.
+  These are not inferred from FFmpeg ingestion or packet hash preservation.
