@@ -1,4 +1,5 @@
 #include "AnnexB.h"
+#include <vector>
 #include "AudioFormat.h"
 #include <munit.h>
 #include <stdexcept>
@@ -13,6 +14,12 @@ static MunitResult access_h264(const MunitParameter[], void *) {
     munit_assert_true(info.hasPicture); munit_assert_true(info.access == VideoAccess::Predicted);
     const uint8_t headers[]{0,0,1,0x67,1,0,0,1,0x68,1};
     munit_assert_false(inspectAccessUnit(CHIAKI_CODEC_H264,headers,sizeof(headers)).hasPicture);
+    auto signature=parameterSetSignature(CHIAKI_CODEC_H264,headers,sizeof(headers));
+    munit_assert_uint64(signature, !=, 0);
+    std::vector<uint8_t> repeated(headers,headers+sizeof(headers));
+    repeated.insert(repeated.end(),headers,headers+sizeof(headers));
+    munit_assert_uint64(parameterSetSignature(CHIAKI_CODEC_H264,repeated.data(),repeated.size()), ==, signature);
+    munit_assert_uint64(parameterSetSignature(CHIAKI_CODEC_H264,notIdr,sizeof(notIdr)), ==, 0);
     return MUNIT_OK;
 }
 static MunitResult access_hevc(const MunitParameter[], void *) {

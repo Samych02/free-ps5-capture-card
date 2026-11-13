@@ -40,7 +40,7 @@ ChiakiErrorCode SessionMediaControl::requestKeyframe() {
 ChiakiSession *SessionMediaControl::stopAndDetach() {
     std::lock_guard<std::mutex> lock(mutex_);
     auto *session = session_; session_ = nullptr;
-    if(session) chiaki_session_stop(session);
+    if(session) stop_(session);
     return session;
 }
 }

@@ -17,7 +17,20 @@ typedef struct {
     uint32_t width, height, fps, bitrate_kbps, port;
     capture_codec codec;
 } capture_options;
-typedef enum { CAPTURE_IDLE, CAPTURE_STOPPED } capture_state;
+typedef enum { CAPTURE_IDLE, CAPTURE_STOPPED, CAPTURE_CONNECTING, CAPTURE_WAITING_OBS,
+    CAPTURE_STREAMING, CAPTURE_RETRYING, CAPTURE_PIN_REQUIRED, CAPTURE_FAILED } capture_state;
+typedef enum { CAPTURE_ERROR_NONE, CAPTURE_ERROR_PORT, CAPTURE_ERROR_CONNECTION,
+    CAPTURE_ERROR_IDENTITY, CAPTURE_ERROR_IN_USE, CAPTURE_ERROR_MEDIA,
+    CAPTURE_ERROR_OVERFLOW, CAPTURE_ERROR_INTERNAL } capture_error;
+typedef struct {
+    uint32_t size, version;
+    capture_state state;
+    capture_error error;
+    uint32_t width, height, fps_num, fps_den, port;
+    capture_codec codec;
+    uint64_t video_packets, audio_packets, reconnects, queued_bytes;
+    char message[192]; /* sanitized, no protocol strings or credential material */
+} capture_status;
 /* Callback data is borrowed; copy it before dispatching elsewhere. Callbacks
  * run on the engine worker. Never block them on the UI/main thread. */
 typedef void (*capture_callback)(capture_state state, void *context);
@@ -54,6 +67,17 @@ typedef struct {
     uint8_t registration_key[16], session_key[16];
     uint32_t key_type;
 } capture_registration;
+typedef struct {
+    uint32_t size, version;
+    char address[64];
+    uint8_t account_id[8];
+    capture_registration registration;
+} capture_connection;
+/* Copied, pre-start only. Existing credentials survive invalid replacement. */
+CAPTURE_API capture_result capture_engine_configure(capture_engine *, const capture_options *, const capture_connection *);
+CAPTURE_API capture_result capture_engine_get_status(capture_engine *, capture_status *);
+/* Exactly four ASCII digits, transient, only while a login passcode is requested. */
+CAPTURE_API capture_result capture_engine_submit_login_pin(capture_engine *, const char *, size_t);
 typedef enum { CAPTURE_SETUP_OK, CAPTURE_SETUP_CANCELLED,
     CAPTURE_SETUP_FAILED, CAPTURE_SETUP_PERMISSION_DENIED } capture_setup_status;
 typedef struct capture_pairing capture_pairing;

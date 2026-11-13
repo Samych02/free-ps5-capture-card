@@ -4,6 +4,7 @@
 #include <stdexcept>
 extern "C" {
 #include <libavcodec/bsf.h>
+#include <libavutil/mastering_display_metadata.h>
 }
 int main(int argc, char **argv) {
     AVFormatContext *input = nullptr; AVBSFContext *bsf = nullptr; AVPacket *packet = av_packet_alloc();
@@ -23,6 +24,14 @@ int main(int argc, char **argv) {
             if(av_bsf_send_packet(bsf,packet)<0 || av_bsf_receive_packet(bsf,packet)<0) throw std::runtime_error("fixture conversion");
             auto format = capture::parseVideoFormat(codec,bsf->par_out->extradata,bsf->par_out->extradata_size,packet->data,packet->size);
             if(!format.parameters) throw std::runtime_error("live metadata is missing");
+            if(format.hdr) {
+                if(!capture::hdrMetadataMatches(format.parameters.get(),packet->data,packet->size)) throw std::runtime_error("matching HDR metadata rejected");
+                capture::Parameters changed(avcodec_parameters_alloc()); avcodec_parameters_copy(changed.get(),format.parameters.get());
+                auto sd=av_packet_side_data_get(changed->coded_side_data,changed->nb_coded_side_data,AV_PKT_DATA_CONTENT_LIGHT_LEVEL);
+                if(!sd) throw std::runtime_error("missing fixture content light");
+                reinterpret_cast<AVContentLightMetadata *>(sd->data)->MaxCLL++;
+                if(capture::hdrMetadataMatches(changed.get(),packet->data,packet->size)) throw std::runtime_error("HDR metadata change not detected");
+            }
             auto audio = capture::liveAudioParameters({1,2,48000,960});
             if(!audio || audio->initial_padding != 0 || audio->extradata_size != 19) throw std::runtime_error("live audio parameters");
             std::cout << "{\"width\":" << format.parameters->width << ",\"height\":" << format.parameters->height

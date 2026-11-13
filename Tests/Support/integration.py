@@ -223,6 +223,30 @@ class RemuxTests(unittest.TestCase):
                         self.fail("server failed to stop within 2 seconds")
                     process.stderr.close()
 
+    def test_receiver_pipeline_delivers_both_tracks(self):
+        for mode,name in enumerate(MODES):
+            with self.subTest(mode=name), tempfile.TemporaryDirectory() as tmp:
+                with socket.socket() as reserve:
+                    reserve.bind(("127.0.0.1",0)); port=reserve.getsockname()[1]
+                process=subprocess.Popen([str(BUILD / "bin/capture-pipeline-fixture"),str(BUILD / "fixtures" / (name+".mkv")),str(mode),str(port)],
+                                         stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
+                try:
+                    with selectors.DefaultSelector() as selector:
+                        selector.register(process.stderr,selectors.EVENT_READ)
+                        self.assertTrue(selector.select(5)); self.assertIn(b"READY",process.stderr.readline())
+                    output=Path(tmp) / "pipeline.mkv"
+                    run("ffmpeg","-v","error","-y","-analyzeduration","100000","-probesize","65536","-f","matroska",
+                        "-i",f"tcp://127.0.0.1:{port}","-t","0.5","-map","0","-c","copy",str(output),timeout=12)
+                    self.assertEqual([s["codec_type"] for s in probe(output)["streams"]],["video","audio"])
+                    run("ffmpeg","-v","error","-xerror","-i",str(output),"-f","null","-")
+                    if mode==2: self.assertEqual(first_frame(output)["color_transfer"],"smpte2084")
+                finally:
+                    process.terminate()
+                    try: process.wait(timeout=3)
+                    except subprocess.TimeoutExpired:
+                        process.kill(); process.wait(); self.fail("pipeline stop exceeded 3 seconds")
+                    process.stderr.close()
+
     def test_invalid_port_is_rejected(self):
         for value in ("0", "1023", "65536", "abc", "9295junk"):
             result = subprocess.run([str(self.replay), "--fixture", str(BUILD / "fixtures/h264-opus.mkv"),
@@ -262,7 +286,8 @@ if __name__ == "__main__":
                  "test_live_reordering_and_hdr_mismatch_are_rejected")]
     elif args.case == "tcp":
         names = [n for n in names if n in ("test_tcp_streams_both_tracks_with_fresh_headers_on_reconnect",
-                 "test_invalid_port_is_rejected", "test_occupied_port_is_not_silently_changed")]
+                 "test_invalid_port_is_rejected", "test_occupied_port_is_not_silently_changed",
+                 "test_receiver_pipeline_delivers_both_tracks")]
     suite = unittest.TestSuite()
     if args.case in ("synthetic-clock", "all"):
         suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(ClockTests))

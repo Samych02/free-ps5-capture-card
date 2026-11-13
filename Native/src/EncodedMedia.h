@@ -35,11 +35,12 @@ private:
 // and stop/detach are serialized; join/fini happen outside the lock/callbacks.
 class SessionMediaControl {
 public:
-    explicit SessionMediaControl(ChiakiSession *session) : session_(session) {}
+    explicit SessionMediaControl(ChiakiSession *session,decltype(&chiaki_session_stop) stop=chiaki_session_stop) : session_(session),stop_(stop) {}
     ChiakiErrorCode requestKeyframe();
     ChiakiSession *stopAndDetach();
 private:
     std::mutex mutex_;
     ChiakiSession *session_;
+    decltype(&chiaki_session_stop) stop_;
 };
 }

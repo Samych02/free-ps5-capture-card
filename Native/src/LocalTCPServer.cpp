@@ -86,5 +86,13 @@ int LocalTCPServer::write(const uint8_t *data, int size, const std::function<boo
 void LocalTCPServer::disconnect() {
     if(client_ >= 0) { close(client_); client_ = -1; }
 }
+bool LocalTCPServer::clientAlive() {
+    if(client_<0) return false;
+    uint8_t byte; auto n=recv(client_,&byte,1,MSG_PEEK|MSG_DONTWAIT);
+    return n>0 || (n<0 && (errno==EAGAIN || errno==EWOULDBLOCK || errno==EINTR));
+}
+void LocalTCPServer::rejectExtraClients() {
+    for(int count=0;count<8;++count) { int fd=accept(listener_,nullptr,nullptr); if(fd<0) break; close(fd); }
+}
 LocalTCPServer::~LocalTCPServer() { disconnect(); if(listener_ >= 0) close(listener_); }
 }

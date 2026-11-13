@@ -1,51 +1,122 @@
 import SwiftUI
+import AppKit
 
 struct MainView: View {
     @ObservedObject var model: AppModel
     @ObservedObject var account: AccountModel
     @ObservedObject var pairing: PairingModel
+    @State private var loginPIN = ""
+    @State private var pinSubmitted = false
     var body: some View {
         ScrollView {
-        VStack(alignment: .leading, spacing: 24) {
-            HStack(alignment: .top) {
-                Image(systemName: "cable.connector")
-                    .font(.system(size: 30, weight: .light))
-                    .foregroundStyle(.secondary)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Free PS5 Capture Card").font(.title2.bold())
-                    Text("A direct connection to OBS.").foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 22) {
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: "cable.connector").font(.largeTitle).foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Free PS5 Capture Card").font(.title2.bold())
+                        Text("Compressed audio and video. Straight to OBS.").foregroundStyle(.secondary)
+                    }
                 }
-            }
-            AccountConsoleView(model: account, pairing: pairing)
-            GroupBox {
-                VStack(alignment: .leading, spacing: 14) {
-                    LabeledContent("Engine", value: status)
-                    Text("Development build: live PS5 audio/video capture is not implemented yet.")
-                        .font(.callout).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }.padding(8)
-            }
-            HStack {
-                Label("No local video or audio playback", systemImage: "speaker.slash")
+                AccountConsoleView(model: account, pairing: pairing)
+                    .disabled(model.active)
+                    .help(model.active ? "Stop capture before changing or forgetting credentials." : "Configure your PSN identity and PS5.")
+                GroupBox("Stream options") {
+                    Form {
+                        Picker("Video codec", selection: $model.options.codec) {
+                            Text("H264").tag(StreamOptions.Codec.h264)
+                            Text("H265 (Default)").tag(StreamOptions.Codec.h265)
+                            Text("H265 HDR").tag(StreamOptions.Codec.hdr)
+                        }
+                        Picker("Resolution", selection: $model.options.height) {
+                            Text("1080p").tag(1080); Text("720p").tag(720)
+                        }
+                        Picker("Frame rate", selection: $model.options.fps) {
+                            Text("60 fps").tag(60); Text("30 fps").tag(30)
+                        }
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Bitrate: \(model.options.bitrate / 1000) Mbps")
+                                .monospacedDigit().accessibilityIdentifier("bitrateReadout")
+                            Slider(value: Binding(get: { Double(model.options.bitrate) }, set: { model.options.bitrate = Int($0) }),
+                                   in: 2000...100000, step: 1000) { Text("Bitrate") }
+                        }
+                        TextField("Local TCP port", value: $model.options.port, format: .number.grouping(.never))
+                            .textFieldStyle(.roundedBorder)
+                            .help("1024–65535. OBS must use the same port. Defaults to 9295.")
+                    }.padding(8).disabled(model.active)
+                    if !model.options.isValid { Text("Choose a port from 1024 to 65535.").foregroundStyle(.red) }
+                    if model.options.codec == .hdr {
+                        Text("HDR passthrough requires an HDR-capable PS5 game and correct OBS colour settings. No tone mapping or silent SDR fallback.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                GroupBox("OBS output") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        LabeledContent("Status", value: status)
+                        if !model.status.message.isEmpty {
+                            Text(model.status.message).font(.callout).textSelection(.enabled)
+                        }
+                        HStack {
+                            Text(model.obsURL).font(.system(.body, design: .monospaced)).textSelection(.enabled)
+                            Spacer()
+                            Button("Copy URL", systemImage: "doc.on.doc") {
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(model.obsURL, forType: .string)
+                            }.disabled(!model.options.isValid)
+                        }
+                        Text("In OBS, add one Media Source, turn off Local File, paste this URL, and choose matroska as the input format. Both tracks use this source.")
+                            .font(.caption).foregroundStyle(.secondary)
+                        if model.status.width > 0 {
+                            Text("Received: \(model.status.width)×\(model.status.height) · \(cadence) fps · video \(model.status.videoPackets) · audio \(model.status.audioPackets)")
+                                .font(.caption).monospacedDigit().accessibilityIdentifier("receivedMediaStatus")
+                        }
+                        HStack {
+                            Button("Start Capture", systemImage: "play.fill") {
+                                model.requestStart(account: account.account, console: pairing.paired)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(model.active || !model.options.isValid || account.account == nil || pairing.paired == nil || account.busy || account.awaitingRedirect || pairing.busy)
+                            Button("Stop", systemImage: "stop.fill") { model.stop() }.disabled(!model.active)
+                        }
+                    }.padding(8)
+                }
+                Text("No preview or local playback. Stop before changing setup. Closing the window leaves capture running; Quit disconnects from the PS5.")
                     .font(.caption).foregroundStyle(.secondary)
-                Spacer()
-                Button("Start Capture") { model.requestStart() }
-                    .disabled(true)
-                    .help("Available after pairing and the media pipeline are implemented.")
-            }
-            Text("Closing this window leaves the app running. Choose Quit to exit.")
-                .font(.caption).foregroundStyle(.secondary)
+            }.padding(26).frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(28)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(minWidth: 500, idealWidth: 560, minHeight: 500)
+        .sheet(isPresented: Binding(get: { model.state == .pinRequired }, set: { if !$0 { model.stop() } })) {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("PS5 login passcode").font(.headline)
+                Text("Enter the 4-digit console login passcode. This is not the 8-digit Link Device code. It is used once and never saved.")
+                SecureField("4-digit login passcode", text: $loginPIN).textFieldStyle(.roundedBorder)
+                    .disabled(pinSubmitted)
+                HStack {
+                    Button("Cancel") { loginPIN = ""; model.stop() }
+                    Button("Continue") {
+                        pinSubmitted = model.submitPIN(loginPIN); loginPIN = ""
+                    }.disabled(pinSubmitted || loginPIN.utf8.count != 4 || !loginPIN.utf8.allSatisfy({ (48...57).contains($0) }))
+                        .keyboardShortcut(.defaultAction)
+                }
+            }.padding(24).frame(width: 380)
+                .onDisappear { loginPIN = ""; pinSubmitted = false }
         }
-        .frame(minWidth: 500, idealWidth: 540, minHeight: 420)
+        .onChange(of: model.state) { _, state in if state == .pinRequired { pinSubmitted = false } }
+    }
+    private var cadence: String {
+        guard model.status.fpsDenominator > 0 else { return "unknown" }
+        return String(format: "%.2f", Double(model.status.fpsNumerator) / Double(model.status.fpsDenominator))
     }
     private var status: String {
         switch model.state {
         case .idle: return "Idle — not connected"
         case .stopped: return "Stopped"
-        case .unavailable: return "Capture unavailable in this build"
+        case .connecting: return "Connecting to PS5…"
+        case .waitingOBS: return "Connected — waiting for OBS and both tracks"
+        case .streaming: return "Sending audio and video to OBS"
+        case .retrying: return "Reconnecting…"
+        case .pinRequired: return "PS5 login passcode required"
+        case .failed: return "Capture failed — stop before retrying"
+        case .unavailable: return "Cannot start — check pairing and stream options"
         }
     }
 }

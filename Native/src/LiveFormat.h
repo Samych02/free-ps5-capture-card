@@ -10,4 +10,5 @@ using Parameters = std::unique_ptr<AVCodecParameters, ParametersDeleter>;
 struct VideoFormat { Parameters parameters; AVRational frameRate{}; int depth = 0; bool hdr = false; };
 VideoFormat parseVideoFormat(ChiakiCodec, const uint8_t *header, size_t headerSize, const uint8_t *frame, size_t frameSize);
 Parameters liveAudioParameters(const ChiakiEncodedAudioConfig &);
+bool hdrMetadataMatches(const AVCodecParameters *,const uint8_t *,size_t);
 }

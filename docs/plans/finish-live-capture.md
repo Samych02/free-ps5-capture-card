@@ -24,6 +24,9 @@ and the user confirmed relaunch recovery. Keep normal external-browser PSN login
   live Annex-B/Opus remux equivalence.
 - [ ] Task 7: live native session, Swift connection/options/status, both tracks
   through the pipeline; secure transient login passcode handling.
+  Implemented native lifecycle and receiver pipeline, C/Swift configuration,
+  sanitized status and masked transient passcode controls. Full native/app
+  regression passes in `build/live-session-regression.log`; device gate deferred.
 - [ ] Task 8: transient retry, cancellation and reconnect/fault coverage.
 - [ ] Task 9: focused native setup/options/status UI, persistence and accessibility.
 - [ ] Task 10: bundle checks/developer packaging, CI, setup docs and explicit
@@ -54,10 +57,13 @@ and the user confirmed relaunch recovery. Keep normal external-browser PSN login
 
 ## Surprises & Discoveries
 
-- Current `Engine.cpp` still returns unavailable; no live session has been run.
+- `Engine.cpp` now owns asynchronous live lifecycle, reserves loopback before
+  source contact, and uses real Chiaki init/start/stop/join/fini. No real PS5
+  stream has been started by automated tests.
 - Queue cap covers owned queue/config/leases, not total mux/AVIO/core RSS.
-- Existing synthetic remux tests use container-supplied parameters; they do not
-  yet validate live Annex-B header parsing or live Opus initialization.
+- Receiver-pipeline TCP tests now exercise borrowed callbacks, startup parsing,
+  clock calibration, queue, live Opus initialization and ordered Matroska output
+  for all three modes, decoded only by test-only FFmpeg.
 - Pinned core receiver patch supplies source indices and first receipt times;
   nominal requested fps alone is not actual cadence or proof of HDR.
 - FFmpeg parsers returned cadence/depth but not VUI colour; bounded native H264
@@ -71,6 +77,16 @@ and the user confirmed relaunch recovery. Keep normal external-browser PSN login
   at 4 MiB, and ordered live muxing bypasses FFmpeg's interleaving queue. Source
   headers and packets are bounded; total RSS still includes non-media library/
   allocator/transport overhead and requires measurement at final live tests.
+- HDR fixtures repeat identical VPS/SPS/PPS in the first access unit. Signatures
+  now canonicalize/deduplicate parameter sets rather than treating repetition as
+  a source change. Regression: `build/repeated-headers-red.log`, followed by
+  passing TCP and full regression checks.
+- Real session ownership is tested through injected core entry points, covering
+  sink setup, no fallback/controller/keyboard flags, transient PIN, in-use quit,
+  exactly-once cleanup, and start failure without joining an unstarted thread.
+- Native UI now exposes persisted non-secret options, Start/Stop, actual packet
+  counters/cadence, copyable URL and secure PIN sheet. Setup/options are disabled
+  until Stop acknowledgement, so credentials cannot be forgotten mid-session.
 
 ## Decision Log
 

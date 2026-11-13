@@ -12,6 +12,8 @@ public:
     bool acceptClient(const std::function<bool()> &cancelled);
     int write(const uint8_t *data, int size, const std::function<bool()> &cancelled);
     void disconnect();
+    bool clientAlive();
+    void rejectExtraClients();
 private:
     int listener_ = -1, client_ = -1;
 };

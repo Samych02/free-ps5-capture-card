@@ -8,4 +8,5 @@ struct AccessUnitInfo { bool hasPicture = false; VideoAccess access = VideoAcces
 // A non-IDR H264 I-slice is not random access. HEVC CRA and leading pictures
 // remain distinct so consumers can suppress associated RASL/RADL pictures.
 AccessUnitInfo inspectAccessUnit(ChiakiCodec, const uint8_t *, size_t);
+uint64_t parameterSetSignature(ChiakiCodec,const uint8_t *,size_t);
 }

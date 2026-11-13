@@ -72,6 +72,17 @@ void hevcSEI(AVCodecParameters *parameters, const uint8_t *data, size_t size) {
     }
 }
 }
+bool hdrMetadataMatches(const AVCodecParameters *baseline,const uint8_t *data,size_t size) {
+    if(!baseline || !data || size>PacketQueue::MaxPacket) throw std::runtime_error("Invalid HDR metadata buffer");
+    Parameters current(avcodec_parameters_alloc()); if(!current) throw std::bad_alloc();
+    hevcSEI(current.get(),data,size);
+    for(int i=0;i<current->nb_coded_side_data;++i) {
+        const auto &value=current->coded_side_data[i];
+        auto old=av_packet_side_data_get(baseline->coded_side_data,baseline->nb_coded_side_data,value.type);
+        if(!old || old->size!=value.size || memcmp(old->data,value.data,value.size)) return false;
+    }
+    return true;
+}
 VideoFormat parseVideoFormat(ChiakiCodec codec, const uint8_t *header, size_t headerSize, const uint8_t *frame, size_t frameSize) {
     if(!header || !headerSize || headerSize>PacketQueue::MaxHeader || !frame || !frameSize || frameSize>PacketQueue::MaxPacket)
         throw std::runtime_error("Missing or oversized video configuration");
