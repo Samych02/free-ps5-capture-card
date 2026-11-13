@@ -14,8 +14,9 @@ local port (default 9295). HDR passthrough and audio are required scope.
 
 The native engine framework and SwiftUI development shell build in Debug and
 Release. Tests cover the 118 upstream core cases, 3 engine-interface cases,
-7 app/adapter cases, and 4 bootstrap cases. No PSN login, console pairing, or
-PS5-to-OBS stream exists yet; Start Capture is intentionally disabled.
+25 app/account/adapter cases, and 4 bootstrap cases. PSN account setup is
+implemented for manual validation; console pairing and live PS5-to-OBS capture
+are not implemented yet. Start Capture is intentionally disabled.
 The installed Homebrew
 libraries require macOS 26; macOS-15 distribution is not yet supported/verified.
 See [the execution plan](docs/plans/free-ps5-capture-card.md) and
@@ -43,7 +44,8 @@ Build the app shell with `scripts/build.sh --config Debug`; its output is
 `build/xcode/Build/Products/Debug/FreePS5CaptureCard.app`. Run native and app tests
 with `scripts/test.sh --native --app`. Both commands print their underlying build
 commands. Test filters currently support the native `interface` suite and app
-classes `AppModelTests` / `EngineClientTests`; unknown filters are rejected.
+classes `AppModelTests`, `EngineClientTests`, `AuthTests`, `CredentialStoreTests`,
+and `AccountModelTests`; unknown filters are rejected.
 Native filters `mux` and `tcp` run the new synthetic transport checks. The full
 native suite includes those integration tests automatically.
 
@@ -61,6 +63,14 @@ appearance/accessibility, opens no playback devices, and does not auto-start
 capture. Closing the window keeps the app alive; Quit joins engine cleanup
 asynchronously. The framework still links local Homebrew libraries; the app is
 not yet a self-contained distributable bundle.
+
+## PSN sign-in / account storage
+
+The native window now supports Sony browser sign-in followed by a masked final
+redirect-URL field. Only the derived pairing identity is saved in Keychain; OAuth
+tokens are transient. See [account setup and privacy instructions](docs/account-setup.md).
+Real Sony login/state compatibility and real Keychain persistence remain manual
+Gate B checks. Do not paste authorization URLs or credentials into chat.
 
 Dependencies are fetched into ignored build directories, never into an existing
 Chiaki checkout. Bootstrap uses an isolated Python environment and never installs

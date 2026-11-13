@@ -38,7 +38,7 @@ if ((APP)); then
     if [[ -n $ONLY ]]; then
         IFS=',' read -r -a classes <<< "$ONLY"
         for name in "${classes[@]}"; do
-            case "$name" in AppModelTests|EngineClientTests) ;; *) echo "Unknown app test class: $name" >&2; exit 2 ;; esac
+            case "$name" in AppModelTests|EngineClientTests|AuthTests|CredentialStoreTests|AccountModelTests) ;; *) echo "Unknown app test class: $name" >&2; exit 2 ;; esac
             args+=("-only-testing:FreePS5CaptureCardTests/$name")
         done
     fi

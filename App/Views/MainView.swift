@@ -2,7 +2,9 @@ import SwiftUI
 
 struct MainView: View {
     @ObservedObject var model: AppModel
+    @ObservedObject var account: AccountModel
     var body: some View {
+        ScrollView {
         VStack(alignment: .leading, spacing: 24) {
             HStack(alignment: .top) {
                 Image(systemName: "cable.connector")
@@ -13,12 +15,11 @@ struct MainView: View {
                     Text("A direct connection to OBS.").foregroundStyle(.secondary)
                 }
             }
+            AccountConsoleView(model: account)
             GroupBox {
                 VStack(alignment: .leading, spacing: 14) {
-                    LabeledContent("Account & Console", value: "Not configured")
-                    Divider()
                     LabeledContent("Engine", value: status)
-                    Text("Development build: PSN pairing and the audio/video output pipeline are not implemented yet.")
+                    Text("Development build: console pairing and live PS5 audio/video capture are not implemented yet.")
                         .font(.callout).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }.padding(8)
@@ -35,7 +36,9 @@ struct MainView: View {
                 .font(.caption).foregroundStyle(.secondary)
         }
         .padding(28)
-        .frame(minWidth: 500, idealWidth: 540, minHeight: 320)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(minWidth: 500, idealWidth: 540, minHeight: 420)
     }
     private var status: String {
         switch model.state {

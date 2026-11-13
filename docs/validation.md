@@ -133,3 +133,27 @@ activity. The user subsequently confirmed all three codec feeds work in OBS.
 Measured HDR output, exact synchronization, and manual reconnect checks remain
 separate validation items. The private
 screen recording was not copied into Git.
+
+## Native account setup implementation (manual Gate B pending)
+
+- Added native browser-based sign-in, strict redirect/code/state validation,
+  bounded ephemeral HTTP transport with redirects/cookies/cache disabled,
+  precision-safe 64-bit account identity conversion, and versioned Keychain
+  storage. OAuth tokens and redirect URLs are not persisted.
+- Initial red run: the 11 new auth/storage tests executed and failed against
+  stubs. Four new account-model tests then failed against an empty model.
+  Subsequent implementation and broader edge-case checks pass.
+- Full `scripts/test.sh --native --app`: CTest 3/3 targets pass (118 core, 3
+  interface cases and 6 transport test methods), XCTest 25/25 pass. Bootstrap
+  4/4 pass. Tests cover malformed/duplicate/wrong-state redirects, expiration,
+  one-use codes, form escaping, cancellation/stale responses, numeric/string
+  uint64 precision, denied/corrupt storage, and restore/forget behavior.
+- Unit tests use fake HTTP and Keychain boundaries; no real Sony credentials or
+  account data were used, and actual login/Keychain entitlement behavior is NOT
+  established. Live console pairing remains unimplemented.
+- Final Debug/Release builds and ad-hoc signature verification pass, including
+  the scrollable account window. Full handoff test run again passes CTest 3/3
+  targets and XCTest 25/25 cases.
+- See `docs/account-setup.md` for the real sign-in/Keychain/relaunch gate. If Sony
+  omits/rejects state or changes the API, stop and investigate rather than
+  disabling validation. Synthetic replay feeds remain stopped as requested.

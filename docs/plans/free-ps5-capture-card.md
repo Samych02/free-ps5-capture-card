@@ -38,6 +38,12 @@ installing the required Homebrew dependencies.
    setup). Precise A/V measurements, final HDR color/output correctness, manual
    reconnect behavior, and live-PS5 tests remain explicit validation items; the
    user's smoke-test report is not treated as proof of those properties.
+- Task 3 implementation: native PSN account flow, Keychain abstraction/system
+  store, account model, masked browser-redirect UI and restore/forget controls
+  added. Mocked auth/storage/model tests pass; current app suite totals 25 cases.
+  Real Sony state/HTTP compatibility and Keychain persistence are manual Gate B
+  checks and remain pending. Do not claim pairing or start Task 4 before the
+  account flow is validated on the user's actual setup. Replay feeds stay stopped.
 
 
 **Goal:** Build a minimal standalone macOS app that connects a PS5 to OBS, delivering equally important game video and game audio together without a playback window, local sound, or intermediate media decoding/encoding.
