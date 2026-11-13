@@ -1,0 +1,5 @@
+cmake_minimum_required(VERSION 3.27)
+project(FreePS5CaptureCard VERSION 0.1.0 LANGUAGES C CXX)
+include(CTest)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+include(cmake/ChiakiDependency.cmake)

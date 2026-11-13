@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "chiaki": {
+    "repository": "https://github.com/chiaki-ng/chiaki-ng.git",
+    "revision": "43728af2e639fecb8a7af1cd68c29820a40de973",
+    "submodules": ["test/munit", "third-party/nanopb", "third-party/gf-complete", "third-party/jerasure", "third-party/curl"],
+    "patches": [{"file": "patches/chiaki/0001-embeddable-build.patch", "sha256": "6a5d30e12da836f6a61de7f052ccb467148673d322878b8ccbfc77771505d4a3"}]
+  },
+  "python": {"protobuf": "5.29.6"},
+  "systemDependencies": {
+    "policy": "Homebrew prerequisites; installed versions are recorded in docs/validation.md, not claimed reproducible binary pins",
+    "formulae": ["cmake", "ninja", "xcodegen", "ffmpeg", "pkg-config", "openssl@3", "protobuf@29", "json-c", "miniupnpc", "libevent", "python@3.13"]
+  }
+}

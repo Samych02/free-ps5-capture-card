@@ -1,0 +1,3 @@
+# Unified-diff context lines intentionally contain a leading space before the
+# original whitespace. Check source files normally, not patch transport syntax.
+*.patch -whitespace
