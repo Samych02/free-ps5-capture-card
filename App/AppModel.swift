@@ -28,7 +28,8 @@ final class AppModel: ObservableObject {
         if !engine.start() { state = .unavailable }
     }
     func requestStart(account: Account?, console: PairedConsole?) {
-        guard !active, let account, let console,
+        guard !active else { return }
+        guard let account, let console,
               engine.configure(options: options, account: account, console: console), engine.start() else {
             state = .unavailable; return
         }

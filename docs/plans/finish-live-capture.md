@@ -22,15 +22,39 @@ and the user confirmed relaunch recovery. Keep normal external-browser PSN login
   app 41 tests; ASan/UBSan and queue/clock TSAN pass.
 - [x] Finish Task 6: real codec metadata/cadence validation, bounded mux path,
   live Annex-B/Opus remux equivalence.
-- [ ] Task 7: live native session, Swift connection/options/status, both tracks
+- [x] Task 7 implementation: live native session, Swift connection/options/status, both tracks
   through the pipeline; secure transient login passcode handling.
   Implemented native lifecycle and receiver pipeline, C/Swift configuration,
   sanitized status and masked transient passcode controls. Full native/app
   regression passes in `build/live-session-regression.log`; device gate deferred.
-- [ ] Task 8: transient retry, cancellation and reconnect/fault coverage.
-- [ ] Task 9: focused native setup/options/status UI, persistence and accessibility.
+- [x] Task 8 implementation: transient retry, cancellation and reconnect/fault coverage.
+  Delayed/missing audio, OBS reconnect, 100 raw TCP reconnects, second consumer,
+  bounded stalls and backoff cancellation pass. Stable connection resets backoff.
+  Stop clears the engine's copied credentials and requires reconfiguration.
+- [x] Task 9 implementation: focused native setup/options/status UI, persistence and accessibility.
+  Native utility direction, system controls, codec order/default, bitrate and port
+  tests; secure passcode retry/cancel; disabled setup until Stop acknowledgement.
+  Manual visual/VoiceOver inspection and XCUITest remain unpassed gates below.
 - [ ] Task 10: bundle checks/developer packaging, CI, setup docs and explicit
   review handoff; final user tests remain clearly listed.
+
+### Current verification and remaining acceptance
+
+- Latest ordinary native run: 10/10 CTest targets pass
+  (`build/final-native-app-rerun.log`).
+- Fresh final ASan/UBSan: 10/10 targets; TSAN: 7/7 selected targets, including
+  receiver/transport (`build/final-asan-tests.log`, `build/final-tsan-tests.log`).
+- Final direct Debug XCTest: 47/47; reproducible explicit unit-only runner
+  `scripts/test-app-unit-direct.sh`, log `build/direct-unit-script.log`.
+- Normal Xcode unit-host startup subsequently stalled in XCTest's IDE-session
+  setup. Direct execution is not app-launch or UI acceptance. UI runner separately
+  timed out enabling macOS automation. No permission/service changes were made.
+- Developer bundle implementation and recursive/signature validation exist;
+  final refreshed bundle is being assembled under `build/package-final`.
+- Real PS5/OBS testing, accurate sync/drift/HDR, 30-minute per-mode runs,
+  controller/TV/offline/sleep behaviour, actual recovery/resource measurements,
+  clean-machine launch and independent code/security/license review remain open.
+  See `docs/validation.md` and the explicit `docs/review-handoff.md` request.
 
 ## Implementation and verification
 
@@ -94,9 +118,17 @@ and the user confirmed relaunch recovery. Keep normal external-browser PSN login
   the way, hands-on tests only at the end. This explicitly defers Gate D as a
   development sequencing pause, not its evidence requirements for acceptance.
 - Use checkpoint commits on `main`; do not create milestone feature branches.
+- Reflect the installed dependencies' actual macOS 26 floor in developer build
+  targets rather than leaving a misleading 15.0 declaration. This does not
+  establish older-OS support or authorize a public release.
+- Normal IDE/UI harness failures remain visible. The named direct Debug XCTest
+  runner uses a minimal environment and tests unit code only, never silently
+  converting a failed UI/app-launch run into a pass.
 
 ## Outcomes & Retrospective
 
-Pending. Final handoff must separate implemented/automatically verified behavior
-from actual PS5/OBS sync, HDR, 30-minute reliability, access-policy and clean-
-environment packaging checks that the user has not performed yet.
+Implementation has reached the final verification/packaging checkpoint. Native
+session and receiver tests never contacted the user's console. User-deferred
+hands-on gates, blocked GUI automation and independent review remain separate
+from green unit/native/sanitizer evidence. No push, publishing, installation to
+Applications, autostart, or notarization was performed.

@@ -43,6 +43,8 @@ class ClockTests(unittest.TestCase):
 
 
 class RemuxTests(unittest.TestCase):
+    def test_local_transport_faults(self):
+        run(str(BUILD / "Tests/Native/capture-session-tests"),"--no-fork","/session/transport-faults",timeout=15)
     @classmethod
     def setUpClass(cls):
         cls.generator = ROOT / "Tests/Support/make_fixtures.py"
@@ -247,6 +249,33 @@ class RemuxTests(unittest.TestCase):
                         process.kill(); process.wait(); self.fail("pipeline stop exceeded 3 seconds")
                     process.stderr.close()
 
+    def test_pipeline_missing_audio_fails_instead_of_waiting_forever(self):
+        with socket.socket() as reserve:
+            reserve.bind(("127.0.0.1",0)); port=reserve.getsockname()[1]
+        process=subprocess.Popen([str(BUILD / "bin/capture-pipeline-fixture"),str(BUILD / "fixtures/h264-opus.mkv"),"0",str(port),"missing-audio"],stderr=subprocess.PIPE)
+        try:
+            self.assertIn(b"READY",process.stderr.readline())
+            self.assertEqual(process.wait(timeout=7),1)
+            self.assertIn(b"both tracks",process.stderr.read())
+        finally:
+            if process.poll() is None: process.terminate(); process.wait(timeout=3)
+            process.stderr.close()
+
+    def test_pipeline_accepts_late_audio_configuration_and_obs_reconnect(self):
+        with socket.socket() as reserve:
+            reserve.bind(("127.0.0.1",0)); port=reserve.getsockname()[1]
+        process=subprocess.Popen([str(BUILD / "bin/capture-pipeline-fixture"),str(BUILD / "fixtures/h264-opus.mkv"),"0",str(port),"late-audio"],stderr=subprocess.PIPE)
+        try:
+            self.assertIn(b"READY",process.stderr.readline())
+            with tempfile.TemporaryDirectory() as tmp:
+                for i in range(2):
+                    output=Path(tmp) / f"reconnect-{i}.mkv"
+                    run("ffmpeg","-v","error","-y","-f","matroska","-i",f"tcp://127.0.0.1:{port}","-t","0.5","-map","0","-c","copy",str(output),timeout=8)
+                    self.assertEqual([s["codec_type"] for s in probe(output)["streams"]],["video","audio"])
+                    run("ffmpeg","-v","error","-xerror","-i",str(output),"-f","null","-")
+        finally:
+            process.terminate(); process.wait(timeout=3); process.stderr.close()
+
     def test_invalid_port_is_rejected(self):
         for value in ("0", "1023", "65536", "abc", "9295junk"):
             result = subprocess.run([str(self.replay), "--fixture", str(BUILD / "fixtures/h264-opus.mkv"),
@@ -275,7 +304,7 @@ class RemuxTests(unittest.TestCase):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--build-dir", default="build/native")
-    parser.add_argument("--case", choices=["remux-equivalence", "tcp", "synthetic-clock", "all"], default="all")
+    parser.add_argument("--case", choices=["remux-equivalence", "tcp", "faults", "synthetic-clock", "all"], default="all")
     args = parser.parse_args()
     BUILD = (ROOT / args.build_dir).resolve()
     names = unittest.defaultTestLoader.getTestCaseNames(RemuxTests)
@@ -284,10 +313,11 @@ if __name__ == "__main__":
                  "test_required_fixtures_have_video_audio_and_real_hdr", "test_output_does_not_overwrite_existing_file",
                  "test_live_annexb_metadata_without_decoder", "test_live_annexb_opus_remux",
                  "test_live_reordering_and_hdr_mismatch_are_rejected")]
-    elif args.case == "tcp":
+    elif args.case in ("tcp", "faults"):
         names = [n for n in names if n in ("test_tcp_streams_both_tracks_with_fresh_headers_on_reconnect",
                  "test_invalid_port_is_rejected", "test_occupied_port_is_not_silently_changed",
-                 "test_receiver_pipeline_delivers_both_tracks")]
+                 "test_receiver_pipeline_delivers_both_tracks", "test_pipeline_missing_audio_fails_instead_of_waiting_forever",
+                 "test_pipeline_accepts_late_audio_configuration_and_obs_reconnect", "test_local_transport_faults")]
     suite = unittest.TestSuite()
     if args.case in ("synthetic-clock", "all"):
         suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(ClockTests))

@@ -73,12 +73,13 @@ struct MediaPipeline::Impl {
                 if(p.size>65536 || opusPacketSamples(p.data,p.size)!=audio.samples_per_frame || p.samples!=audio.samples_per_frame)
                     throw std::runtime_error("Unexpected Opus sample duration");
                 ++audioCount; lastAudioUs=p.first_receipt_us;
-                if(!firstAudio) { firstAudio=p; firstAudio->data=nullptr; firstAudio->size=0; }
+                if(!clock) { firstAudio=p; firstAudio->data=nullptr; firstAudio->size=0; }
             }
         } else {
             auto info=inspectAccessUnit(static_cast<ChiakiCodec>(options.codec),p.data,p.size);
             if(!info.hasPicture) return true;
             access=info.access; ++videoCount; lastVideoUs=p.first_receipt_us;
+            if(!clock) { firstVideo=p; firstVideo->data=nullptr; firstVideo->size=0; }
             auto current=parameterSetSignature(static_cast<ChiakiCodec>(options.codec),p.data,p.size);
             if(current && signature && current!=signature) { failLocked(CAPTURE_ERROR_CONNECTION,"In-band video headers changed. Reconnecting both tracks.",true); return true; }
             if(format && options.codec!=CAPTURE_H264 && !hdrMetadataMatches(format->parameters.get(),p.data,p.size)) {
@@ -86,7 +87,7 @@ struct MediaPipeline::Impl {
             }
             if(!format && !formatPending && (access==VideoAccess::IDR || access==VideoAccess::CRA)) {
                 auto candidate=std::make_unique<Candidate>(); candidate->metadata=p; candidate->metadata.data=nullptr;
-                candidate->bytes.assign(p.data,p.data+p.size); firstVideo=p; firstVideo->data=nullptr; firstVideo->size=0;
+                candidate->bytes.assign(p.data,p.data+p.size);
                 startup=std::move(candidate); formatPending=true;
             }
         }
@@ -102,9 +103,11 @@ struct MediaPipeline::Impl {
     }
     void prepare() {
         std::unique_ptr<Candidate> candidate;
-        { std::lock_guard<std::mutex> lock(mutex); candidate=std::move(startup); }
+        // A valid video IDR may precede the independent audio configuration.
+        // Keep its bounded startup copy until both configuration callbacks arrive.
+        auto config=queue.configuration();
+        { std::lock_guard<std::mutex> lock(mutex); if(config) candidate=std::move(startup); }
         if(candidate) {
-            auto config=queue.configuration();
             if(!config || config->video.generation!=candidate->metadata.generation) throw std::runtime_error("Missing matching track configuration");
             auto parsed=std::make_shared<VideoFormat>(parseVideoFormat(static_cast<ChiakiCodec>(options.codec),config->header->data(),config->header->size(),candidate->bytes.data(),candidate->bytes.size()));
             candidate.reset(); // parser/startup allocations never overlap the output mux
@@ -112,7 +115,8 @@ struct MediaPipeline::Impl {
         }
         std::lock_guard<std::mutex> lock(mutex);
         auto now=chiaki_time_now_monotonic_us(); tickClock(now);
-        if(firstHeaderUs && !format && now-firstHeaderUs>5000000) failLocked(CAPTURE_ERROR_MEDIA,"PS5 did not provide both tracks and usable video headers.");
+        if(firstHeaderUs && (!format || !firstAudio || !firstVideo) && now-firstHeaderUs>5000000)
+            failLocked(CAPTURE_ERROR_MEDIA,"PS5 did not provide both tracks and usable video headers.");
         if(format && lastAudioUs && lastVideoUs && (now-lastAudioUs>2000000 || now-lastVideoUs>2000000))
             failLocked(CAPTURE_ERROR_CONNECTION,"A required media track stopped arriving. Reconnecting.",true);
     }
@@ -129,6 +133,9 @@ struct MediaPipeline::Impl {
             try { prepare(); } catch(...) { fail(CAPTURE_ERROR_MEDIA,"Unsupported video cadence, reordering, colour, or HDR negotiation. No fallback was applied."); break; }
             if(failed) break;
             if(!hasOBS) {
+                bool calibrated;
+                {std::lock_guard<std::mutex> lock(mutex);calibrated=frozen;}
+                if(!calibrated) {poll(nullptr,0,5);continue;}
                 auto deadline=chiaki_time_now_monotonic_us()+20000;
                 if(!server.acceptClient([&]{return stopping || failed || chiaki_time_now_monotonic_us()>=deadline;})) continue;
                 hasOBS=true; queue.attach(chiaki_time_now_monotonic_us()); lastIDR=0;

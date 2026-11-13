@@ -1,5 +1,6 @@
 #include "SessionInternal.h"
 #include "Pipeline.h"
+#include "Diagnostics.h"
 #include <cstring>
 #include <stdexcept>
 namespace capture {
@@ -11,7 +12,7 @@ class LiveSession final:public SessionBackend {
     LiveSessionAPI api_;
     bool initialized_=false,started_=false;
     std::mutex mutex_;
-    bool connected_=false,pinRequired_=false,done_=false;
+    bool connected_=false,pinRequired_=false,pinIncorrect_=false,done_=false;
     ChiakiQuitReason quit_=CHIAKI_QUIT_REASON_NONE;
     std::unique_ptr<SessionMediaControl> control_;
     std::unique_ptr<MediaPipeline> pipeline_;
@@ -20,7 +21,7 @@ class LiveSession final:public SessionBackend {
         std::lock_guard<std::mutex> lock(self.mutex_);
         switch(e->type) {
             case CHIAKI_EVENT_CONNECTED:self.connected_=true;self.pinRequired_=false;break;
-            case CHIAKI_EVENT_LOGIN_PIN_REQUEST:self.pinRequired_=true;break;
+            case CHIAKI_EVENT_LOGIN_PIN_REQUEST:self.pinRequired_=true;self.pinIncorrect_=e->login_pin_request.pin_incorrect;break;
             case CHIAKI_EVENT_QUIT:self.done_=true;self.quit_=e->quit.reason;break;
             default:break; // Never retain remote strings, account data or controller events.
         }
@@ -55,21 +56,13 @@ public:
         std::lock_guard<std::mutex> lock(mutex_);
         if(s.done) return s;
         if(done_) {
-            s.done=true;s.status.state=CAPTURE_FAILED;s.status.error=CAPTURE_ERROR_CONNECTION;s.retry=true;
-            const char *message="PS5 connection ended. Retrying; check power and local network access.";
-            switch(quit_) {
-                case CHIAKI_QUIT_REASON_SESSION_REQUEST_RP_IN_USE:
-                    s.retry=false;s.status.error=CAPTURE_ERROR_IN_USE;message="Remote Play is already in use. Stop the other session and try again.";break;
-                case CHIAKI_QUIT_REASON_SESSION_REQUEST_RP_VERSION_MISMATCH:
-                    s.retry=false;message="PS5 Remote Play protocol version is unsupported.";break;
-                case CHIAKI_QUIT_REASON_PSN_REGIST_FAILED:
-                case CHIAKI_QUIT_REASON_CTRL_CONNECTION_REFUSED:
-                    s.retry=false;s.status.error=CAPTURE_ERROR_IDENTITY;message="PS5 rejected the saved credentials. Check the account and pair again.";break;
-                case CHIAKI_QUIT_REASON_STOPPED:s.retry=false;s.status.state=CAPTURE_STOPPED;message="";break;
-                default:break;
-            }
-            strncpy(s.status.message,message,sizeof(s.status.message)-1);
-        } else if(pinRequired_) s.status.state=CAPTURE_PIN_REQUIRED;
+            auto result=classifyQuit(quit_);s.done=result.done;s.retry=result.retry;
+            s.status.state=result.status.state;s.status.error=result.status.error;
+            memcpy(s.status.message,result.status.message,sizeof(s.status.message));
+        } else if(pinRequired_) {
+            s.status.state=CAPTURE_PIN_REQUIRED;
+            if(pinIncorrect_) strncpy(s.status.message,"PS5 login passcode was incorrect. Try again.",sizeof(s.status.message)-1);
+        }
         else if(!connected_) s.status.state=CAPTURE_CONNECTING;
         return s;
     }

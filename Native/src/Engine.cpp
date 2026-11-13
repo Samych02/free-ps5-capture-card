@@ -1,5 +1,6 @@
 #include "CaptureEngine.h"
 #include "EngineInternal.h"
+#include "Diagnostics.h"
 #include <condition_variable>
 #include <mutex>
 #include <thread>
@@ -50,16 +51,26 @@ struct capture_engine {
         while(!cancelled()) {
             emit(CAPTURE_CONNECTING);
             bool retry=false;
+            uint64_t stableUs=0;
             try {
                 auto session=factory(options,connection,*server);
                 auto last=std::chrono::steady_clock::now()-std::chrono::seconds(1);
                 capture_state previous=CAPTURE_IDLE;
+                auto stableSince=last;bool streaming=false;
                 while(!cancelled()) {
                     std::array<char,4> pending{}; bool submit=false;
                     { std::lock_guard<std::mutex> lock(mutex); if(pinPending) { pending=pin; pinPending=false; erase_private(pin.data(),pin.size()); submit=true; } }
-                    if(submit) { session->submitPin(pending.data(),pending.size()); erase_private(pending.data(),pending.size()); }
+                    if(submit) {
+                        try {session->submitPin(pending.data(),pending.size());}
+                        catch(...) {erase_private(pending.data(),pending.size());throw;}
+                        erase_private(pending.data(),pending.size());
+                    }
                     auto snapshot=session->snapshot(); snapshot.status.reconnects=retries;
                     auto now=std::chrono::steady_clock::now();
+                    if(snapshot.status.state==CAPTURE_STREAMING) {
+                        if(!streaming) {streaming=true;stableSince=now;}
+                        stableUs=std::chrono::duration_cast<std::chrono::microseconds>(now-stableSince).count();
+                    } else {streaming=false;}
                     if(snapshot.status.state!=previous || now-last>=std::chrono::milliseconds(250)) {
                         publish(snapshot.status); previous=snapshot.status.state; last=now;
                     }
@@ -71,10 +82,9 @@ struct capture_engine {
             } catch(...) { failure(CAPTURE_ERROR_CONNECTION,"Cannot establish the PS5 connection. Check power, Remote Play, network permissions and pairing."); retry=true; }
             server->disconnect();
             if(cancelled() || !retry) break;
-            ++retries; emit(CAPTURE_RETRYING);
-            unsigned delay=std::min(15u,1u<<std::min(retries-1,4u));
+            retries=capture::nextRetryAttempt(retries,stableUs);emit(CAPTURE_RETRYING);
             std::unique_lock<std::mutex> lock(mutex);
-            changed.wait_for(lock,std::chrono::milliseconds(delay*1000+(retries*73)%200),[&] { return closing || stops; });
+            changed.wait_for(lock,std::chrono::milliseconds(capture::retryDelayMilliseconds(retries)),[&] { return closing || stops; });
         }
     }
     void run() {
@@ -85,6 +95,7 @@ struct capture_engine {
             if(closing) break;
             if(stops) {
                 --stops; starting=false; active=false; pinPending=false; erase_private(pin.data(),pin.size());
+                erase_private(&connection,sizeof(connection));configured=false;
                 lock.unlock(); emit(CAPTURE_STOPPED); lock.lock();
             } else {
                 starting=false; lock.unlock(); capture(); lock.lock(); active=false;

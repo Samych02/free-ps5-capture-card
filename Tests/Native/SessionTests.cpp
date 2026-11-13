@@ -9,19 +9,25 @@
 #include <mutex>
 #include <cstring>
 #include <chrono>
+#include <thread>
+#include <vector>
+#include <poll.h>
 using namespace capture;
 struct Events {
     std::mutex mutex; std::condition_variable changed;
     capture_state state=CAPTURE_IDLE;
     std::atomic<int> starts{0},joins{0},pins{0};
     std::atomic<bool> requestPin{false};
+    bool transientFirst=false;
 };
 struct FakeSession: SessionBackend {
     Events &events; bool joined=false;
     explicit FakeSession(Events &e):events(e) { ++e.starts; }
     ~FakeSession() { stopAndJoin(); }
     SessionSnapshot snapshot() override {
-        SessionSnapshot s; s.status.state=events.requestPin?CAPTURE_PIN_REQUIRED:CAPTURE_WAITING_OBS; return s;
+        SessionSnapshot s; s.status.state=events.requestPin?CAPTURE_PIN_REQUIRED:CAPTURE_WAITING_OBS;
+        if(events.transientFirst && events.starts==1) {s.done=true;s.retry=true;s.status.state=CAPTURE_FAILED;}
+        return s;
     }
     void submitPin(const char *,size_t n) override { if(n==4) { ++events.pins; events.requestPin=false; } }
     void stopAndJoin() override { if(!joined) { joined=true; ++events.joins; } }
@@ -54,6 +60,7 @@ static MunitResult lifecycle(const MunitParameter[],void *) {
     munit_assert_int(capture_engine_start(engine),==,CAPTURE_OK); munit_assert_true(wait(e,CAPTURE_WAITING_OBS));
     munit_assert_int(capture_engine_configure(engine,&options,&c),==,CAPTURE_INVALID_STATE);
     capture_engine_stop(engine); munit_assert_true(wait(e,CAPTURE_STOPPED));
+    munit_assert_int(capture_engine_start(engine),==,CAPTURE_UNAVAILABLE);
     munit_assert_int(e.starts.load(),==,1); munit_assert_int(e.joins.load(),==,1);
     munit_assert_int(capture_engine_destroy(engine),==,CAPTURE_OK);
     return MUNIT_OK;
@@ -79,6 +86,53 @@ static MunitResult pin_and_identity(const MunitParameter[],void *) {
     munit_assert_int(capture_engine_submit_login_pin(engine,"0123",4),==,CAPTURE_OK);
     munit_assert_true(wait(e,CAPTURE_WAITING_OBS)); munit_assert_int(e.pins.load(),==,1);
     capture_engine_destroy(engine); munit_assert_int(e.joins.load(),==,1); return MUNIT_OK;
+}
+static MunitResult retry_and_cancel(const MunitParameter[],void *) {
+    Events e;e.transientFirst=true;auto o=capture_default_options();o.port=availablePort();auto c=connection();
+    auto engine=create(o,e);capture_engine_configure(engine,&o,&c);capture_engine_start(engine);
+    munit_assert_true(wait(e,CAPTURE_WAITING_OBS));
+    munit_assert_int(e.starts.load(),==,2);munit_assert_int(e.joins.load(),==,1);
+    capture_engine_stop(engine);munit_assert_true(wait(e,CAPTURE_STOPPED));capture_engine_destroy(engine);
+    munit_assert_int(e.joins.load(),==,2);
+    Events cancel;cancel.transientFirst=true;o.port=availablePort();engine=create(o,cancel);
+    capture_engine_configure(engine,&o,&c);capture_engine_start(engine);munit_assert_true(wait(cancel,CAPTURE_RETRYING));
+    auto before=std::chrono::steady_clock::now();capture_engine_stop(engine);munit_assert_true(wait(cancel,CAPTURE_STOPPED));
+    munit_assert_true(std::chrono::steady_clock::now()-before<std::chrono::milliseconds(500));
+    capture_engine_destroy(engine);munit_assert_int(cancel.starts.load(),==,1);
+    return MUNIT_OK;
+}
+static MunitResult transport_faults(const MunitParameter[],void *) {
+    uint16_t port=availablePort();LocalTCPServer server(port);
+    auto connectClient=[&]{
+        int fd=socket(AF_INET,SOCK_STREAM,0);sockaddr_in a{};a.sin_family=AF_INET;a.sin_port=htons(port);a.sin_addr.s_addr=htonl(INADDR_LOOPBACK);
+        munit_assert_int(connect(fd,reinterpret_cast<sockaddr *>(&a),sizeof(a)),==,0);return fd;
+    };
+    const uint8_t header[]{0x1a,0x45,0xdf,0xa3};
+    for(int i=0;i<100;++i) {
+        int fd=connectClient();munit_assert_true(server.acceptClient([]{return false;}));
+        munit_assert_int(server.write(header,sizeof(header),[]{return false;}),==,4);
+        uint8_t bytes[4]{};munit_assert_int(recv(fd,bytes,4,MSG_WAITALL),==,4);munit_assert_memory_equal(4,bytes,header);
+        close(fd);server.disconnect();
+    }
+    int stalled=connectClient();munit_assert_true(server.acceptClient([]{return false;}));
+    int extra=connectClient();
+    auto extraDeadline=std::chrono::steady_clock::now()+std::chrono::seconds(1);
+    pollfd extraPoll{extra,POLLIN,0};
+    while(true) {
+        server.rejectExtraClients();
+        if(poll(&extraPoll,1,5)>0) break;
+        munit_assert_true(std::chrono::steady_clock::now()<extraDeadline);
+    }
+    uint8_t byte{};munit_assert_int(recv(extra,&byte,1,0),==,0);close(extra);
+    std::vector<uint8_t> bytes(8*1024*1024,1);
+    auto before=std::chrono::steady_clock::now();
+    munit_assert_int(server.write(bytes.data(),int(bytes.size()),[]{return false;}),<,0);
+    munit_assert_true(std::chrono::steady_clock::now()-before<std::chrono::seconds(2));
+    munit_assert_int(server.write(header,4,[]{return true;}),<,0);
+    close(stalled);server.disconnect();
+    before=std::chrono::steady_clock::now();munit_assert_false(server.acceptClient([]{return true;}));
+    munit_assert_true(std::chrono::steady_clock::now()-before<std::chrono::milliseconds(100));
+    return MUNIT_OK;
 }
 static int nativeInit=0,nativeStart=0,nativeStop=0,nativeJoin=0,nativeFini=0,nativePin=0;
 static bool failStart=false;
@@ -109,9 +163,10 @@ static MunitResult native_lifecycle(const MunitParameter[],void *) {
     auto o=capture_default_options();o.codec=CAPTURE_H265_HDR;auto c=connection();LocalTCPServer server(availablePort());
     auto session=makeLiveSessionWithAPI(o,c,server,api);
     munit_assert_int(session->snapshot().status.state,==,CAPTURE_WAITING_OBS);
-    ChiakiEvent event{};event.type=CHIAKI_EVENT_LOGIN_PIN_REQUEST;
+    ChiakiEvent event{};event.type=CHIAKI_EVENT_LOGIN_PIN_REQUEST;event.login_pin_request.pin_incorrect=true;
     borrowedSession->event_cb(&event,borrowedSession->event_cb_user);
     munit_assert_int(session->snapshot().status.state,==,CAPTURE_PIN_REQUIRED);
+    munit_assert_not_null(strstr(session->snapshot().status.message,"incorrect"));
     session->submitPin("0123",4);munit_assert_int(nativePin,==,1);
     event.type=CHIAKI_EVENT_QUIT;event.quit.reason=CHIAKI_QUIT_REASON_SESSION_REQUEST_RP_IN_USE;
     borrowedSession->event_cb(&event,borrowedSession->event_cb_user);
@@ -131,6 +186,8 @@ int main(int argc,char **argv) {
         {const_cast<char *>("/port-before-console"),port_before_console,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
         {const_cast<char *>("/pin-identity"),pin_and_identity,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
         {const_cast<char *>("/native-lifecycle"),native_lifecycle,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
+        {const_cast<char *>("/retry-cancel"),retry_and_cancel,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
+        {const_cast<char *>("/transport-faults"),transport_faults,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
         {nullptr,nullptr,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr}};
     MunitSuite suite{const_cast<char *>("/session"),tests,nullptr,1,MUNIT_SUITE_OPTION_NONE}; return munit_suite_main(&suite,nullptr,argc,argv);
 }

@@ -6,7 +6,6 @@ struct MainView: View {
     @ObservedObject var account: AccountModel
     @ObservedObject var pairing: PairingModel
     @State private var loginPIN = ""
-    @State private var pinSubmitted = false
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
@@ -38,6 +37,7 @@ struct MainView: View {
                                 .monospacedDigit().accessibilityIdentifier("bitrateReadout")
                             Slider(value: Binding(get: { Double(model.options.bitrate) }, set: { model.options.bitrate = Int($0) }),
                                    in: 2000...100000, step: 1000) { Text("Bitrate") }
+                            Text("Recommended starting point: 15 Mbps").font(.caption).foregroundStyle(.secondary)
                         }
                         TextField("Local TCP port", value: $model.options.port, format: .number.grouping(.never))
                             .textFieldStyle(.roundedBorder)
@@ -88,19 +88,18 @@ struct MainView: View {
             VStack(alignment: .leading, spacing: 16) {
                 Text("PS5 login passcode").font(.headline)
                 Text("Enter the 4-digit console login passcode. This is not the 8-digit Link Device code. It is used once and never saved.")
+                if !model.status.message.isEmpty { Text(model.status.message).font(.callout).foregroundStyle(.red) }
                 SecureField("4-digit login passcode", text: $loginPIN).textFieldStyle(.roundedBorder)
-                    .disabled(pinSubmitted)
                 HStack {
                     Button("Cancel") { loginPIN = ""; model.stop() }
                     Button("Continue") {
-                        pinSubmitted = model.submitPIN(loginPIN); loginPIN = ""
-                    }.disabled(pinSubmitted || loginPIN.utf8.count != 4 || !loginPIN.utf8.allSatisfy({ (48...57).contains($0) }))
+                        _ = model.submitPIN(loginPIN); loginPIN = ""
+                    }.disabled(loginPIN.utf8.count != 4 || !loginPIN.utf8.allSatisfy({ (48...57).contains($0) }))
                         .keyboardShortcut(.defaultAction)
                 }
             }.padding(24).frame(width: 380)
-                .onDisappear { loginPIN = ""; pinSubmitted = false }
+                .onDisappear { loginPIN = "" }
         }
-        .onChange(of: model.state) { _, state in if state == .pinRequired { pinSubmitted = false } }
     }
     private var cadence: String {
         guard model.status.fpsDenominator > 0 else { return "unknown" }

@@ -73,7 +73,8 @@ typedef struct {
     uint8_t account_id[8];
     capture_registration registration;
 } capture_connection;
-/* Copied, pre-start only. Existing credentials survive invalid replacement. */
+/* Copied, pre-start only. Existing credentials survive invalid replacement.
+ * Stop wipes the engine's copy; configure again before the next Start. */
 CAPTURE_API capture_result capture_engine_configure(capture_engine *, const capture_options *, const capture_connection *);
 CAPTURE_API capture_result capture_engine_get_status(capture_engine *, capture_status *);
 /* Exactly four ASCII digits, transient, only while a login passcode is requested. */
