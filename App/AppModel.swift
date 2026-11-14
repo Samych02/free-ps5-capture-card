@@ -7,11 +7,15 @@ final class AppModel: ObservableObject {
     @Published private(set) var state: State = .idle
     @Published private(set) var status = EngineStatus()
     @Published private(set) var active = false
+    @Published var showOutputMetrics: Bool {
+        didSet { defaults.set(showOutputMetrics, forKey: "showOutputMetrics") }
+    }
     @Published var options: StreamOptions { didSet { if options.isValid { options.save(to: defaults) } } }
     private let defaults: UserDefaults
     private let engine: EngineControlling
     init(engine: EngineControlling? = nil, defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        showOutputMetrics = defaults.bool(forKey: "showOutputMetrics")
         options = StreamOptions.load(from: defaults)
         self.engine = engine ?? NativeEngineClient()
         self.engine.onState = { [weak self] state in

@@ -25,6 +25,10 @@ Apple Silicon, **macOS 26+** for the current Homebrew-based build.
 3. Start Capture. In OBS add one Media Source, turn Local File off, paste
    `tcp://127.0.0.1:9295`, and choose input format `matroska`.
 
+In **OBS output**, **Show metrics** expands all received-media, queue and clock
+statistics; **Hide metrics** collapses them. The choice is remembered, starting
+hidden. Capture status, errors, URL and controls always remain available.
+
 See [setup and OBS instructions](docs/setup.md), [architecture](docs/architecture.md),
 and [validation / pending gates](docs/validation.md). HDR never silently falls
 back. Stop before changing setup. Closing the window does not stop capture;

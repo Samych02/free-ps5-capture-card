@@ -10,7 +10,8 @@ struct MainView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
                 HStack(alignment: .top, spacing: 12) {
-                    Image(systemName: "cable.connector").font(.largeTitle).foregroundStyle(.secondary)
+                    Image(nsImage: NSApp.applicationIconImage)
+                        .resizable().frame(width: 44, height: 44).accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Free PS5 Capture Card").font(.title2.bold())
                         Text("Compressed audio and video. Straight to OBS.").foregroundStyle(.secondary)
@@ -65,18 +66,30 @@ struct MainView: View {
                         }
                         Text("In OBS, add one Media Source, turn off Local File, paste this URL, and choose matroska as the input format. Both tracks use this source.")
                             .font(.caption).foregroundStyle(.secondary)
-                        if model.status.width > 0 {
-                            Text("Received: \(model.status.width)×\(model.status.height) · nominal \(cadence) fps · video \(model.status.videoPackets) · audio \(model.status.audioPackets)")
-                                .font(.caption).monospacedDigit().accessibilityIdentifier("receivedMediaStatus")
-                            Text("Queue: \(model.status.queuedBytes / 1024) KiB / \(model.status.queueAgeMicroseconds / 1000) ms · video lost \(model.status.lostVideoFrames) · audio missing \(model.status.missingAudioPackets) · source retries \(model.status.reconnects) · OBS resets \(model.status.outputDisconnects)")
-                                .font(.caption).foregroundStyle(.secondary).monospacedDigit()
-                            if model.status.videoClockElapsedMicroseconds > 0 {
-                                Text("Nominal counter drift vs ingress: video \(model.status.videoClockDriftMicroseconds / 1000) ms · audio \(model.status.audioClockDriftMicroseconds / 1000) ms")
-                                    .font(.caption).foregroundStyle(.secondary).monospacedDigit().accessibilityIdentifier("sourceClockDrift")
-                                Text("Observed counters: video \(counterRate(model.status.videoClockPosition, model.status.videoClockElapsedMicroseconds))/s · audio \(counterRate(model.status.audioClockPosition, model.status.audioClockElapsedMicroseconds))/s · \(model.status.audioSamplesPerPacket) samples/audio packet")
-                                    .font(.caption).foregroundStyle(.secondary).monospacedDigit().accessibilityIdentifier("sourceClockRates")
+                        DisclosureGroup(isExpanded: $model.showOutputMetrics) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                if model.status.width > 0 {
+                                    Text("Received: \(model.status.width)×\(model.status.height) · nominal \(cadence) fps · video \(model.status.videoPackets) · audio \(model.status.audioPackets)")
+                                        .font(.caption).monospacedDigit().accessibilityIdentifier("receivedMediaStatus")
+                                    Text("Queue: \(model.status.queuedBytes / 1024) KiB / \(model.status.queueAgeMicroseconds / 1000) ms · video lost \(model.status.lostVideoFrames) · audio missing \(model.status.missingAudioPackets) · source retries \(model.status.reconnects) · OBS resets \(model.status.outputDisconnects)")
+                                        .font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                                    if model.status.videoClockElapsedMicroseconds > 0 {
+                                        Text("Nominal counter drift vs ingress: video \(model.status.videoClockDriftMicroseconds / 1000) ms · audio \(model.status.audioClockDriftMicroseconds / 1000) ms")
+                                            .font(.caption).foregroundStyle(.secondary).monospacedDigit().accessibilityIdentifier("sourceClockDrift")
+                                        Text("Observed counters: video \(counterRate(model.status.videoClockPosition, model.status.videoClockElapsedMicroseconds))/s · audio \(counterRate(model.status.audioClockPosition, model.status.audioClockElapsedMicroseconds))/s · \(model.status.audioSamplesPerPacket) samples/audio packet")
+                                            .font(.caption).foregroundStyle(.secondary).monospacedDigit().accessibilityIdentifier("sourceClockRates")
+                                    }
+                                } else {
+                                    Text("Metrics appear when media arrives.")
+                                        .font(.caption).foregroundStyle(.secondary)
+                                }
                             }
+                            .padding(.top, 4)
+                            .accessibilityIdentifier("outputMetrics")
+                        } label: {
+                            Text(model.showOutputMetrics ? "Hide metrics" : "Show metrics")
                         }
+                        .accessibilityIdentifier("outputMetricsDisclosure")
                         HStack {
                             Button("Start Capture", systemImage: "play.fill") {
                                 model.requestStart(account: account.account, console: pairing.paired)

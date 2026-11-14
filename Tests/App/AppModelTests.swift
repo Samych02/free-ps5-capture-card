@@ -14,6 +14,26 @@ final class FakeEngine: EngineControlling {
 }
 
 final class AppModelTests: XCTestCase {
+    @MainActor func testOutputMetricsAreHiddenByDefault() throws {
+        let suite = "metrics-tests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        XCTAssertFalse(AppModel(engine: FakeEngine(), defaults: defaults).showOutputMetrics)
+    }
+    @MainActor func testOutputMetricsVisibilityPersistsWithoutControllingCapture() throws {
+        let suite = "metrics-tests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let engine = FakeEngine()
+        let model = AppModel(engine: engine, defaults: defaults)
+        model.showOutputMetrics = true
+        XCTAssertTrue(AppModel(engine: FakeEngine(), defaults: defaults).showOutputMetrics)
+        model.showOutputMetrics = false
+        XCTAssertFalse(AppModel(engine: FakeEngine(), defaults: defaults).showOutputMetrics)
+        XCTAssertEqual(engine.starts, 0)
+        XCTAssertEqual(engine.stops, 0)
+        XCTAssertEqual(model.state, .idle)
+    }
     @MainActor func testAddressCanOnlyChangeAfterCaptureStops() throws {
         let account = try Account(decimalID: "42")
         let original = PairedConsole(accountID: account.accountID, address: "192.168.1.20", mac: Data(repeating: 1, count: 6), name: "PS5",
