@@ -1,5 +1,39 @@
 # Finish standalone PS5 capture
 
+Storage follow-up: [the current architecture](../architecture.md) supersedes
+the historical Keychain persistence requirements in this continuation.
+The current user-approved build uses an owner-only unencrypted file and starts
+fresh, without accessing older Keychain records.
+
+## Credential-file follow-up — 2026-11-14
+
+User explicitly chose owner-only unencrypted storage and start-fresh setup,
+then reconfirmed the exception after a concurrent policy edit restored the old
+blanket prohibition. No old Keychain access, migration or deletion is permitted.
+The separately committed file-storage plan was subsequently deleted outside
+this implementation; that deletion is left unstaged rather than overwritten.
+
+- Backend scaffolds failed first in `build/file-store-red.log`; the initial
+  complete backend passed 65 app tests in `build/file-store-green.log`.
+- Final `build/file-store-app.log`: 70/70 app tests pass, including private modes,
+  owner/type/link/size/schema checks, nonregular/FIFO rejection, stale records,
+  lock contention, corrupt reset, account/pairing preservation and no OAuth-secret
+  persistence after a mocked successful sign-in.
+- `build/file-store-native.log`: 10/10 native targets pass; native media unchanged.
+- `build/file-store-policy.log`: 7/7 policy/entry-point checks pass, including no
+  application credential-Keychain APIs/imports and no production codec/device use.
+- Release bundle `build/package-file-store/Free PS5 Capture Card.app` passes the
+  recursive 28-file runtime closure, architecture, minimum OS and signature checks
+  (`build/file-store-package.log` plus fresh checker). Release imports no direct
+  `SecItem*` functions, contains no old credential service ID or Debug UI-test flag.
+- Default record is `~/Library/Application Support/FreePS5CaptureCard/credentials.json`,
+  directory 0700 and file 0600. This is not encryption or protection from same-user
+  processes. Normal writes use a private lock and bounded, checked atomic replacement.
+- All real filesystem tests use unique temporary directories; other tests use
+  injected fakes. Actual user credentials/Keychain/PSN/PS5 were not accessed.
+- Existing GUI automation, real sign-in/pairing/relaunch with this new backend,
+  media/sync/HDR/soak, clean-machine and independent review gates remain open.
+
 ## Goal and approved contract
 
 Finish Tasks 6–10 from `free-ps5-capture-card.md` sequentially on `main` without

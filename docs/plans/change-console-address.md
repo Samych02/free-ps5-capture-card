@@ -1,5 +1,9 @@
 # Change PS5 IP Implementation Plan
 
+Historical implementation plan: the subsequent
+[file-storage change](../architecture.md) replaces the Keychain backend
+referenced below. Change IP semantics and stale/active-capture guards are retained.
+
 **Goal:** Update a paired PS5's saved IP without pairing again or changing keys.
 
 **Architecture:** Add a stopped-only Change IP sheet to the existing native

@@ -13,7 +13,7 @@ enum AuthError: Error, Equatable, LocalizedError {
         case .rejected: return "Sony rejected this request. Start a new sign-in and try again."
         case .network: return "Could not reach Sony. Check your connection and start again."
         case .cancelled: return "Sign-in cancelled."
-        case .storage: return "Could not access the account in Keychain. No plaintext copy was saved."
+        case .storage: return "Could not access or validate the local credentials file. Check its permissions or reset the saved account."
         }
     }
 }

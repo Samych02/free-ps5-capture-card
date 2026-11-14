@@ -2,6 +2,12 @@
 
 ## Execution status
 
+**Storage amendment (2026-11-14):** the user explicitly replaced all Keychain /
+no-plaintext requirements below with the owner-only, unencrypted local file
+described in [the current architecture](../architecture.md). Start fresh;
+do not read, migrate or delete old Keychain entries. OAuth tokens/passcodes remain
+transient. Historical Keychain milestones/checklists below are not current policy.
+
 Latest continuation: Tasks 6–10 are implemented through the native live session,
 recovery/UI, recursive developer packaging and CI configuration. See
 [`finish-live-capture.md`](finish-live-capture.md) for current checkpoint commits

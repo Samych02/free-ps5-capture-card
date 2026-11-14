@@ -5,6 +5,10 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 
 class CapturePolicyTests(unittest.TestCase):
+    def test_application_has_no_keychain_credential_access(self):
+        forbidden = r'\b(?:SecItemCopyMatching|SecItemUpdate|SecItemAdd|SecItemDelete|KeychainCredentialStore|SystemAccountKeychain)\b|import\s+Security\b'
+        for path in (ROOT / 'App').rglob('*.swift'):
+            self.assertIsNone(re.search(forbidden, path.read_text()), str(path.relative_to(ROOT)))
     def test_production_sources_do_not_open_media_codecs_or_devices(self):
         forbidden = r'\b(?:avcodec_open2|avcodec_send_packet|avcodec_receive_frame|avcodec_send_frame|avcodec_receive_packet|opus_decoder_create|opus_multistream_decoder_create|AudioQueueNewOutput|AVAudioEngine|chiaki_session_set_controller_state|chiaki_session_connect_microphone)\s*\('
         for base in ('App', 'Native'):

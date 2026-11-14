@@ -1,5 +1,4 @@
 import Foundation
-import Security
 
 @MainActor
 protocol CredentialStore {
@@ -13,103 +12,70 @@ protocol CredentialStore {
 }
 
 @MainActor
-protocol KeychainAccess {
-    func read() -> (OSStatus, Data?)
-    func update(_ data: Data) -> OSStatus
-    func add(_ data: Data) -> OSStatus
-    func delete() -> OSStatus
+protocol CredentialFileAccess {
+    func read() throws -> Data?
+    func write(_ data: Data, replacing expected: Data?) throws
+    func delete(replacing expected: Data?) throws
 }
 
 @MainActor
-final class KeychainCredentialStore: CredentialStore {
-    private let access: KeychainAccess
-    init(access: KeychainAccess? = nil) { self.access = access ?? SystemAccountKeychain() }
+final class FileCredentialStore: CredentialStore {
+    private let access: CredentialFileAccess
+    init(access: CredentialFileAccess? = nil) { self.access = access ?? PrivateCredentialFile() }
     private struct Record: Codable {
         let version: Int
         let account: Account
         var console: PairedConsole?
     }
-    private func load() throws -> Record? {
-        let (status, data) = access.read()
-        if status == errSecItemNotFound { return nil }
-        guard status == errSecSuccess, let data else { throw AuthError.storage }
-        if let record = try? JSONDecoder().decode(Record.self, from: data), record.version == 2 {
-            if let console = record.console {
-                guard (try? console.validate(for: record.account)) != nil else { throw AuthError.storage }
-            }
-            return record
+    private struct Snapshot {
+        var record: Record
+        let bytes: Data
+    }
+    private func load() throws -> Snapshot? {
+        guard let data = try access.read() else { return nil }
+        guard !data.isEmpty, data.count <= PrivateCredentialFile.maxBytes,
+              let record = try? JSONDecoder().decode(Record.self, from: data), record.version == 1 else { throw AuthError.storage }
+        if let console = record.console {
+            guard (try? console.validate(for: record.account)) != nil else { throw AuthError.storage }
         }
-        // Existing account-only Keychain records migrate on the next write.
-        guard let account = try? JSONDecoder().decode(Account.self, from: data) else { throw AuthError.storage }
-        return Record(version: 2, account: account, console: nil)
+        return Snapshot(record: record, bytes: data)
     }
-    func loadAccount() throws -> Account? { try load()?.account }
-    func loadPairing() throws -> PairedConsole? { try load()?.console }
+    private func save(_ record: Record, replacing expected: Data?) throws {
+        let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
+        guard let data = try? encoder.encode(record), data.count <= PrivateCredentialFile.maxBytes else { throw AuthError.storage }
+        do { try access.write(data, replacing: expected) } catch { throw AuthError.storage }
+    }
+    func loadAccount() throws -> Account? { try load()?.record.account }
+    func loadPairing() throws -> PairedConsole? { try load()?.record.console }
+    func saveAccount(_ account: Account) throws {
+        let old = try load()
+        let console = old?.record.account == account ? old?.record.console : nil
+        try save(Record(version: 1, account: account, console: console), replacing: old?.bytes)
+    }
     func savePairing(_ console: PairedConsole) throws {
-        guard var record = try load() else { throw PairingError.identity }
-        try console.validate(for: record.account)
-        record.console = console
-        try save(record)
-    }
-    func forgetPairing() throws {
-        guard var record = try load() else { return }
-        record.console = nil
-        try save(record)
+        guard var old = try load() else { throw PairingError.identity }
+        try console.validate(for: old.record.account)
+        old.record.console = console
+        try save(old.record, replacing: old.bytes)
     }
     func updatePairingAddress(_ address: String, expected: PairedConsole) throws -> PairedConsole {
-        guard var record = try load(), record.console == expected else { throw PairingError.pairingChanged }
+        guard var old = try load(), old.record.console == expected else { throw PairingError.pairingChanged }
         let updated = try expected.replacingAddress(address)
-        try updated.validate(for: record.account)
+        try updated.validate(for: old.record.account)
         if updated != expected {
-            record.console = updated
-            let data = try JSONEncoder().encode(record)
-            // Updating an address must never create a pairing/account record.
-            // If another process deleted the item after our read, fail closed.
-            guard access.update(data) == errSecSuccess else { throw AuthError.storage }
+            old.record.console = updated
+            try save(old.record, replacing: old.bytes)
         }
         return updated
     }
-    func saveAccount(_ account: Account) throws {
-        let old = try load()
-        try save(Record(version: 2, account: account, console: old?.account == account ? old?.console : nil))
-    }
-    private func save(_ record: Record) throws {
-        let data = try JSONEncoder().encode(record)
-        let status = access.update(data)
-        if status == errSecItemNotFound {
-            guard access.add(data) == errSecSuccess else { throw AuthError.storage }
-        } else if status != errSecSuccess { throw AuthError.storage }
+    func forgetPairing() throws {
+        guard var old = try load(), old.record.console != nil else { return }
+        old.record.console = nil
+        try save(old.record, replacing: old.bytes)
     }
     func forgetAccount() throws {
-        let status = access.delete()
-        guard status == errSecSuccess || status == errSecItemNotFound else { throw AuthError.storage }
+        // Explicit Forget also permits removal of bounded, malformed JSON.
+        let bytes = try access.read()
+        do { try access.delete(replacing: bytes) } catch { throw AuthError.storage }
     }
-}
-
-@MainActor
-private final class SystemAccountKeychain: KeychainAccess {
-    private var query: [String: Any] {
-        [kSecClass as String: kSecClassGenericPassword,
-         kSecAttrService as String: "org.freeps5capturecard.account",
-         kSecAttrAccount as String: "psn-identity-v1",
-         kSecAttrSynchronizable as String: false]
-    }
-    func read() -> (OSStatus, Data?) {
-        var request = query
-        request[kSecReturnData as String] = true
-        request[kSecMatchLimit as String] = kSecMatchLimitOne
-        var value: CFTypeRef?
-        let status = SecItemCopyMatching(request as CFDictionary, &value)
-        return (status, value as? Data)
-    }
-    func update(_ data: Data) -> OSStatus {
-        SecItemUpdate(query as CFDictionary, [kSecValueData as String: data] as CFDictionary)
-    }
-    func add(_ data: Data) -> OSStatus {
-        var request = query
-        request[kSecValueData as String] = data
-        request[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-        return SecItemAdd(request as CFDictionary, nil)
-    }
-    func delete() -> OSStatus { SecItemDelete(query as CFDictionary) }
 }

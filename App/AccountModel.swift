@@ -12,7 +12,7 @@ final class AccountModel: ObservableObject {
     private var generation = UUID()
     init(service: PSNAuthService? = nil, store: CredentialStore? = nil) {
         self.service = service ?? PSNAuthService()
-        self.store = store ?? KeychainCredentialStore()
+        self.store = store ?? FileCredentialStore()
     }
     func restore() {
         guard !awaitingRedirect, !busy else { return }

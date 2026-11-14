@@ -69,7 +69,7 @@ final class PairingTests: XCTestCase {
     }
     @MainActor func testAddressChangePreservesAllPairingFieldsAndRestores() throws {
         let account = try Account(decimalID: "42"), original = console(account)
-        let store = KeychainCredentialStore(access: FakeKeychainAccess())
+        let store = FileCredentialStore(access: FakeCredentialFile())
         try store.saveAccount(account); try store.savePairing(original)
         let service = FakeConsoleService(), model = PairingModel(service: FakeConsoleService(), store: store)
         let subject = PairingModel(service: service, store: store); subject.setAccount(account)
@@ -83,7 +83,7 @@ final class PairingTests: XCTestCase {
     }
     @MainActor func testAddressChangeAcceptsNormalizedIPv6() throws {
         let account = try Account(decimalID: "42"), original = console(account)
-        let store = KeychainCredentialStore(access: FakeKeychainAccess())
+        let store = FileCredentialStore(access: FakeCredentialFile())
         try store.saveAccount(account); try store.savePairing(original)
         let model = PairingModel(service: FakeConsoleService(), store: store); model.setAccount(account)
         XCTAssertTrue(model.updateAddress(" 2001:DB8::12\n", expected: original))
@@ -91,8 +91,8 @@ final class PairingTests: XCTestCase {
     }
     @MainActor func testInvalidAddressChangeNeverWritesOrLosesKeys() throws {
         let account = try Account(decimalID: "42"), original = console(account)
-        let access = FakeKeychainAccess(), service = FakeConsoleService()
-        let store = KeychainCredentialStore(access: access)
+        let access = FakeCredentialFile(), service = FakeConsoleService()
+        let store = FileCredentialStore(access: access)
         try store.saveAccount(account); try store.savePairing(original)
         let model = PairingModel(service: service, store: store); model.setAccount(account)
         let writes = access.writeAttempts
@@ -107,8 +107,8 @@ final class PairingTests: XCTestCase {
     }
     @MainActor func testAddressSaveFailureRetainsOldRecordAndModel() throws {
         let account = try Account(decimalID: "42"), original = console(account)
-        let access = FakeKeychainAccess()
-        let subjectStore = KeychainCredentialStore(access: access)
+        let access = FakeCredentialFile()
+        let subjectStore = FileCredentialStore(access: access)
         try subjectStore.saveAccount(account); try subjectStore.savePairing(original)
         let model = PairingModel(service: FakeConsoleService(), store: subjectStore); model.setAccount(account)
         let data = access.data, writes = access.writeAttempts
@@ -118,10 +118,10 @@ final class PairingTests: XCTestCase {
         XCTAssertEqual(model.paired, original); XCTAssertEqual(access.data, data)
         XCTAssertNotNil(model.message)
     }
-    @MainActor func testAddressEditNeverRecreatesDeletedKeychainItem() throws {
+    @MainActor func testAddressEditNeverRecreatesDeletedCredentialFile() throws {
         let account = try Account(decimalID: "42"), original = console(account)
-        let access = FakeKeychainAccess(), service = FakeConsoleService()
-        let store = KeychainCredentialStore(access: access)
+        let access = FakeCredentialFile(), service = FakeConsoleService()
+        let store = FileCredentialStore(access: access)
         try store.saveAccount(account); try store.savePairing(original)
         let model = PairingModel(service: service, store: store); model.setAccount(account)
         let writes = access.writeAttempts
@@ -133,8 +133,8 @@ final class PairingTests: XCTestCase {
     }
     @MainActor func testStaleAddressSheetCannotRestoreForgottenOrReplacedPairing() throws {
         let account = try Account(decimalID: "42"), original = console(account)
-        let access = FakeKeychainAccess()
-        let subjectStore = KeychainCredentialStore(access: access)
+        let access = FakeCredentialFile()
+        let subjectStore = FileCredentialStore(access: access)
         try subjectStore.saveAccount(account); try subjectStore.savePairing(original)
         let model = PairingModel(service: FakeConsoleService(), store: subjectStore); model.setAccount(account)
         try subjectStore.forgetPairing()
@@ -148,7 +148,7 @@ final class PairingTests: XCTestCase {
     }
     @MainActor func testChangedAccountRejectsOldAddressSheet() throws {
         let account = try Account(decimalID: "42"), original = console(account)
-        let store = KeychainCredentialStore(access: FakeKeychainAccess())
+        let store = FileCredentialStore(access: FakeCredentialFile())
         try store.saveAccount(account); try store.savePairing(original)
         let model = PairingModel(service: FakeConsoleService(), store: store); model.setAccount(account)
         let other = try Account(decimalID: "43"); try store.saveAccount(other); model.setAccount(other)
@@ -157,7 +157,7 @@ final class PairingTests: XCTestCase {
     }
     @MainActor func testAddressChangeIsRejectedWhilePairing() async throws {
         let account = try Account(decimalID: "42"), original = console(account)
-        let store = KeychainCredentialStore(access: FakeKeychainAccess())
+        let store = FileCredentialStore(access: FakeCredentialFile())
         try store.saveAccount(account); try store.savePairing(original)
         let service = FakeConsoleService()
         let subject = PairingModel(service: service, store: store); subject.setAccount(account)
@@ -182,28 +182,23 @@ final class PairingTests: XCTestCase {
             XCTAssertThrowsError(try PairingRequest(address: address, pin: "01234567", account: account))
         }
     }
-    @MainActor func testAccountRecordMigratesWithoutLosingIdentity() throws {
-        let keychain = FakeKeychainAccess(); let account = try Account(decimalID: "42")
-        keychain.data = try JSONEncoder().encode(account)
-        let store = KeychainCredentialStore(access: keychain)
-        XCTAssertEqual(try store.loadAccount(), account)
-        let paired = console(account)
-        try store.savePairing(paired)
-        XCTAssertEqual(try store.loadPairing(), paired)
-        try store.saveAccount(account)
-        XCTAssertEqual(try store.loadPairing(), paired)
-        try store.saveAccount(Account(decimalID: "43"))
-        XCTAssertNil(try store.loadPairing())
+    @MainActor func testUnversionedAccountFileIsNotMigratedOrOverwritten() throws {
+        let file = FakeCredentialFile(), account = try Account(decimalID: "42")
+        file.data = try JSONEncoder().encode(account)
+        let original = file.data, store = FileCredentialStore(access: file)
+        XCTAssertThrowsError(try store.loadAccount())
+        XCTAssertThrowsError(try store.saveAccount(account))
+        XCTAssertEqual(file.data, original)
     }
     @MainActor func testPairingCannotBeSavedUnderDifferentAccount() throws {
-        let store = KeychainCredentialStore(access: FakeKeychainAccess())
+        let store = FileCredentialStore(access: FakeCredentialFile())
         try store.saveAccount(Account(decimalID: "43"))
         XCTAssertThrowsError(try store.savePairing(console(Account(decimalID: "42"))))
         XCTAssertNil(try store.loadPairing())
     }
     @MainActor func testSuccessfulPairingIsRestoredFromStore() async throws {
         let account = try Account(decimalID: "42"), expected = console(account)
-        let store = KeychainCredentialStore(access: FakeKeychainAccess()); try store.saveAccount(account)
+        let store = FileCredentialStore(access: FakeCredentialFile()); try store.saveAccount(account)
         let service = FakeConsoleService(); let model = PairingModel(service: service, store: store)
         model.setAccount(account)
         let task = Task { await model.pair(address: expected.address, pin: "01234567") }
@@ -217,7 +212,7 @@ final class PairingTests: XCTestCase {
     }
     @MainActor func testCancelledReplacementCannotOverwriteSavedConsole() async throws {
         let account = try Account(decimalID: "42"), original = console(account)
-        let store = KeychainCredentialStore(access: FakeKeychainAccess()); try store.saveAccount(account); try store.savePairing(original)
+        let store = FileCredentialStore(access: FakeCredentialFile()); try store.saveAccount(account); try store.savePairing(original)
         let service = FakeConsoleService(); let model = PairingModel(service: service, store: store); model.setAccount(account)
         let task = Task { await model.pair(address: "192.168.1.21", pin: "01234567") }
         await Task.yield(); model.cancel()
@@ -228,7 +223,7 @@ final class PairingTests: XCTestCase {
     }
     @MainActor func testDeniedSavePreservesOldPairing() async throws {
         let account = try Account(decimalID: "42"), original = console(account)
-        let access = FakeKeychainAccess(); let store = KeychainCredentialStore(access: access)
+        let access = FakeCredentialFile(); let store = FileCredentialStore(access: access)
         try store.saveAccount(account); try store.savePairing(original)
         let service = FakeConsoleService(); let model = PairingModel(service: service, store: store); model.setAccount(account)
         let task = Task { await model.pair(address: "192.168.1.21", pin: "01234567") }
@@ -241,13 +236,13 @@ final class PairingTests: XCTestCase {
     }
     @MainActor func testDiscoveryPermissionErrorIsNotEmptyList() throws {
         let account = try Account(decimalID: "42")
-        let service = FakeConsoleService(); let model = PairingModel(service: service, store: KeychainCredentialStore(access: FakeKeychainAccess()))
+        let service = FakeConsoleService(); let model = PairingModel(service: service, store: FileCredentialStore(access: FakeCredentialFile()))
         model.setAccount(account); model.discover(); service.discovery?(.failure(.permission))
         XCTAssertEqual(model.message, PairingError.permission.localizedDescription)
     }
     @MainActor func testFailedReplacementKeepsExistingPairing() async throws {
         let account = try Account(decimalID: "42"), original = console(account)
-        let store = KeychainCredentialStore(access: FakeKeychainAccess()); try store.saveAccount(account); try store.savePairing(original)
+        let store = FileCredentialStore(access: FakeCredentialFile()); try store.saveAccount(account); try store.savePairing(original)
         let service = FakeConsoleService(); let model = PairingModel(service: service, store: store); model.setAccount(account)
         let task = Task { await model.pair(address: "192.168.1.21", pin: "01234567") }
         await Task.yield()
@@ -259,7 +254,7 @@ final class PairingTests: XCTestCase {
     }
     @MainActor func testWrongDiscoveredMACCannotReplacePairing() async throws {
         let account = try Account(decimalID: "42"), original = console(account)
-        let store = KeychainCredentialStore(access: FakeKeychainAccess()); try store.saveAccount(account); try store.savePairing(original)
+        let store = FileCredentialStore(access: FakeCredentialFile()); try store.saveAccount(account); try store.savePairing(original)
         let service = FakeConsoleService(); let model = PairingModel(service: service, store: store); model.setAccount(account)
         let task = Task { await model.pair(address: "192.168.1.21", pin: "01234567", expectedID: "ffffffffffff") }
         await Task.yield()
@@ -270,7 +265,7 @@ final class PairingTests: XCTestCase {
     }
     @MainActor func testAccountChangeRejectsLatePairingAndDiscovery() async throws {
         let account = try Account(decimalID: "42")
-        let store = KeychainCredentialStore(access: FakeKeychainAccess()); try store.saveAccount(account)
+        let store = FileCredentialStore(access: FakeCredentialFile()); try store.saveAccount(account)
         let service = FakeConsoleService(); let model = PairingModel(service: service, store: store); model.setAccount(account)
         model.discover(); let staleDiscovery = service.discovery
         let task = Task { await model.pair(address: "192.168.1.20", pin: "01234567") }
@@ -284,7 +279,7 @@ final class PairingTests: XCTestCase {
     }
     @MainActor func testForgettingPS5RetainsAccountButForgettingAccountDeletesBoth() throws {
         let account = try Account(decimalID: "42"), original = console(account)
-        let store = KeychainCredentialStore(access: FakeKeychainAccess()); try store.saveAccount(account); try store.savePairing(original)
+        let store = FileCredentialStore(access: FakeCredentialFile()); try store.saveAccount(account); try store.savePairing(original)
         try store.forgetPairing()
         XCTAssertEqual(try store.loadAccount(), account); XCTAssertNil(try store.loadPairing())
         try store.savePairing(original); try store.forgetAccount()

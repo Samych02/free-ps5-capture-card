@@ -1,8 +1,23 @@
 # Capture architecture
 
-SwiftUI owns account/pairing UX and non-secret preferences. Keychain stores an
-atomic account+console record. Browser OAuth material, pairing codes and login
+SwiftUI owns account/pairing UX and non-secret preferences. A 0600 unencrypted
+file in a 0700 application directory stores one versioned account+console record.
+Browser OAuth material, pairing codes and login
 passcodes are transient; protocol logs are disabled.
+
+`FileCredentialStore` validates schema, account and console binding, while
+`PrivateCredentialFile` bounds reads to 64 KiB, checks ownership/private modes and
+regular-file/link types, refuses symlinks, and uses descriptor-relative I/O.
+Cooperating instances use a nonblocking private advisory lock and compare the
+expected record bytes before mutation. Writes use a new exclusive 0600 temporary
+file followed by flush/atomic rename; normal failure cleans temporary data.
+Stale edits fail instead of restoring removed/replaced credentials.
+
+This is not encryption and does not protect against processes running as the
+same user. OS/user backups may retain copies; deletion is not secure erasure.
+There is no Keychain backend, fallback or migration, and old Keychain records
+are untouched. The start-fresh file design explicitly supersedes the earlier
+Keychain-only design in historical plans/reviews.
 
 `CaptureEngine.framework` exposes a versioned C API. Its worker reserves the
 chosen IPv4 loopback listener **before** console contact, owns copied credentials,

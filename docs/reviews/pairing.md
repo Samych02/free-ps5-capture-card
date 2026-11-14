@@ -1,5 +1,10 @@
 # Review request: local PS5 discovery and pairing
 
+Historical milestone request. Its Keychain backend was subsequently replaced
+by the approved [local-file design](../architecture.md).
+Native pairing/identity/lifetime requirements still apply; current storage review
+is requested in [the handoff](../review-handoff.md).
+
 Scope: Task 4 changes since `bc30ee7`, specifically native Discovery/Pairing and
 the C interface, Swift NativeConsoleService/PairingModel/PairedConsole, atomic
 Keychain record migration, pairing/account UI and startup/quit integration, tests

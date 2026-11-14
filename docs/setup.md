@@ -7,7 +7,9 @@
 - Enable PS5 Settings → System → Remote Play. Use a reachable local console,
   preferably wired Ethernet. There is no WAN/hole-punching feature.
 - [Sign in in your browser](account-setup.md), then [pair the PS5](pairing.md).
-  Account and console keys stay in Keychain. No settings export from another app.
+  Account and console keys use an unencrypted, owner-only local file, not Keychain.
+  The new build requires fresh sign-in/pairing; no old credentials are imported.
+  No settings export from another app.
   Never send codes, redirect URLs or keys in chat.
 
 ## Stream options
@@ -66,7 +68,8 @@ is still pending.
   or replaying stale frames. Reconnect waits for fresh random-access video.
 - Stop acknowledges native cleanup before setup becomes editable. Only then can
   you replace/forget credentials. Forgetting an account also removes its paired
-  console keys from this app's Keychain record.
+  console keys from this app's local credentials file. Historical Keychain entries
+  are untouched. See [file protection limits](account-setup.md).
 - Closing the window leaves capture running. Reopen from the app/Dock. Quit
   disconnects and joins workers without sleeping the console.
 

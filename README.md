@@ -5,10 +5,15 @@ Media Source over localhost TCP/Matroska. OBS decodes both tracks and performs
 any final encoding. No app preview, local sound, controller, microphone, media
 decoder, encoder or tone mapper.
 
-**Development build — live acceptance is pending.** The user confirmed browser
-login, real pairing, Keychain recovery and all three synthetic feeds in OBS.
+**Development build — live acceptance is pending.** Earlier builds established
+browser login, real pairing and all three synthetic feeds in OBS.
 Real PS5-to-OBS sync, HDR output, long-run reliability and independent review
 are not yet verified.
+
+**Credential storage changed:** this build starts fresh with an unencrypted,
+owner-only local file instead of Keychain. Sign in and pair again once; old
+Keychain records are neither read nor deleted. Current file-backed real-device
+persistence remains a manual check.
 
 ## Use
 
@@ -24,6 +29,16 @@ See [setup and OBS instructions](docs/setup.md), [architecture](docs/architectur
 and [validation / pending gates](docs/validation.md). HDR never silently falls
 back. Stop before changing setup. Closing the window does not stop capture;
 Quit disconnects asynchronously.
+
+## Local credentials
+
+Account identity and PS5 pairing keys are stored at
+`~/Library/Application Support/FreePS5CaptureCard/credentials.json`.
+The directory is 0700 and the file is 0600. This prevents access by other OS
+users, **not processes running as your macOS user**; it is not app-level
+encryption. Do not share or commit this file. OAuth tokens, redirect URLs,
+pairing/login codes and Sony passwords are not saved. Forget Account removes
+the local record; it does not touch historical Keychain entries or erase backups.
 
 ## Build and verify
 

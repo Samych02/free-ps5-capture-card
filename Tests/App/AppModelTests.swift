@@ -18,8 +18,8 @@ final class AppModelTests: XCTestCase {
         let account = try Account(decimalID: "42")
         let original = PairedConsole(accountID: account.accountID, address: "192.168.1.20", mac: Data(repeating: 1, count: 6), name: "PS5",
                                      target: 1000100, registrationKey: Data(repeating: 2, count: 16), sessionKey: Data(repeating: 3, count: 16), keyType: 0)
-        let access = FakeKeychainAccess(), engine = FakeEngine()
-        let store = KeychainCredentialStore(access: access)
+        let access = FakeCredentialFile(), engine = FakeEngine()
+        let store = FileCredentialStore(access: access)
         try store.saveAccount(account); try store.savePairing(original)
         let pairing = PairingModel(service: FakeConsoleService(), store: store); pairing.setAccount(account)
         engine.available = true

@@ -1,8 +1,10 @@
-# PSN account setup — manual Gate B
+# PSN account setup
 
 This build implements account identification and local PS5 discovery/pairing.
-See [pairing your PS5](pairing.md) after signing in. Live PS5 capture is not
-implemented yet; synthetic transport tests are separate.
+See [pairing your PS5](pairing.md) after signing in. Live capture is implemented;
+actual-device acceptance and synthetic transport evidence remain separate.
+The current build starts fresh with local file storage, without reading or
+migrating older Keychain records.
 
 ## Try the native flow
 
@@ -13,18 +15,33 @@ implemented yet; synthetic transport tests are separate.
 3. After sign-in, copy the complete final Sony redirect URL from the browser.
    It contains a private authorization code. Paste it only into the app's masked
    **Final Sony redirect URL** field; click **Finish Sign-in**.
-4. Expect **Saved securely**. The app retrieves the account's exact 8-byte pairing
-   identity and saves that identity in this app's local, non-synchronizing Keychain
-   record. OAuth access/refresh tokens and the redirect URL are not persisted.
+4. Expect **Saved on this Mac**. The app retrieves the account's exact 8-byte pairing
+   identity and saves it in the local credentials file described below. OAuth
+   access/refresh tokens and the redirect URL are not persisted.
 5. Quit and reopen the app. The saved account should restore without contacting
    Sony. **Forget Account…** removes this app's identity and any paired PS5 keys
    after confirmation. **Forget PS5…** removes the console keys but retains the
-   account identity. Account-only records migrate when the next write succeeds.
+   account identity. There is no import/migration from older stores.
 
-macOS may require Keychain authorization for the development app. If access is
-denied or the item is unreadable, the app reports an error and does not silently
-fall back to a file/preferences. Automated tests use an injected fake store and
-do not validate the user's actual Keychain access policy or sign-in.
+## Local file and protection limits
+
+The record is at
+`~/Library/Application Support/FreePS5CaptureCard/credentials.json`, in a 0700
+directory with 0600 file permissions. It is **unencrypted** and readable by
+processes running as your macOS user. These permissions do not replace Keychain
+protection. This weaker storage model was explicitly chosen by the user.
+
+Writes validate a bounded, versioned account/console record and replace it
+atomically. Unsafe permissions, symlinks/hardlinks, unsupported records and
+concurrent changes fail closed; there is no alternate store or automatic backup.
+If bounded JSON is corrupt, **Reset Local Credentials…** / **Forget Account…**
+can remove it after confirmation. Permission errors require repairing the local
+folder/file access. Never post the file contents while troubleshooting.
+
+The app makes no credential-related Keychain calls and leaves old Keychain
+records untouched. Automatic OS/user backups may retain file copies; deleting
+the record is not a promise of secure erasure. Automated tests use injected
+stores or isolated temporary folders, never the user's real credential file.
 
 ## Security/compatibility boundaries
 
@@ -45,20 +62,20 @@ do not validate the user's actual Keychain access policy or sign-in.
   replacement fails. The Cancel button also cancels the UI's network task.
 - Fixed Remote Play client identifiers in source are distributed app constants,
   not the user's credentials. No Sony password is collected by the app.
-- Debug XCTest hosting skips automatic Keychain restore; tests inject their own
+- Debug XCTest hosting skips automatic credential-file restore; tests inject their own
   account stores. This guard is absent from Release, and does not fabricate a
   signed-in identity or bypass the real login flow.
 
 ## Report the result safely
 
-Confirm sign-in, **Saved securely**, and quit/relaunch persistence. On failure,
+Confirm sign-in, **Saved on this Mac**, and quit/relaunch persistence. On failure,
 share only the app's sanitized error text. **Do not share the final redirect URL,
-authorization code, access token, account-ID bytes, or Keychain screenshots.**
+authorization code, access token, account-ID bytes, or credentials-file contents.**
 
 The user reported completing the manual sign-in flow successfully. This confirms
 the current browser/code-exchange flow on their setup; mocked protocol tests by
 themselves would not establish that compatibility. Record explicit persistence
-checks separately if a later Keychain issue is reported.
+checks separately for this new file-backed build.
 
 ## External-browser automatic-return investigation
 

@@ -1,5 +1,9 @@
 # Review request: native PSN identity setup
 
+Historical milestone request. Keychain-specific storage requirements below were
+superseded by the explicitly approved [local-file design](../architecture.md).
+See [current review handoff](../review-handoff.md) for the current persistence scope.
+
 Scope: `App/AccountModel.swift`, `App/Models/Account.swift`,
 `App/Services/{PSNAuthService,CredentialStore}.swift`, account UI/startup/quit
 integration, and the three new app test classes. No console pairing is included.

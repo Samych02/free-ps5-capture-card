@@ -9,7 +9,7 @@ enum PairingError: Error, Equatable, LocalizedError {
         case .pin: return "Enter the 8-digit code from PS5 Settings → System → Remote Play → Link Device. This is not the 4-digit login passcode."
         case .failed: return "Could not pair with the PS5. Enable Remote Play, open Link Device, and try a fresh code on the same network."
         case .cancelled: return "Pairing cancelled."
-        case .storage: return "Could not save PS5 credentials in Keychain. The previous pairing was kept."
+        case .storage: return "Could not save PS5 credentials to the local file. No replacement was saved."
         case .identity: return "The returned PS5 identity does not match this pairing request. No credentials were saved."
         case .pairingChanged: return "The saved PS5 or account changed, or pairing is in progress. Close Change IP and try again after pairing finishes."
         case .permission: return "Local network access was denied. Allow this app in System Settings → Privacy & Security → Local Network. You can also try the PS5’s IP address."

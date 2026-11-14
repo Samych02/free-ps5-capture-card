@@ -5,7 +5,7 @@ struct FreePS5CaptureCardApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @StateObject private var model = AppModel(defaults: Self.preferences)
     @StateObject private var account = AccountModel()
-    @StateObject private var pairing = PairingModel(service: NativeConsoleService(), store: KeychainCredentialStore())
+    @StateObject private var pairing = PairingModel(service: NativeConsoleService(), store: FileCredentialStore())
     private static var preferences: UserDefaults {
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
@@ -23,7 +23,7 @@ struct FreePS5CaptureCardApp: App {
                 .task {
                     #if DEBUG
                     // XCTest hosts the real app but must not touch the user's
-                    // real Keychain. Unit tests inject an isolated store instead.
+                    // real credentials file. Unit tests inject an isolated store instead.
                     if NSClassFromString("XCTestCase") != nil || ProcessInfo.processInfo.arguments.contains("--ui-testing") { return }
                     #endif
                     account.restore()

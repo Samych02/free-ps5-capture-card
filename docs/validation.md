@@ -1,5 +1,35 @@
 # Validation evidence
 
+## Current credential-file follow-up — 2026-11-14
+
+Latest developer app: `build/package-file-store/Free PS5 Capture Card.app`.
+This build supersedes the earlier Keychain-backed artifacts below. It starts
+fresh, without reading/migrating/deleting existing Keychain records, as explicitly
+approved by the user. Account identity and PS5 keys now use an unencrypted file
+in a 0700 directory with 0600 file permissions. This is weaker than Keychain and
+does not prevent same-user processes from reading credentials.
+
+- `build/file-store-red.log`: missing persistence failed before implementation.
+- `build/file-store-green.log`: initial backend passed 65 app tests.
+- `build/file-store-app.log`: final 70/70 app tests pass, including real isolated
+  filesystem checks, stale writer/deletion guards, account replacement, mode/link/
+  FIFO/size/schema validation, lock contention, corrupt reset, and proof that
+  successful mocked login persists identity without access/refresh tokens/codes.
+- `build/file-store-native.log`: 10/10 native targets pass; native media unchanged.
+- `build/file-store-policy.log`: 7/7 entry-point/policy tests pass, including no
+  application credential-Keychain APIs/imports and no decoder/device calls.
+- `build/file-store-package.log` plus fresh bundle checker: Release app,
+  28-file recursive runtime closure, minimum OS, architecture and signatures pass.
+  Release imports no direct `SecItem*` functions, contains no old credential service
+  ID, and excludes the Debug UI-test launch flag. System TLS/framework dependencies
+  are not evidence of app Keychain credential access.
+- All stores in tests are injected fakes or unique temporary directories. No real
+  user credential file, Keychain, PSN account or console was accessed.
+
+Fresh real sign-in/pairing/relaunch persistence, GUI automation, clean-machine
+launch, independent review and all existing real-media acceptance gates remain
+open. Earlier user-confirmed Keychain recovery does not validate the new backend.
+
 ## Address-update follow-up
 
 The latest developer bundle is

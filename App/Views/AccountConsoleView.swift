@@ -16,7 +16,7 @@ struct AccountConsoleView: View {
     var body: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 12) {
-                LabeledContent("PSN Account", value: model.account == nil ? "Not configured" : "Saved securely")
+                LabeledContent("PSN Account", value: model.account == nil ? "Not configured" : "Saved on this Mac")
                 if model.awaitingRedirect {
                     Text("Finish signing in on Sony’s website. Copy the final redirect URL from the browser and paste it below.")
                         .font(.callout).foregroundStyle(.secondary)
@@ -43,20 +43,20 @@ struct AccountConsoleView: View {
                                 browserError = "Could not open your default browser. Check its macOS configuration."
                             }
                         }
-                        if model.account != nil {
-                            Button("Forget Account…", role: .destructive) { confirmForget = true }
+                        if model.account != nil || model.message == AuthError.storage.localizedDescription {
+                            Button(model.account == nil ? "Reset Local Credentials…" : "Forget Account…", role: .destructive) { confirmForget = true }
                         }
                     }
                 }
                 if let message = model.message ?? browserError {
                     Text(message).font(.callout).foregroundStyle(.red).textSelection(.enabled)
                 }
-                Text("Your Sony password stays in your browser. Account identity and paired PS5 keys stay in Keychain; OAuth tokens are not retained.")
+                Text("Your Sony password stays in your browser. Account identity and PS5 keys are saved in an unencrypted local file restricted to your macOS user. OAuth tokens and passcodes are not saved.")
                     .font(.caption).foregroundStyle(.secondary)
                 Divider()
                 LabeledContent("PS5", value: consoleName)
                 if let console = pairing.paired {
-                    Text("\(console.address) · Saved securely").font(.caption).foregroundStyle(.secondary)
+                    Text("\(console.address) · Saved on this Mac").font(.caption).foregroundStyle(.secondary)
                 }
                 HStack {
                     Button(pairing.paired == nil ? "Pair PS5…" : "Replace Pairing…") { showPairing = true }
@@ -82,12 +82,12 @@ struct AccountConsoleView: View {
         .confirmationDialog("Forget the paired PS5?", isPresented: $confirmForgetConsole) {
             Button("Forget PS5", role: .destructive) { pairing.forget() }
             Button("Cancel", role: .cancel) {}
-        } message: { Text("The PS5 registration keys will be removed from Keychain. Your PSN identity will remain.") }
+        } message: { Text("The PS5 registration keys will be removed from this app’s local credentials file. Your PSN identity will remain.") }
         .confirmationDialog("Forget the saved PSN account?", isPresented: $confirmForget) {
             Button("Forget Account", role: .destructive) { model.forget() }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("The account identity and any paired PS5 keys will be removed from this app’s Keychain record.")
+            Text("The account identity and any paired PS5 keys will be removed from this app’s local credentials file.")
         }
     }
     private var consoleName: String {

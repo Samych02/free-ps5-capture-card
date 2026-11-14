@@ -12,8 +12,12 @@ not represent an independent approval.
 - Compressed video and stereo/48 kHz Opus are equally mandatory, in one live
   Matroska/TCP stream. No app codec opening, decode/encode, playback, preview,
   controller/microphone devices, tone mapping or hidden HDR fallback.
-- Credentials stay in Keychain or bounded session memory; PINs/OAuth redirects
-  are transient. Raw core logs/remote errors never reach diagnostics.
+- Credentials use an explicitly approved, unencrypted owner-only file or bounded
+  session memory; PINs/OAuth redirects/tokens are transient. Review private modes,
+  ownership/link/type checks, size limits, expected-byte writes under advisory
+  lock, atomic replacement, corrupt-record reset and temporary-file cleanup.
+  No old Keychain access/migration/deletion is permitted. Raw core logs/remote
+  errors never reach diagnostics. Same-user process access is an accepted risk.
 - Reserve the configured loopback port before console contact. No automatic port
   switching, concurrent old/new session owners, callback-after-free or UI joins.
 - Verify teardown order, IDR gate, cancellation, partial init/start failures,
