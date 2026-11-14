@@ -32,6 +32,7 @@ add_test(NAME capture-session COMMAND capture-session-tests)
 add_executable(capture-diagnostics-tests DiagnosticsTests.cpp)
 target_link_libraries(capture-diagnostics-tests PRIVATE capture-live munit)
 add_test(NAME capture-diagnostics COMMAND capture-diagnostics-tests)
+set_tests_properties(capture-diagnostics PROPERTIES TIMEOUT 20)
 set_tests_properties(capture-session PROPERTIES TIMEOUT 30)
 add_executable(capture-replay ../Support/replay.cpp)
 add_executable(capture-live-format ../Support/live_format.cpp)
@@ -45,4 +46,4 @@ set_target_properties(capture-replay PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAK
 add_test(NAME capture-transport COMMAND "${PYTHON_EXECUTABLE}"
     "${PROJECT_SOURCE_DIR}/Tests/Support/integration.py"
     --build-dir "${CMAKE_BINARY_DIR}" --case all)
-set_tests_properties(capture-transport PROPERTIES TIMEOUT 120 LABELS transport)
+set_tests_properties(capture-transport PROPERTIES TIMEOUT 180 LABELS transport)

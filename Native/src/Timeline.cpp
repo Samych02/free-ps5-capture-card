@@ -105,4 +105,11 @@ Timeline::Diagnostics Timeline::diagnostics(MediaTrack track) const {
     catch(const std::overflow_error &) {result.driftUs=INT64_MAX;}
     return result;
 }
+void Timeline::reconfigureVideo(uint32_t num,uint32_t den,bool resetCounter) {
+    if(!config_.audioAnchoredIngressVideo || !num || !den || num>1000000 || den>1000000 || uint64_t(num)>uint64_t(den)*240)
+        throw std::invalid_argument("Unsupported video clock reconfiguration");
+    config_.fpsNum=num;config_.fpsDen=den;
+    if(resetCounter) video_=Clock{};
+    // Keep the audio clock, its delay estimator and already-issued video PTS.
+}
 }

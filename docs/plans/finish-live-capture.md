@@ -2,6 +2,68 @@
 
 ## Active OBS disconnect investigation
 
+### Active: keep Remote Play alive across supported video changes
+
+User rejects full-session reconnect handling for game/HDR transitions and explicitly
+requests the proposed in-place source handling. Work remains on main. The current
+trigger is code in `Pipeline.cpp` that converts any generation/header/HDR metadata
+change into a retryable source failure; the pinned ordinary Chiaki callback instead
+feeds profile headers into its existing decoder without stopping Remote Play.
+
+Approved scope: preserve the source session and audio clock for supported video
+changes. Compatible repeated configurations and valid in-band HDR metadata updates
+should not close OBS. An actual codec-private header change may require a new
+Matroska connection, but must reset only output, not PS5. Reject malformed data,
+unsupported reordering/codec/true HDR-mode mismatch explicitly; no decoding,
+resampling or hidden HDR-to-SDR fallback. Existing release grace remains only for
+genuine source failures, not the normal video transition path.
+
+Implementation/verification plan:
+1. Add failing queue tests for identical video/audio configuration generations
+   remaining in the same epoch; changed video headers reset output only.
+2. Add failing synthetic pipeline transitions: identical new generations,
+   complete/partial in-band parameter updates, valid HDR SEI changes, genuine
+   header changes with output reconnect, and unsupported/malformed updates.
+   Assert no done/retry source result, audio counter/clock continuity, compressed
+   payload preservation and HDR metadata correctness in OBS-compatible decoding.
+3. Adopt compatible generations without resets. Validate current video headers
+   against in-band parameter sets rather than comparing a subset hash to a full
+   header hash. Handle supported changed headers as bounded reconfiguration:
+   invalidate queue epoch, retain source/audio clock, parse fresh random-access
+   video, request keyframe while waiting, create new Matroska output only.
+4. Validate and forward dynamic HDR SEI without source restart; retain latest
+   valid static metadata for a later OBS join. Never mutate a format shared with
+   the output worker or reinterpret an already-issued PTS.
+5. Guard parser/config races so a candidate from an old header generation is
+   discarded rather than published or treated as a fatal current-source error.
+6. Run native/app/ASan/TSAN/policy checks, package developer candidate, validate
+   bundle/signatures and checkpoint. Actual game/HDR transitions remain a live gate.
+
+Risks: Matroska codec-private data is not freely mutable in an already-open stream;
+OBS-side resets may remain necessary for genuine header changes. Partial parameter
+sets need bounded unambiguous merging rather than guessed IDs; unsupported
+ambiguous cases must fail safely. Dynamic SEI precedence versus container metadata
+requires actual synthetic decoder evidence, not an assumption that ignoring the
+old mismatch check is sufficient.
+
+- [x] Red queue/config/metadata/transition regressions in `build/inplace-*-red.log`.
+- [x] In-place source reconfiguration and minimal output-only resets.
+- [x] Race, clock, payload and HDR precedence regressions pass. First full run
+  exposed stale codec-private HDR SEI for a late join (1000 instead of 2000
+  MaxCLL), now normalized with container state. Stale-parser injection and a
+  reordered old-header replay guard prevent obsolete metadata publication.
+  Final native run passes 10/10 targets in `build/inplace-native-final.log`
+  (132.62 s). Expanded transport harness limit is 180 s; production limits
+  are unchanged. Remaining checks run in `build/inplace-check-*.log` and package
+  candidate `build/package-inplace-video`.
+- [x] Full automated verification: 10 native targets, 72 app tests, 10 ASan
+  targets, 7 selected TSAN targets and 7 policy tests pass. Native evidence is
+  `build/inplace-native-final.log`; remaining results are `build/inplace-check-*.log`.
+  Release candidate `build/package-inplace-video/Free PS5 Capture Card.app`
+  passes validation for 28 arm64 Mach-O files and strict recursive signatures.
+  Independent review and real transitions remain release gates.
+- [ ] Real PS5 game/HDR transition confirmation; no seamless-live claim beforehand.
+
 ### Transition reconnect temporarily reports Remote Play in use
 
 On the clock-correction build the user reports capture failing with Remote Play

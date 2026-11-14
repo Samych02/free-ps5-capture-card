@@ -3,8 +3,14 @@
 #include <chiaki/time.h>
 #include <munit.h>
 #include <cstring>
+#include <condition_variable>
+#include <chrono>
+#include <thread>
+#include <atomic>
+#include <stdexcept>
 extern "C" {
 #include <libavutil/error.h>
+#include <libavutil/mastering_display_metadata.h>
 }
 static MunitResult quit_policy(const MunitParameter[],void *) {
     auto transient=capture::classifyQuit(CHIAKI_QUIT_REASON_STREAM_CONNECTION_REMOTE_DISCONNECTED);
@@ -97,12 +103,88 @@ static MunitResult owned_release_grace_is_bounded(const MunitParameter[],void *)
     }
     return MUNIT_OK;
 }
+static MunitResult dynamic_hdr_metadata(const MunitParameter[],void *) {
+    const uint8_t original[]{0,0,0,1,0x4e,1,144,4,3,0xe8,1,0x90,0x80};
+    const uint8_t changed[]{0,0,0,1,0x4e,1,144,4,7,0xd0,1,0x90,0x80};
+    auto state=capture::readHDRMetadata(original,sizeof(original));
+    auto update=capture::readHDRMetadata(changed,sizeof(changed));
+    munit_assert_not_null(state.get());munit_assert_not_null(update.get());
+    munit_assert_true(capture::applyHDRMetadata(state.get(),update.get()));
+    auto side=av_packet_side_data_get(state->coded_side_data,state->nb_coded_side_data,AV_PKT_DATA_CONTENT_LIGHT_LEVEL);
+    munit_assert_not_null(side);
+    munit_assert_uint(reinterpret_cast<const AVContentLightMetadata *>(side->data)->MaxCLL,==,2000);
+    munit_assert_false(capture::applyHDRMetadata(state.get(),update.get()));
+    const uint8_t malformed[]{0,0,0,1,0x4e,1,144,4,7,0x80};bool rejected=false;
+    try {capture::readHDRMetadata(malformed,sizeof(malformed));}catch(...) {rejected=true;}
+    munit_assert_true(rejected);
+    return MUNIT_OK;
+}
+static MunitResult partial_parameter_updates(const MunitParameter[],void *) {
+    const uint8_t base[]{0,0,0,1,0x67,66,0,30,0x80,0,0,0,1,0x68,0xc0};
+    const uint8_t sameSPS[]{0,0,1,0x67,66,0,30,0x80};
+    munit_assert_false(capture::updatedVideoHeader(CHIAKI_CODEC_H264,base,sizeof(base),sameSPS,sizeof(sameSPS)).has_value());
+    const uint8_t changedSPS[]{0,0,1,0x67,66,0,31,0x80};
+    auto changed=capture::updatedVideoHeader(CHIAKI_CODEC_H264,base,sizeof(base),changedSPS,sizeof(changedSPS));
+    munit_assert_true(changed.has_value());
+    const uint8_t expected[]{0,0,0,1,0x67,66,0,31,0x80,0,0,0,1,0x68,0xc0};
+    munit_assert_size(changed->size(),==,sizeof(expected));
+    munit_assert_memory_equal(sizeof(expected),changed->data(),expected);
+    const uint8_t extraPPS[]{0,0,1,0x68,0x50};
+    auto extended=capture::updatedVideoHeader(CHIAKI_CODEC_H264,base,sizeof(base),extraPPS,sizeof(extraPPS));
+    munit_assert_true(extended.has_value());
+    munit_assert_size(extended->size(),==,sizeof(base)+6);
+    munit_assert_memory_equal(sizeof(base),extended->data(),base);
+    return MUNIT_OK;
+}
+static MunitResult stale_parser_cannot_fail_new_generation(const MunitParameter[],void *) {
+    std::mutex gate;std::condition_variable changed;bool entered=false,release=false;
+    std::atomic<unsigned> parses{0};std::atomic<bool> wrongHeader{false};
+    capture::LocalTCPServer server(0);
+    capture_options options{sizeof(capture_options),CAPTURE_API_VERSION,1920,1080,60,15000,9295,CAPTURE_H264};
+    capture::MediaPipeline pipeline(options,server,[]{},[&](ChiakiCodec,const uint8_t *header,size_t size,const uint8_t *,size_t) {
+        if(++parses==1) {
+            std::unique_lock<std::mutex> lock(gate);entered=true;changed.notify_all();
+            changed.wait(lock,[&]{return release;});throw std::runtime_error("old parser rejected obsolete metadata");
+        }
+        wrongHeader=size<8 || header[7]!=31;
+        capture::VideoFormat format;format.parameters.reset(avcodec_parameters_alloc());
+        format.parameters->width=640;format.parameters->height=360;format.frameRate={60,1};format.depth=8;
+        return format;
+    });
+    auto sink=pipeline.sink();
+    const uint8_t header[]{0,0,0,1,0x67,66,0,30,0x80,0,0,0,1,0x68,0xc0};
+    ChiakiEncodedVideoConfig video{1,CHIAKI_CODEC_H264,640,360,60,1,header,sizeof(header)};
+    ChiakiEncodedAudioConfig audio{1,2,48000,960};sink.video_config(&video,sink.user);sink.audio_config(&audio,sink.user);
+    const uint8_t opus[]{0xf8,0},picture[]{0,0,0,1,0x65,0x80};
+    uint16_t audioIndex=0,videoIndex=0;
+    auto feed=[&](uint64_t generation) {
+        auto now=chiaki_time_now_monotonic_us();
+        ChiakiEncodedPacket a{1,now,audioIndex++,0,960,0,opus,sizeof(opus)},v{generation,now,videoIndex++,0,0,0,picture,sizeof(picture)};
+        sink.audio_packet(&a,sink.user);sink.video_packet(&v,sink.user);
+    };
+    feed(1);
+    {std::unique_lock<std::mutex> lock(gate);munit_assert_true(changed.wait_for(lock,std::chrono::seconds(2),[&]{return entered;}));}
+    uint8_t newer[sizeof(header)];memcpy(newer,header,sizeof(header));newer[7]=31;
+    video.generation=2;video.header=newer;sink.video_config(&video,sink.user);feed(2);
+    {std::lock_guard<std::mutex> lock(gate);release=true;changed.notify_all();}
+    auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(2);
+    while(pipeline.snapshot().status.width!=640 && std::chrono::steady_clock::now()<deadline) {
+        feed(2);std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    auto result=pipeline.snapshot();
+    munit_assert_false(result.done);munit_assert_false(result.retry);munit_assert_uint(result.status.width,==,640);
+    munit_assert_uint(parses.load(),==,2);munit_assert_false(wrongHeader.load());
+    pipeline.stopAndJoin();return MUNIT_OK;
+}
 int main(int argc,char **argv) {
     MunitTest tests[]{{const_cast<char *>("/quit-policy"),quit_policy,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
         {const_cast<char *>("/loss-counters"),loss_counters,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
         {const_cast<char *>("/output-reset-reasons"),output_reset_reasons,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
         {const_cast<char *>("/missing-track-messages"),missing_track_messages,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
         {const_cast<char *>("/owned-release-grace"),owned_release_grace_is_bounded,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
+        {const_cast<char *>("/dynamic-hdr-metadata"),dynamic_hdr_metadata,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
+        {const_cast<char *>("/partial-parameter-updates"),partial_parameter_updates,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
+        {const_cast<char *>("/stale-parser-generation"),stale_parser_cannot_fail_new_generation,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
         {nullptr,nullptr,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr}};
     MunitSuite suite{const_cast<char *>("/diagnostics"),tests,nullptr,1,MUNIT_SUITE_OPTION_NONE};return munit_suite_main(&suite,nullptr,argc,argv);
 }

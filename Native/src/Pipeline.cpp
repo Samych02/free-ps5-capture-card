@@ -12,13 +12,20 @@ struct MediaPipeline::Impl {
     capture_options options;
     LocalTCPServer &server;
     std::function<void()> request;
+    VideoFormatParser parseFormat;
     PacketQueue queue{3*1024*1024}; // reserves headroom for core, parser, packet, cluster and AVIO storage
     std::mutex mutex;
     std::atomic<bool> stopping{false},failed{false},hasOBS{false},outputReady{false};
-    bool retry=false,formatPending=false,frozen=false;
+    bool retry=false,formatPending=false,parsing=false,frozen=false;
     capture_error error=CAPTURE_ERROR_NONE;
     const char *message="";
     uint64_t videoCount=0,audioCount=0,videoGeneration=0,audioGeneration=0,signature=0;
+    uint64_t videoRevision=0;
+    std::optional<uint16_t> lastSourceVideoIndex;
+    ChiakiEncodedVideoConfig videoConfig{};
+    std::vector<uint8_t> videoHeader;
+    Parameters hdrState;
+    AVRational lastFrameRate{60,1};
     uint64_t videoLosses=0,audioHoles=0;
     uint64_t outputDisconnects=0;
     std::string lastOutputMessage;
@@ -30,7 +37,8 @@ struct MediaPipeline::Impl {
     std::shared_ptr<VideoFormat> format;
     std::unique_ptr<Timeline> clock;
     std::thread worker;
-    Impl(capture_options o,LocalTCPServer &s,std::function<void()> r):options(o),server(s),request(std::move(r)) {
+    Impl(capture_options o,LocalTCPServer &s,std::function<void()> r,VideoFormatParser parser):options(o),server(s),request(std::move(r)),parseFormat(std::move(parser)) {
+        if(options.codec!=CAPTURE_H264) {hdrState.reset(avcodec_parameters_alloc());if(!hdrState)throw std::bad_alloc();}
         worker=std::thread([this]{try{run();}catch(...){fail(CAPTURE_ERROR_INTERNAL,"Local output worker failed safely.");server.disconnect();hasOBS=false;outputReady=false;}});
     }
     void failLocked(capture_error e,const char *m,bool canRetry=false) {
@@ -50,18 +58,47 @@ struct MediaPipeline::Impl {
             if(!frozen) failLocked(CAPTURE_ERROR_CONNECTION,"Cannot establish both source clocks. Reconnecting.",true);
         }
     }
+    void replaceVideoHeader(ChiakiEncodedVideoConfig c,bool inBand=false) {
+        if(!c.generation || !c.header || !c.header_size || c.header_size>PacketQueue::MaxHeader ||
+           c.codec!=static_cast<ChiakiCodec>(options.codec) || videoRevision==UINT64_MAX)
+            throw std::runtime_error("Unsupported source video configuration");
+        Parameters metadata;
+        if(options.codec!=CAPTURE_H264) {
+            metadata.reset(avcodec_parameters_alloc());if(!metadata)throw std::bad_alloc();
+            auto updates=readHDRMetadata(c.header,c.header_size);applyHDRMetadata(metadata.get(),updates.get());
+            if(inBand && hdrState)applyHDRMetadata(metadata.get(),hdrState.get());
+        }
+        auto normalized=c;normalized.generation=videoRevision+1;
+        auto result=queue.configureVideo(normalized);
+        if(result==PacketQueue::Result::Invalid || result==PacketQueue::Result::Reset)
+            throw std::runtime_error("Cannot retain supported video configuration");
+        ++videoRevision;videoConfig=c;videoConfig.header=nullptr;
+        videoHeader.assign(c.header,c.header+c.header_size);signature=parameterSetSignature(c.codec,c.header,c.header_size);
+        hdrState=std::move(metadata);format.reset();startup.reset();formatPending=false;
+        firstHeaderUs=chiaki_time_now_monotonic_us();
+        if(clock && frozen) clock->reconfigureVideo(lastFrameRate.num,lastFrameRate.den);
+    }
     void configureVideo(const ChiakiEncodedVideoConfig &c) {
         std::lock_guard<std::mutex> lock(mutex); if(stopping || failed) return;
-        if(videoGeneration && c.generation!=videoGeneration) { failLocked(CAPTURE_ERROR_CONNECTION,"Source configuration changed. Reconnecting both tracks.",true); return; }
-        if(c.codec!=static_cast<ChiakiCodec>(options.codec) || queue.configureVideo(c)==PacketQueue::Result::Invalid)
-            throw std::runtime_error("Unsupported source video configuration");
-        videoGeneration=c.generation; signature=parameterSetSignature(c.codec,c.header,c.header_size);
-        if(!firstHeaderUs) firstHeaderUs=chiaki_time_now_monotonic_us();
+        if(videoGeneration && c.generation<videoGeneration) return;
+        bool same=videoGeneration && c.codec==videoConfig.codec && c.width==videoConfig.width && c.height==videoConfig.height &&
+            c.nominal_fps_num==videoConfig.nominal_fps_num && c.nominal_fps_den==videoConfig.nominal_fps_den &&
+            c.header && c.header_size==videoHeader.size() && !memcmp(c.header,videoHeader.data(),c.header_size);
+        if(videoGeneration && c.generation==videoGeneration && !same) throw std::runtime_error("Conflicting video generation");
+        if(!same) replaceVideoHeader(c);
+        if(c.generation!=videoGeneration) {
+            lastSourceVideoIndex.reset();
+            if(same && clock && frozen)clock->reconfigureVideo(lastFrameRate.num,lastFrameRate.den);
+        }
+        videoGeneration=c.generation;videoConfig.generation=c.generation;
     }
     void configureAudio(const ChiakiEncodedAudioConfig &c) {
         std::lock_guard<std::mutex> lock(mutex); if(stopping || failed) return;
-        if(audioGeneration && c.generation!=audioGeneration) { failLocked(CAPTURE_ERROR_CONNECTION,"Source audio configuration changed. Reconnecting both tracks.",true); return; }
+        if(audioGeneration && c.generation<audioGeneration) return;
         liveOpusHead(c);
+        if(audioGeneration && (c.channels!=audio.channels || c.sample_rate!=audio.sample_rate || c.samples_per_frame!=audio.samples_per_frame)) {
+            failLocked(CAPTURE_ERROR_MEDIA,"Source audio format changed incompatibly. No resampling fallback was applied.");return;
+        }
         if(queue.configureAudio(c)==PacketQueue::Result::Invalid) throw std::runtime_error("Unsupported source audio configuration");
         audio=c; audioGeneration=c.generation; if(!firstHeaderUs) firstHeaderUs=chiaki_time_now_monotonic_us();
     }
@@ -82,17 +119,34 @@ struct MediaPipeline::Impl {
             }
         } else {
             auto info=inspectAccessUnit(static_cast<ChiakiCodec>(options.codec),p.data,p.size);
+            // Reject obsolete access units before inspecting their metadata:
+            // otherwise a late old SPS/SEI can undo an already accepted update.
+            if(lastSourceVideoIndex) {
+                auto delta=uint16_t(p.frame_index-*lastSourceVideoIndex);
+                if(!delta || delta>0x8000)return true;
+                if(delta==0x8000) {failLocked(CAPTURE_ERROR_CONNECTION,"Ambiguous source video counter. Reconnecting.",true);return true;}
+            }
+            auto current=parameterSetSignature(static_cast<ChiakiCodec>(options.codec),p.data,p.size);
+            if(current && current!=signature) {
+                auto updated=updatedVideoHeader(static_cast<ChiakiCodec>(options.codec),videoHeader.data(),videoHeader.size(),p.data,p.size);
+                if(updated) {auto c=videoConfig;c.header=updated->data();c.header_size=updated->size();replaceVideoHeader(c,true);}
+            }
+            if(options.codec!=CAPTURE_H264) {
+                auto updates=readHDRMetadata(p.data,p.size);
+                if(applyHDRMetadata(hdrState.get(),updates.get()) && format) {
+                    auto next=std::make_shared<VideoFormat>();next->parameters.reset(avcodec_parameters_alloc());
+                    if(!next->parameters || avcodec_parameters_copy(next->parameters.get(),format->parameters.get())<0)throw std::bad_alloc();
+                    next->frameRate=format->frameRate;next->depth=format->depth;next->hdr=format->hdr;
+                    applyHDRMetadata(next->parameters.get(),hdrState.get());format=std::move(next);
+                }
+            }
             if(!info.hasPicture) return true;
+            lastSourceVideoIndex=p.frame_index;
             access=info.access; ++videoCount; lastVideoUs=p.first_receipt_us;
             videoLosses+=p.lost_frames;
             if(!clock) { firstVideo=p; firstVideo->data=nullptr; firstVideo->size=0; }
-            auto current=parameterSetSignature(static_cast<ChiakiCodec>(options.codec),p.data,p.size);
-            if(current && signature && current!=signature) { failLocked(CAPTURE_ERROR_CONNECTION,"In-band video headers changed. Reconnecting both tracks.",true); return true; }
-            if(format && options.codec!=CAPTURE_H264 && !hdrMetadataMatches(format->parameters.get(),p.data,p.size)) {
-                failLocked(CAPTURE_ERROR_CONNECTION,"Source HDR metadata changed. Reconnecting both tracks.",true); return true;
-            }
-            if(!format && !formatPending && (access==VideoAccess::IDR || access==VideoAccess::CRA)) {
-                auto candidate=std::make_unique<Candidate>(); candidate->metadata=p; candidate->metadata.data=nullptr;
+            if(!format && !formatPending && !parsing && (access==VideoAccess::IDR || access==VideoAccess::CRA)) {
+                auto candidate=std::make_unique<Candidate>(); candidate->metadata=p; candidate->metadata.data=nullptr;candidate->metadata.generation=videoRevision;
                 candidate->bytes.assign(p.data,p.data+p.size);
                 startup=std::move(candidate); formatPending=true;
             }
@@ -103,7 +157,8 @@ struct MediaPipeline::Impl {
         if(observation.status!=Timeline::Status::Accepted || !frozen) return true;
         auto pts=clock->pts(track,observation.position);
         if(!pts) { failLocked(CAPTURE_ERROR_MEDIA,"Cannot represent source timestamps safely."); return false; }
-        auto result=queue.push(track,p,{*pts,*pts},access,now);
+        auto queued=p;if(!isAudio)queued.generation=videoRevision;
+        auto result=queue.push(track,queued,{*pts,*pts},access,now);
         if(result==PacketQueue::Result::Invalid) { failLocked(CAPTURE_ERROR_MEDIA,"Unsupported media packet. No transcoding fallback is available."); return false; }
         return true; // no OBS/overflow is discard+accept, never fake decoder failure
     }
@@ -111,13 +166,27 @@ struct MediaPipeline::Impl {
         std::unique_ptr<Candidate> candidate;
         // A valid video IDR may precede the independent audio configuration.
         // Keep its bounded startup copy until both configuration callbacks arrive.
-        auto config=queue.configuration();
-        { std::lock_guard<std::mutex> lock(mutex); if(config) candidate=std::move(startup); }
+        std::optional<QueueConfiguration> config;
+        { std::lock_guard<std::mutex> lock(mutex);config=queue.configuration();if(config && startup) {candidate=std::move(startup);parsing=true;} }
         if(candidate) {
-            if(!config || config->video.generation!=candidate->metadata.generation) throw std::runtime_error("Missing matching track configuration");
-            auto parsed=std::make_shared<VideoFormat>(parseVideoFormat(static_cast<ChiakiCodec>(options.codec),config->header->data(),config->header->size(),candidate->bytes.data(),candidate->bytes.size()));
+            auto revision=candidate->metadata.generation;
+            std::shared_ptr<VideoFormat> parsed;
+            try {
+                if(!config || config->video.generation!=revision)throw std::runtime_error("Missing matching track configuration");
+                parsed=std::make_shared<VideoFormat>(parseFormat(static_cast<ChiakiCodec>(options.codec),config->header->data(),config->header->size(),candidate->bytes.data(),candidate->bytes.size()));
+            } catch(...) {
+                std::lock_guard<std::mutex> lock(mutex);parsing=false;
+                if(revision!=videoRevision)return;
+                throw;
+            }
             candidate.reset(); // parser/startup allocations never overlap the output mux
-            std::lock_guard<std::mutex> lock(mutex); format=std::move(parsed);
+            std::lock_guard<std::mutex> lock(mutex);parsing=false;
+            if(revision==videoRevision) {
+                if(hdrState) {applyHDRMetadata(parsed->parameters.get(),hdrState.get());applyHDRMetadata(hdrState.get(),parsed->parameters.get());}
+                lastFrameRate=parsed->frameRate;
+                if(clock && frozen)clock->reconfigureVideo(lastFrameRate.num,lastFrameRate.den,false);
+                format=std::move(parsed);formatPending=false;
+            }
         }
         std::lock_guard<std::mutex> lock(mutex);
         auto now=chiaki_time_now_monotonic_us(); tickClock(now);
@@ -143,9 +212,13 @@ struct MediaPipeline::Impl {
             try { prepare(); } catch(...) { fail(CAPTURE_ERROR_MEDIA,"Unsupported video cadence, reordering, colour, or HDR negotiation. No fallback was applied."); break; }
             if(failed) break;
             if(!hasOBS) {
-                bool calibrated;
-                {std::lock_guard<std::mutex> lock(mutex);calibrated=frozen;}
-                if(!calibrated) {poll(nullptr,0,5);continue;}
+                bool calibrated,needVideo;
+                {std::lock_guard<std::mutex> lock(mutex);calibrated=frozen && bool(format);needVideo=videoGeneration && !format;}
+                if(!calibrated) {
+                    auto now=chiaki_time_now_monotonic_us();
+                    if(needVideo && now-lastIDR>=1000000) {request();lastIDR=now;}
+                    poll(nullptr,0,5);continue;
+                }
                 auto deadline=chiaki_time_now_monotonic_us()+20000;
                 if(!server.acceptClient([&]{return stopping || failed || chiaki_time_now_monotonic_us()>=deadline;})) continue;
                 hasOBS=true; queue.attach(chiaki_time_now_monotonic_us()); lastIDR=0;
@@ -202,7 +275,7 @@ struct MediaPipeline::Impl {
         close();
     }
 };
-MediaPipeline::MediaPipeline(capture_options o,LocalTCPServer &s,std::function<void()> r):impl_(std::make_unique<Impl>(o,s,std::move(r))) {}
+MediaPipeline::MediaPipeline(capture_options o,LocalTCPServer &s,std::function<void()> r,VideoFormatParser parser):impl_(std::make_unique<Impl>(o,s,std::move(r),std::move(parser))) {}
 MediaPipeline::~MediaPipeline() { stopAndJoin(); }
 ChiakiEncodedMediaSink MediaPipeline::sink() {
     return {impl_.get(),

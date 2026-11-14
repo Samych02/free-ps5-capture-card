@@ -68,13 +68,16 @@ static MunitResult stale_epochs_and_configs(const MunitParameter[], void *) {
     munit_assert_true(f.push(MediaTrack::Video,20000,VideoAccess::Predicted,0) == PacketQueue::Result::Stale);
     ChiakiEncodedAudioConfig audio{2,2,48000,960};
     f.queue.configureAudio(audio);
+    uint8_t header[]{0,0,0,1,0x67,0x42};
+    ChiakiEncodedVideoConfig video{2,CHIAKI_CODEC_H264,1920,1080,60,1,header,sizeof(header)};
+    f.queue.configureVideo(video);
     munit_assert_false(f.queue.stats().connected);
     munit_assert_true(f.queue.stats().epoch != epoch);
     munit_assert_true(f.queue.stats().reason == PacketQueue::Reason::ConfigurationChanged);
     f.queue.attach(100000);
     munit_assert_true(f.push(MediaTrack::Audio,20000,VideoAccess::Predicted,1) == PacketQueue::Result::Stale);
-    f.push(MediaTrack::Video,40000,VideoAccess::CRA);
-    munit_assert_true(f.push(MediaTrack::Video,20000,VideoAccess::Leading) == PacketQueue::Result::Dropped);
+    f.push(MediaTrack::Video,40000,VideoAccess::CRA,2);
+    munit_assert_true(f.push(MediaTrack::Video,20000,VideoAccess::Leading,2) == PacketQueue::Result::Dropped);
     f.push(MediaTrack::Audio,40000,VideoAccess::Predicted,2);
     munit_assert_true(f.queue.stats().ready);
     return MUNIT_OK;
@@ -208,6 +211,27 @@ static MunitResult missing_track_details(const MunitParameter[], void *) {
     munit_assert_true(startup.queue.stats().missing.stage==Stage::None);
     return MUNIT_OK;
 }
+static MunitResult compatible_video_generation(const MunitParameter[],void *) {
+    Fixture f;f.queue.attach(0);f.push(MediaTrack::Video,0,VideoAccess::IDR);f.push(MediaTrack::Audio,0);
+    auto before=f.queue.stats();auto config=f.queue.configuration();
+    auto video=config->video;video.generation=2;video.header=config->header->data();video.header_size=config->header->size();
+    f.queue.configureVideo(video);
+    munit_assert_true(f.queue.stats().connected);munit_assert_true(f.queue.stats().ready);
+    munit_assert_uint64(f.queue.stats().epoch,==,before.epoch);
+    munit_assert_true(f.push(MediaTrack::Video,20000,VideoAccess::Predicted,2)==PacketQueue::Result::Accepted);
+    munit_assert_true(f.push(MediaTrack::Video,30000,VideoAccess::Predicted,1)==PacketQueue::Result::Stale);
+    return MUNIT_OK;
+}
+static MunitResult compatible_audio_generation(const MunitParameter[],void *) {
+    Fixture f;f.queue.attach(0);f.push(MediaTrack::Video,0,VideoAccess::IDR);f.push(MediaTrack::Audio,0);
+    auto before=f.queue.stats();auto audio=f.queue.configuration()->audio;audio.generation=2;
+    f.queue.configureAudio(audio);
+    munit_assert_true(f.queue.stats().connected);munit_assert_true(f.queue.stats().ready);
+    munit_assert_uint64(f.queue.stats().epoch,==,before.epoch);
+    munit_assert_true(f.push(MediaTrack::Audio,20000,VideoAccess::Predicted,2)==PacketQueue::Result::Accepted);
+    munit_assert_true(f.push(MediaTrack::Audio,30000,VideoAccess::Predicted,1)==PacketQueue::Result::Stale);
+    return MUNIT_OK;
+}
 static MunitResult missing_track_delivery_details(const MunitParameter[], void *) {
     using Stage=PacketQueue::MissingStage;
     for(auto absent:{Stage::Audio,Stage::Video,Stage::Both}) {
@@ -247,6 +271,8 @@ int main(int argc,char **argv) {
         {const_cast<char *>("/stale-preroll-readiness"), stale_preroll_cannot_be_ready, nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
         {const_cast<char *>("/missing-track-details"), missing_track_details, nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
         {const_cast<char *>("/missing-track-delivery-details"), missing_track_delivery_details, nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
+        {const_cast<char *>("/compatible-video-generation"),compatible_video_generation,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
+        {const_cast<char *>("/compatible-audio-generation"),compatible_audio_generation,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
         {nullptr,nullptr,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr}};
     MunitSuite suite{const_cast<char *>("/queue"),tests,nullptr,1,MUNIT_SUITE_OPTION_NONE};
     return munit_suite_main(&suite,nullptr,argc,argv);

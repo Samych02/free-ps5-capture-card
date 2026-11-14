@@ -110,6 +110,28 @@ Colour hevc(Bits &b) {
     b.skip(2); return b.u(1)?vui(b):Colour{};
 }
 }
+uint32_t parameterSetID(ChiakiCodec codec,const uint8_t *data,size_t size) {
+    bool avc=codec==CHIAKI_CODEC_H264;size_t header=avc?1:2;
+    if(!data || size<=header || size>65536) throw std::runtime_error("Invalid parameter set");
+    unsigned type=avc?(data[0]&31):((data[0]>>1)&63);
+    Bits bits(data+header,size-header);
+    if(avc) {
+        if(type==7) {bits.skip(24);return bits.bounded(31);}
+        if(type==8) return bits.bounded(255);
+    } else {
+        if(type==32) return bits.u(4);
+        if(type==34) return bits.bounded(63);
+        if(type==33) {
+            bits.skip(4);unsigned layers=bits.u(3);bits.skip(1);bits.skip(96);
+            bool profile[7]{},level[7]{};
+            for(unsigned i=0;i<layers;++i) {profile[i]=bits.u(1);level[i]=bits.u(1);}
+            if(layers) bits.skip((8-layers)*2);
+            for(unsigned i=0;i<layers;++i) {if(profile[i])bits.skip(88);if(level[i])bits.skip(8);}
+            return bits.bounded(15);
+        }
+    }
+    throw std::runtime_error("Unsupported parameter-set type");
+}
 void readSPSColour(ChiakiCodec codec,const uint8_t *data,size_t size,AVCodecParameters *p) {
     if(!data || size>65536) throw std::runtime_error("Oversized SPS configuration");
     auto prefix=[&](size_t i)->size_t {

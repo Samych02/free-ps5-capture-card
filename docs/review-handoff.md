@@ -58,6 +58,20 @@ not represent an independent approval.
 
 ## Evidence and limitations
 
+### In-place video transition review scope
+
+Review `Pipeline.cpp`, `PacketQueue.cpp`, `Timeline.cpp`, `LiveFormat.cpp` and
+`SPSMetadata.cpp` plus their transition tests. Supported updates must not produce
+a source-done/retry result. Compatible generations and dynamic HDR SEI must keep
+OBS connected; genuine parameter-set changes may reset only output. Audio sample
+PTS must stay continuous, video PTS immutable, and obsolete generations/parser
+results/reordered SPS must not overwrite current metadata. Inspect bounded PS
+type/ID merging, static HDR SEI serialization/precedence for late decoder joins,
+and the internal parser test seam. No C API/user-selectable parser bypass exists.
+Latest native evidence: `build/inplace-native-final.log`; additional verification
+logs use `build/inplace-check-*`. Real transitions and OBS-specific HDR behavior
+still require independent acceptance; synthetic FFmpeg decoding is not that gate.
+
 See [validation](validation.md) for command logs, automated results and explicit
 pending gates. Native ASan/UBSan passed; UI automation could not initialize on
 the development desktop. Basic real pairing and synthetic OBS ingestion are

@@ -33,6 +33,7 @@ public:
     // its PTS at admission; subsequent audio observations never rewrite it.
     std::optional<int64_t> pts(MediaTrack track, uint64_t position) const;
     Diagnostics diagnostics(MediaTrack) const;
+    void reconfigureVideo(uint32_t,uint32_t,bool resetCounter=true);
     bool failed() const { return failed_; }
 private:
     struct Clock {

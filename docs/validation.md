@@ -2,6 +2,53 @@
 
 ## Active OBS output-drop investigation
 
+### Active in-place video/HDR transition correction
+
+User explicitly rejected restarting Remote Play for ordinary game/HDR changes.
+The implementation now adopts compatible configuration generations and valid
+HDR SEI changes without closing either PS5 or OBS; actual codec-private parameter
+changes refresh only the Matroska output and retain source/audio clock state.
+Malformed/unsupported changes remain explicit errors, including no hidden SDR
+fallback while HDR is selected.
+
+Red evidence: `build/inplace-queue-red.log` (compatible generations disconnected
+the queue), `build/inplace-metadata-red.log` (missing partial-header/HDR update
+handling), `build/inplace-transitions-red.log` (all three compatible generation
+cases and HDR SEI change ended capture early), and `build/inplace-clock-red.log`
+(a new video counter segment was incorrectly rejected despite a valid audio clock).
+
+The first expanded run caught a real metadata-precedence bug:
+`build/inplace-native-green.log` failed because a late decoder saw MaxCLL 1000
+instead of the updated 2000. Merely forwarding SEI was insufficient: stale HDR
+SEI in codec-private extradata also needs normalization. Existing source AUs remain
+untouched; the normalized extradata and container metadata now carry latest state.
+`build/inplace-native-check.log` then passed 10 targets, including all modes and
+later HDR joins.
+
+Further race/ordering checks: an internal parser-injection seam (not exposed by
+the C API or any user setting) deterministically blocks/rejects an obsolete parser
+while a new header revision arrives. The new revision survives without source
+failure (`build/inplace-race-green.log`). Replaying obsolete old-SPS video after
+an in-band update exposed another real failure in `build/inplace-reordered-red.log`;
+source-order admission now rejects it before processing metadata.
+
+The final native run passes all 10 targets in `build/inplace-native-final.log`
+(transport suite 123.26 s, total 132.62 s). It covers all-mode compatible updates,
+all-mode profile/in-band header changes, stale-header replay, exact audio-clock
+continuity, existing/late HDR decoder metadata, VCL/audio payload subsequences and
+an explicit nonretrying rejection of an unrequested SDR transition. The transport
+test harness timeout increased from 120 to 180 seconds for the additional cases;
+production queue/socket/keyframe/reset limits did not increase.
+
+Latest developer candidate: `build/package-inplace-video/Free PS5 Capture Card.app`.
+`build/inplace-check-*.log` records 72 app tests, 10 ASan targets, 7 selected TSAN
+targets and 7 policy tests passing, plus successful Release packaging. Together
+with the 10 native targets above, all automated checks pass.
+`Tests/Support/check_bundle.py --app` validates 28 arm64 Mach-O files and
+`codesign --verify --deep --strict` passes for this candidate.
+Actual PS5 game transitions, OBS hardware-decoder behavior, precise sync and
+independent review remain live/release gates—not proven by synthetic decoding.
+
 ### Game/HDR transition follow-up: transient console in-use rejection
 
 On the clock-fix candidate, the user reports Remote Play already in use and
@@ -27,7 +74,7 @@ the named-suite script was rejected before running tests (`build/release-grace-r
 and is not red-test evidence. Corrected named-suite runs provide genuine failures.
 Actual game/HDR transitions and their automatic recovery remain live gates.
 
-Latest developer candidate:
+Previous reconnect-grace candidate:
 `build/package-transition-recovery/Free PS5 Capture Card.app`.
 `build/release-grace-check-*.log` records 10 native targets, 72 app tests,
 10 ASan targets, 7 selected TSAN targets and 7 policy tests passing, plus successful

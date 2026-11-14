@@ -44,13 +44,20 @@ def normalized_vcl(path, mode):
 
 class ClockTests(unittest.TestCase):
     def test_two_hour_clock_and_owned_queue(self):
-        for binary, count in (("capture-timeline-tests", 9), ("capture-queue-tests", 14)):
+        for binary, count in (("capture-timeline-tests", 10), ("capture-queue-tests", 16)):
             with self.subTest(suite=binary):
                 result = run(str(BUILD / "Tests/Native" / binary), timeout=30)
                 self.assertIn(f"{count} of {count} (100%) tests successful".encode(), result.stdout)
 
 
 class RemuxTests(unittest.TestCase):
+    def assert_copied_payloads(self,source,output,mode):
+        original_audio=[p["data_hash"] for p in probe(source,True)["packets"] if p["stream_index"]==1]
+        copied_audio=[p["data_hash"] for p in probe(output,True)["packets"] if p["stream_index"]==1]
+        for original,copied in ((original_audio,copied_audio),(normalized_vcl(source,mode),normalized_vcl(output,mode))):
+            self.assertTrue(copied)
+            self.assertTrue(any(original[i:i+len(copied)]==copied for i in range(len(original)-len(copied)+1)),
+                            "transition changed compressed picture/audio payloads")
     def test_local_transport_faults(self):
         run(str(BUILD / "Tests/Native/capture-session-tests"),"--no-fork","/session/transport-faults",timeout=15)
     @classmethod
@@ -315,6 +322,129 @@ class RemuxTests(unittest.TestCase):
                         process.kill();process.wait();self.fail("cadence fixture stop exceeded 3 seconds")
                     process.stderr.close()
 
+    def test_pipeline_preserves_compatible_transitions(self):
+        import re
+        cases=[(mode,name,"transition-generation") for mode,name in enumerate(MODES)]
+        cases.append((2,"hevc-hdr-opus","transition-hdr"))
+        for mode,name,fault in cases:
+            with self.subTest(mode=name,fault=fault),tempfile.TemporaryDirectory() as tmp:
+                with socket.socket() as reserve:
+                    reserve.bind(("127.0.0.1",0));port=reserve.getsockname()[1]
+                process=subprocess.Popen([str(BUILD/"bin/capture-pipeline-fixture"),str(BUILD/"fixtures"/(name+".mkv")),str(mode),str(port),fault],stderr=subprocess.PIPE)
+                try:
+                    with selectors.DefaultSelector() as selector:
+                        selector.register(process.stderr,selectors.EVENT_READ)
+                        self.assertTrue(selector.select(5));self.assertIn(b"READY",process.stderr.readline())
+                    output=Path(tmp)/"transition.mkv"
+                    try:
+                        run("ffmpeg","-v","error","-y","-analyzeduration","100000","-probesize","65536",
+                            "-f","matroska","-i",f"tcp://127.0.0.1:{port}","-t","4","-map","0","-c","copy",str(output),timeout=12)
+                    except subprocess.CalledProcessError as error:
+                        self.fail("compatible source transition broke its existing OBS connection: "+error.stderr.decode(errors="replace"))
+                    observed=probe(output,True)
+                    self.assertEqual([s["codec_type"] for s in observed["streams"]],["video","audio"])
+                    for track in (0,1):
+                        pts=[float(p["pts_time"]) for p in observed["packets"] if p["stream_index"]==track]
+                        self.assertGreater(pts[-1]-pts[0],3.8,"compatible transition ended the stream early")
+                    run("ffmpeg","-v","error","-xerror","-i",str(output),"-f","null","-",timeout=10)
+                    self.assert_copied_payloads(BUILD/"fixtures"/(name+".mkv"),output,mode)
+                    if fault=="transition-hdr":
+                        frames=json.loads(run("ffprobe","-v","error","-select_streams","v:0","-show_frames","-of","json",str(output)).stdout)["frames"]
+                        values=[s["max_content"] for f in frames for s in f.get("side_data_list",[]) if s["side_data_type"]=="Content light level metadata"]
+                        self.assertIn(1000,values);self.assertIn(2000,values)
+                        late=Path(tmp)/"late-hdr.mkv"
+                        run("ffmpeg","-v","error","-y","-analyzeduration","100000","-probesize","65536",
+                            "-f","matroska","-i",f"tcp://127.0.0.1:{port}","-t","1","-map","0","-c","copy",str(late),timeout=10)
+                        late_metadata={s["side_data_type"]:s for s in first_frame(late).get("side_data_list",[])}
+                        self.assertEqual(late_metadata["Content light level metadata"]["max_content"],2000)
+                    process.terminate();_,events=process.communicate(timeout=3)
+                    sample=re.search(rb"TRANSITION_STATUS (\d+) (\d+) (\d+) (\d+)",events)
+                    self.assertIsNotNone(sample,"source did not survive its transition")
+                    resets,audio_position,audio_packets,video_packets=map(int,sample.groups())
+                    self.assertEqual(resets,0,"compatible transition must preserve OBS as well as PS5")
+                    self.assertGreater(audio_position,180,"video update reset the audio clock")
+                    self.assertGreater(audio_packets,180);self.assertGreater(video_packets,100)
+                finally:
+                    if process.poll() is None:
+                        process.terminate()
+                        try:process.wait(timeout=3)
+                        except subprocess.TimeoutExpired:process.kill();process.wait()
+                    process.stderr.close()
+
+    def test_pipeline_reconfigures_headers_without_source_restart(self):
+        import re
+        for mode,name in enumerate(MODES):
+            for fault in (("transition-profile","transition-inband","transition-inband-reorder") if mode==0 else ("transition-profile","transition-inband")):
+                with self.subTest(mode=name,fault=fault),tempfile.TemporaryDirectory() as tmp:
+                    alternate=Path(tmp)/"alternate.mkv"
+                    bsf="h264_metadata=tick_rate=120" if mode==0 else "hevc_metadata=tick_rate=60"
+                    run("ffmpeg","-v","error","-y","-i",str(BUILD/"fixtures"/(name+".mkv")),
+                        "-map","0","-c","copy","-bsf:v",bsf,str(alternate),timeout=20)
+                    with socket.socket() as reserve:
+                        reserve.bind(("127.0.0.1",0));port=reserve.getsockname()[1]
+                    process=subprocess.Popen([str(BUILD/"bin/capture-pipeline-fixture"),str(BUILD/"fixtures"/(name+".mkv")),
+                                              str(mode),str(port),fault,str(alternate)],stderr=subprocess.PIPE)
+                    try:
+                        with selectors.DefaultSelector() as selector:
+                            selector.register(process.stderr,selectors.EVENT_READ)
+                            self.assertTrue(selector.select(5));self.assertIn(b"READY",process.stderr.readline())
+                        outputs=[]
+                        for attempt,duration in enumerate((4,2)):
+                            output=Path(tmp)/f"profile-{attempt}.mkv";outputs.append(output)
+                            try:
+                                run("ffmpeg","-v","error","-y","-analyzeduration","100000","-probesize","65536",
+                                    "-f","matroska","-i",f"tcp://127.0.0.1:{port}","-t",str(duration),
+                                    "-map","0","-c","copy",str(output),timeout=12)
+                            except subprocess.CalledProcessError as error:
+                                self.fail("source was lost instead of resetting only output: "+error.stderr.decode(errors="replace"))
+                            observed=probe(output,True)
+                            self.assertEqual([s["codec_type"] for s in observed["streams"]],["video","audio"])
+                            for track in (0,1):
+                                pts=[float(p["pts_time"]) for p in observed["packets"] if p["stream_index"]==track]
+                                self.assertGreater(pts[-1]-pts[0],0.5 if attempt==0 else 1.8)
+                                if attempt==0:self.assertLess(pts[-1]-pts[0],2,"genuine private-header change did not refresh output")
+                            run("ffmpeg","-v","error","-xerror","-i",str(output),"-f","null","-",timeout=10)
+                            self.assert_copied_payloads(BUILD/"fixtures"/(name+".mkv"),output,mode)
+                            if mode==2:self.assertEqual(first_frame(output)["color_transfer"],"smpte2084")
+                        self.assertIsNone(process.poll(),"in-place video update terminated the PS5 pipeline")
+                        process.terminate();_,events=process.communicate(timeout=3)
+                        sample=re.search(rb"TRANSITION_STATUS (\d+) (\d+) (\d+) (\d+)",events)
+                        self.assertIsNotNone(sample)
+                        resets,audio_position,audio_packets,video_packets=map(int,sample.groups())
+                        self.assertEqual(resets,1,"expected exactly one output reset, not repeated reconnects")
+                        self.assertGreater(audio_position,180);self.assertGreater(audio_packets,180);self.assertGreater(video_packets,100)
+                    finally:
+                        if process.poll() is None:
+                            process.terminate()
+                            try:process.wait(timeout=3)
+                            except subprocess.TimeoutExpired:process.kill();process.wait()
+                        process.stderr.close()
+
+    def test_pipeline_rejects_unrequested_sdr_transition(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with socket.socket() as reserve:
+                reserve.bind(("127.0.0.1",0));port=reserve.getsockname()[1]
+            process=subprocess.Popen([str(BUILD/"bin/capture-pipeline-fixture"),str(BUILD/"fixtures/hevc-hdr-opus.mkv"),"2",str(port),
+                                      "transition-profile",str(BUILD/"fixtures/hevc-opus.mkv")],stderr=subprocess.PIPE)
+            try:
+                with selectors.DefaultSelector() as selector:
+                    selector.register(process.stderr,selectors.EVENT_READ)
+                    self.assertTrue(selector.select(5));self.assertIn(b"READY",process.stderr.readline())
+                output=Path(tmp)/"no-sdr-fallback.mkv"
+                run("ffmpeg","-v","error","-y","-analyzeduration","100000","-probesize","65536",
+                    "-f","matroska","-i",f"tcp://127.0.0.1:{port}","-t","4","-map","0","-c","copy",str(output),timeout=10)
+                self.assertEqual(process.wait(timeout=5),1)
+                events=process.stderr.read()
+                self.assertIn(b"SOURCE_FAILURE retry=0",events)
+                self.assertIn(b"No fallback was applied",events)
+                self.assertEqual(first_frame(output)["color_transfer"],"smpte2084")
+            finally:
+                if process.poll() is None:
+                    process.terminate()
+                    try:process.wait(timeout=3)
+                    except subprocess.TimeoutExpired:process.kill();process.wait()
+                process.stderr.close()
+
     def test_pipeline_accepts_late_audio_configuration_and_obs_reconnect(self):
         with socket.socket() as reserve:
             reserve.bind(("127.0.0.1",0)); port=reserve.getsockname()[1]
@@ -429,7 +559,8 @@ if __name__ == "__main__":
                  "test_receiver_pipeline_delivers_both_tracks", "test_pipeline_missing_audio_fails_instead_of_waiting_forever",
                  "test_pipeline_accepts_late_audio_configuration_and_obs_reconnect", "test_local_transport_faults",
                  "test_pipeline_reports_output_reset_causes", "test_pipeline_accepts_receive_only_tcp_peer",
-                 "test_pipeline_uses_delivery_cadence_not_sps_as_video_clock")]
+                 "test_pipeline_uses_delivery_cadence_not_sps_as_video_clock", "test_pipeline_preserves_compatible_transitions",
+                 "test_pipeline_reconfigures_headers_without_source_restart", "test_pipeline_rejects_unrequested_sdr_transition")]
     suite = unittest.TestSuite()
     if args.case in ("synthetic-clock", "all"):
         suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(ClockTests))

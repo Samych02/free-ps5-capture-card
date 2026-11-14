@@ -40,8 +40,25 @@ The patched pinned core supplies compressed video/Opus, source indices, receipt
 timestamps, configuration generations and loss/recovery metadata. `Pipeline.cpp`
 checks bounds/startup metadata and forwards leased queue packets into FFmpeg's
 public Matroska mux API. Parsers run without opening decoders. SPS/VUI nominal cadence, colour
-and reorder constraints govern admission; HEVC static HDR SEI is retained and
-changes trigger source reconnection.
+and reorder constraints govern admission; HEVC static HDR SEI is retained.
+
+Supported video changes stay inside the existing Remote Play session. Identical
+video/audio configuration generations are adopted without an output reset. Valid
+HDR SEI updates flow in-band on the existing OBS connection; latest static HDR
+state is retained in an immutable format snapshot. Codec-private HDR SEI is
+refreshed alongside container metadata so a later OBS decoder does not inherit
+stale mastering/content-light information. Source access-unit SEI, VCL and audio
+payloads are not rewritten by this normalization.
+
+Actual parameter-set changes invalidate only the output epoch, parse a fresh
+random-access frame and start a new Matroska connection. Partial in-band updates
+merge by bounded parameter-set type/ID; a repeated unchanged subset is not a new
+format. Obsolete access units are rejected before their SPS/SEI can roll metadata
+back. A stale asynchronous parser result/error is discarded on revision mismatch;
+only one parser/startup candidate is active at a time. Source audio clock and
+session remain alive, while video counter diagnostics begin a new segment.
+Malformed data, unsupported reordering/codec, real audio format changes or an
+unrequested HDR-to-SDR change fail explicitly—never silently fall back.
 
 Audio PTS advances by exact validated Opus samples with a frozen initial phase.
 Live video PTS uses first-fragment ingress times mapped onto that audio sample
@@ -83,6 +100,8 @@ Per-source clock diagnostics compare each accepted unwrapped counter's nominal
 media duration with elapsed first-to-last receipt time, independently of the
 frozen phase estimate. Both signed drifts, counter spans and the audio sample
 duration reach status; UI reports observed counter rates separately from SPS FPS.
+Video counter spans restart on a video generation/header segment, not an OBS
+reconnect; the audio span continues across supported video changes.
 These diagnostics remain nominal counter measurements, not corrected output-clock
 error; negative nominal video drift can remain visible while output is healthy.
 

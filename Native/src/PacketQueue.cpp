@@ -71,6 +71,11 @@ PacketQueue::Result PacketQueue::configureVideo(const ChiakiEncodedVideoConfig &
            video.header_size == config_.header->size() && !memcmp(video.header, config_.header->data(), video.header_size)) return Result::Dropped;
         reset(Reason::InvalidData); return Result::Invalid;
     }
+    if(hasVideo_ && video.codec==config_.video.codec && video.width==config_.video.width && video.height==config_.video.height &&
+       video.nominal_fps_num==config_.video.nominal_fps_num && video.nominal_fps_den==config_.video.nominal_fps_den &&
+       video.header_size==config_.header->size() && !memcmp(video.header,config_.header->data(),video.header_size)) {
+        config_.video.generation=video.generation;return Result::Accepted;
+    }
     if(connected_ && hasVideo_) reset(Reason::ConfigurationChanged);
     auto header = copy(video.header, video.header_size);
     if(!header) { reset(Reason::Overflow); return Result::Reset; }
@@ -87,6 +92,10 @@ PacketQueue::Result PacketQueue::configureAudio(const ChiakiEncodedAudioConfig &
         if(audio.channels == config_.audio.channels && audio.sample_rate == config_.audio.sample_rate &&
            audio.samples_per_frame == config_.audio.samples_per_frame) return Result::Dropped;
         reset(Reason::InvalidData); return Result::Invalid;
+    }
+    if(hasAudio_ && audio.channels==config_.audio.channels && audio.sample_rate==config_.audio.sample_rate &&
+       audio.samples_per_frame==config_.audio.samples_per_frame) {
+        config_.audio=audio;return Result::Accepted;
     }
     if(connected_ && hasAudio_) reset(Reason::ConfigurationChanged);
     config_.audio = audio; hasAudio_ = true; return Result::Accepted;

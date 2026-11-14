@@ -87,6 +87,17 @@ is still pending.
   value is not itself a failure after this correction. Watch the actual output
   state and OBS reset count. No decoder or separate audio source is introduced,
   and real synchronization still needs verification.
+- Supported game/HDR metadata changes now keep the PS5 session connected.
+  Identical configuration updates and valid HDR metadata updates should also keep
+  the existing OBS connection. Actual video parameter-set changes may briefly
+  show **Waiting for OBS** while only the Matroska output is refreshed; **source
+  retries** should not increase for these supported changes. Audio capture and
+  its sample clock continue, though an OBS output reset temporarily interrupts
+  delivery of both tracks on that single source.
+  Video counter diagnostics begin a new segment after video reconfiguration;
+  this does not reset the source audio clock. A genuine unsupported format or
+  HDR-to-SDR switch while HDR is selected still reports an error, not a hidden
+  fallback. Keep the requested codec mode unchanged for the transition test.
 - Transient loss retries with bounded backoff. A fresh connection reporting
   Remote Play in use, rejected credentials and incompatible media need action.
   After an established session is automatically restarted, the app allows busy

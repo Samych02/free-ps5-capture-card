@@ -188,6 +188,25 @@ static MunitResult ingress_video_pts_are_immutable(const MunitParameter[],void *
     munit_assert_int64(*clock.pts(MediaTrack::Video,burst.position),==,*secondPts+1);
     return MUNIT_OK;
 }
+static MunitResult video_generation_keeps_audio_clock(const MunitParameter[],void *) {
+    Timeline clock({60,1,48000,480,0,true},0);
+    clock.observe(MediaTrack::Video,60000,0);clock.observe(MediaTrack::Audio,0,0,480);
+    munit_assert_true(clock.freeze(250000));
+    clock.observe(MediaTrack::Audio,100,1000000,480);
+    auto old=clock.observe(MediaTrack::Video,60060,1000000);
+    auto prior=*clock.pts(MediaTrack::Video,old.position);
+    clock.reconfigureVideo(30,1);
+    auto changed=clock.observe(MediaTrack::Video,1,1033333);
+    munit_assert_true(changed.status==Timeline::Status::Accepted);
+    munit_assert_uint64(changed.position,==,0);
+    munit_assert_int64(*clock.pts(MediaTrack::Video,changed.position),>,prior);
+    auto audio=clock.observe(MediaTrack::Audio,101,1010000,480);
+    munit_assert_int64(*clock.pts(MediaTrack::Audio,audio.position),==,1010000);
+    munit_assert_uint64(clock.diagnostics(MediaTrack::Audio).position,==,101);
+    clock.reconfigureVideo(60000,1001,false);
+    munit_assert_int64(*clock.pts(MediaTrack::Video,changed.position),>,prior);
+    return MUNIT_OK;
+}
 int main(int argc, char **argv) {
     MunitTest tests[] = {
         {const_cast<char *>("/common-clock"), common_clock, nullptr, nullptr, MUNIT_TEST_OPTION_NONE, nullptr},
@@ -199,6 +218,7 @@ int main(int argc, char **argv) {
         {const_cast<char *>("/diagnostics-phase-wrap-duplicates"), diagnostics_phase_wrap_and_duplicates, nullptr, nullptr, MUNIT_TEST_OPTION_NONE, nullptr},
         {const_cast<char *>("/ingress-audio-clock"), ingress_video_follows_audio_clock, nullptr, nullptr, MUNIT_TEST_OPTION_NONE, nullptr},
         {const_cast<char *>("/ingress-immutable-pts"), ingress_video_pts_are_immutable, nullptr, nullptr, MUNIT_TEST_OPTION_NONE, nullptr},
+        {const_cast<char *>("/video-generation-audio-clock"),video_generation_keeps_audio_clock,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
         {nullptr, nullptr, nullptr, nullptr, MUNIT_TEST_OPTION_NONE, nullptr}};
     MunitSuite suite{const_cast<char *>("/timeline"), tests, nullptr, 1, MUNIT_SUITE_OPTION_NONE};
     return munit_suite_main(&suite, nullptr, argc, argv);
