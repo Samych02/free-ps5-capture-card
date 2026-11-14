@@ -58,6 +58,21 @@ not represent an independent approval.
 
 ## Evidence and limitations
 
+### Protected-content crash review scope
+
+Review display-sink registration in `Session.cpp` and `setSourceBlocked` in
+`Pipeline.cpp`/`Pipeline.h`. The pinned core unconditionally calls cantdisplay_cb
+from RP-Prohibit connect handling and live restriction messages; macOS crash
+reports show null calls at those control-thread paths. Sink registration must
+precede start, and its pipeline context must outlive core join. Verify blocked
+packets cannot reach OBS, startup timers do not fail an explicitly blocked
+session, Stop/core-quit remain authoritative and unblock requires fresh A/V.
+No decoder, playback or restriction bypass is introduced. Native lifecycle tests
+invoke blocked before CONNECTED; integration sends valid HDR A/V throughout a
+blocked interval (including initial block >5 s) and asserts it is discarded,
+then checks post-unblock two-track decode. Live media-app confirmation and
+independent release review remain pending.
+
 ### HDR media-gap recovery review scope
 
 Review the media-gap follow-up in `Pipeline.cpp`, retry-reason retention in

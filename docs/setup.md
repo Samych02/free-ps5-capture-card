@@ -104,6 +104,11 @@ is still pending.
   after this real-gap recovery, but **source retries** should not increase from
   media silence alone. If a genuine source reconnect does happen, its most recent
   initiating failure remains visible after recovery. Stop clears that history.
+- Some PS5 media apps/content cannot be streamed through Remote Play. The app
+  displays **PS5 cannot stream protected content** and waits; it does not capture
+  restricted media or bypass the console restriction. Return to the PS5 home
+  screen or a permitted game to resume when the console allows streaming again.
+  Stop remains available while blocked.
 - Transient loss retries with bounded backoff. A fresh connection reporting
   Remote Play in use, rejected credentials and incompatible media need action.
   After an established session is automatically restarted, the app allows busy

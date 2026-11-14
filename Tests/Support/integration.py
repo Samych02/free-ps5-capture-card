@@ -492,7 +492,8 @@ class RemuxTests(unittest.TestCase):
 
     def test_pipeline_recovers_long_media_gaps_without_source_restart(self):
         cases=[(0,"h264-opus","gap-both"),(1,"hevc-opus","gap-video"),
-               (2,"hevc-hdr-opus","gap-audio"),(2,"hevc-hdr-opus","gap-both-reset")]
+               (2,"hevc-hdr-opus","gap-audio"),(2,"hevc-hdr-opus","gap-both-reset"),
+               (2,"hevc-hdr-opus","gap-protected"),(2,"hevc-hdr-opus","gap-protected-start")]
         for mode,name,fault in cases:
             with self.subTest(mode=name,fault=fault),tempfile.TemporaryDirectory() as tmp:
                 with socket.socket() as reserve:

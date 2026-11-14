@@ -70,6 +70,15 @@ is synthesized and no stale packet is replayed to bridge it. Unlike a compatible
 format-only update, this real-gap recovery restarts clock diagnostic spans.
 The core's disconnect event remains authoritative; Stop still terminates capture.
 
+The core's display-restriction sink is registered before starting Remote Play,
+including for RP-Prohibit received during connection. A restriction is not an
+application crash or a reason to retry authentication: the pipeline drops media,
+invalidates old output/timing and waits with an actionable protected-content
+message. No startup watchdog fires while explicitly blocked. When the console
+signals display is permitted again, fresh two-track recovery is required before
+OBS output reopens. The callback context outlives all core threads; core join
+precedes pipeline destruction. This honors the console restriction, not bypasses it.
+
 Audio PTS advances by exact validated Opus samples with a frozen initial phase.
 Live video PTS uses first-fragment ingress times mapped onto that audio sample
 timeline: a fixed 16×25 ms bucket lower envelope of valid audio receipt-minus-media

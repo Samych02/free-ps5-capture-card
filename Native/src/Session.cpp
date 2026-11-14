@@ -54,6 +54,13 @@ public:
         pipeline_=std::make_unique<MediaPipeline>(o,server,[this]{control_->requestKeyframe();});
         auto sink=pipeline_->sink();
         if(api_.sink(&session_,&sink)!=CHIAKI_ERR_SUCCESS) throw std::runtime_error("Encoded sink setup failed");
+        // The core calls this from both RP-Prohibit connect handling and live
+        // display restriction messages. Install before start; context remains
+        // alive until core threads have joined, before pipeline destruction.
+        ChiakiCtrlDisplaySink display{pipeline_.get(),[](void *context,bool blocked) {
+            static_cast<MediaPipeline *>(context)->setSourceBlocked(blocked);
+        }};
+        chiaki_session_ctrl_set_display_sink(&session_,&display);
         chiaki_session_set_event_cb(&session_,event,this);
         if(api_.start(&session_)!=CHIAKI_ERR_SUCCESS) throw std::runtime_error("PS5 session start failed");
         started_=true;

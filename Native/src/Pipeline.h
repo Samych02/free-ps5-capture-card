@@ -10,6 +10,7 @@ public:
     ~MediaPipeline();
     ChiakiEncodedMediaSink sink();
     SessionSnapshot snapshot();
+    void setSourceBlocked(bool);
     void stopAndJoin();
 private:
     struct Impl;

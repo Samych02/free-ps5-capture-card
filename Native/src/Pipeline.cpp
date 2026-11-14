@@ -18,6 +18,7 @@ struct MediaPipeline::Impl {
     std::atomic<bool> stopping{false},failed{false},hasOBS{false},outputReady{false};
     bool retry=false,formatPending=false,parsing=false,frozen=false;
     bool sourceRecovering=false,everCalibrated=false;
+    bool sourceBlocked=false;
     capture_error error=CAPTURE_ERROR_NONE;
     const char *message="";
     uint64_t videoCount=0,audioCount=0,videoGeneration=0,audioGeneration=0,signature=0;
@@ -47,6 +48,11 @@ struct MediaPipeline::Impl {
         error=e; message=m; retry=canRetry; failed=true;
     }
     void fail(capture_error e,const char *m,bool canRetry=false) { std::lock_guard<std::mutex> lock(mutex); failLocked(e,m,canRetry); }
+    void beginSourceRecovery() {
+        sourceRecovering=true;clock.reset();frozen=false;
+        firstAudio.reset();firstVideo.reset();lastSourceVideoIndex.reset();
+        if(queue.stats().connected)queue.detach();
+    }
     void recoverSourceIfStalled(uint64_t now) {
         if(everCalibrated && !sourceRecovering && format && lastAudioUs && lastVideoUs &&
            (now-lastAudioUs>Timeline::MaxGapUs || now-lastVideoUs>Timeline::MaxGapUs)) {
@@ -55,12 +61,11 @@ struct MediaPipeline::Impl {
             // Existing output freshness limits stay in force. Recalibrate only
             // the next two-track output epoch, never splice a long gap into the
             // previous clock or fabricate missing audio/video payloads.
-            sourceRecovering=true;clock.reset();frozen=false;
-            firstAudio.reset();firstVideo.reset();lastSourceVideoIndex.reset();
-            if(queue.stats().connected)queue.detach();
+            beginSourceRecovery();
         }
     }
     void tickClock(uint64_t now) {
+        if(sourceBlocked)return;
         if(!clock && format && firstAudio && firstVideo) {
             // After an established source pauses, both tracks must be fresh
             // in the same bounded observation window before a new output clock.
@@ -129,6 +134,7 @@ struct MediaPipeline::Impl {
         uint64_t now=chiaki_time_now_monotonic_us();
         VideoAccess access=VideoAccess::Predicted;
         if(p.size>PacketQueue::MaxPacket || (p.size && !p.data) || p.first_receipt_us>now) throw std::runtime_error("Invalid source packet bounds or timestamp");
+        if(sourceBlocked)return true; // Honor the console restriction; never forward protected media.
         // Also check at ingress: recovery must not depend on the worker being
         // scheduled before the first packet following a long pause.
         recoverSourceIfStalled(now);
@@ -190,7 +196,7 @@ struct MediaPipeline::Impl {
         // A valid video IDR may precede the independent audio configuration.
         // Keep its bounded startup copy until both configuration callbacks arrive.
         std::optional<QueueConfiguration> config;
-        { std::lock_guard<std::mutex> lock(mutex);config=queue.configuration();if(config && startup) {candidate=std::move(startup);parsing=true;} }
+        { std::lock_guard<std::mutex> lock(mutex);if(sourceBlocked)return;config=queue.configuration();if(config && startup) {candidate=std::move(startup);parsing=true;} }
         if(candidate) {
             auto revision=candidate->metadata.generation;
             std::shared_ptr<VideoFormat> parsed;
@@ -199,12 +205,12 @@ struct MediaPipeline::Impl {
                 parsed=std::make_shared<VideoFormat>(parseFormat(static_cast<ChiakiCodec>(options.codec),config->header->data(),config->header->size(),candidate->bytes.data(),candidate->bytes.size()));
             } catch(...) {
                 std::lock_guard<std::mutex> lock(mutex);parsing=false;
-                if(revision!=videoRevision)return;
+                if(revision!=videoRevision || sourceBlocked)return;
                 throw;
             }
             candidate.reset(); // parser/startup allocations never overlap the output mux
             std::lock_guard<std::mutex> lock(mutex);parsing=false;
-            if(revision==videoRevision) {
+            if(revision==videoRevision && !sourceBlocked) {
                 if(hdrState) {applyHDRMetadata(parsed->parameters.get(),hdrState.get());applyHDRMetadata(hdrState.get(),parsed->parameters.get());}
                 lastFrameRate=parsed->frameRate;
                 if(clock && frozen)clock->reconfigureVideo(lastFrameRate.num,lastFrameRate.den,false);
@@ -212,6 +218,7 @@ struct MediaPipeline::Impl {
             }
         }
         std::lock_guard<std::mutex> lock(mutex);
+        if(sourceBlocked)return;
         auto now=chiaki_time_now_monotonic_us(); tickClock(now);
         if(!sourceRecovering && firstHeaderUs && (!format || !firstAudio || !firstVideo) && now-firstHeaderUs>5000000)
             failLocked(CAPTURE_ERROR_MEDIA,"PS5 did not provide both tracks and usable video headers.");
@@ -235,7 +242,7 @@ struct MediaPipeline::Impl {
             if(failed) break;
             if(!hasOBS) {
                 bool calibrated,needVideo;
-                {std::lock_guard<std::mutex> lock(mutex);calibrated=frozen && bool(format);needVideo=videoGeneration && (!format || sourceRecovering);}
+                {std::lock_guard<std::mutex> lock(mutex);calibrated=!sourceBlocked && frozen && bool(format);needVideo=!sourceBlocked && videoGeneration && (!format || sourceRecovering);}
                 if(!calibrated) {
                     auto now=chiaki_time_now_monotonic_us();
                     if(needVideo && now-lastIDR>=1000000) {request();lastIDR=now;}
@@ -309,7 +316,8 @@ ChiakiEncodedMediaSink MediaPipeline::sink() {
 SessionSnapshot MediaPipeline::snapshot() {
     auto &p=*impl_; auto stats=p.queue.stats(); std::lock_guard<std::mutex> lock(p.mutex);
     SessionSnapshot s; s.done=p.failed; s.retry=p.retry; s.status.state=p.failed?CAPTURE_FAILED:p.outputReady?CAPTURE_STREAMING:CAPTURE_WAITING_OBS;
-    s.status.error=p.error; strncpy(s.status.message,p.failed?p.message:p.sourceRecovering?
+    s.status.error=p.error; strncpy(s.status.message,p.failed?p.message:p.sourceBlocked?
+        "PS5 cannot stream protected content. Return to the home screen or a game to resume capture.":p.sourceRecovering?
         "Source media paused; waiting for fresh audio and video. PS5 connection remains open.":p.lastOutputMessage.c_str(),sizeof(s.status.message)-1);
     s.status.video_packets=p.videoCount; s.status.audio_packets=p.audioCount; s.status.queued_bytes=stats.bytes;
     s.status.lost_video_frames=p.videoLosses;s.status.missing_audio_packets=p.audioHoles;
@@ -326,6 +334,14 @@ SessionSnapshot MediaPipeline::snapshot() {
     s.status.codec=p.options.codec;
     if(p.format) { s.status.width=p.format->parameters->width; s.status.height=p.format->parameters->height; s.status.fps_num=p.format->frameRate.num; s.status.fps_den=p.format->frameRate.den; }
     return s;
+}
+void MediaPipeline::setSourceBlocked(bool blocked) {
+    auto &p=*impl_;std::lock_guard<std::mutex> lock(p.mutex);
+    if(p.stopping || p.failed || p.sourceBlocked==blocked)return;
+    p.sourceBlocked=blocked;
+    if(blocked) {
+        p.beginSourceRecovery();p.startup.reset();p.formatPending=false;p.outputReady=false;
+    }
 }
 void MediaPipeline::stopAndJoin() { if(impl_) { impl_->stopping=true; if(impl_->worker.joinable()) impl_->worker.join(); } }
 }

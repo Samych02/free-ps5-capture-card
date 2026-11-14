@@ -50,6 +50,8 @@ int main(int argc,char **argv) {
         uint64_t start=chiaki_time_now_monotonic_us(); int64_t epoch=AV_NOPTS_VALUE; uint16_t indices[2]{};
         uint64_t lastOutputResets=0,videoGeneration=1,audioGeneration=1;
         bool paused=false,transitioned=false,reported=false,replayed=false,gapReported=false,gapReset=false;
+        bool protectedActive=false;
+        uint64_t blockedVideo=0,blockedAudio=0;
         while(!stopped && av_read_frame(input,packet)>=0) {
             int index=packet->stream_index; auto tb=input->streams[index]->time_base;
             int64_t pts=av_rescale_q(packet->pts,tb,AV_TIME_BASE_Q); if(epoch==AV_NOPTS_VALUE) epoch=pts;
@@ -75,7 +77,11 @@ int main(int argc,char **argv) {
             }
             if(index==0 && (av_bsf_send_packet(bsf,packet)<0 || av_bsf_receive_packet(bsf,packet)<0)) throw std::runtime_error("fixture Annex-B conversion");
             bool recoveryFault=fault.rfind("gap-",0)==0;
-            bool inGap=pts-epoch>=2000000 && pts-epoch<5500000;
+            bool inGap=pts-epoch>=(fault=="gap-protected-start"?0:2000000) && pts-epoch<5500000;
+            if((fault=="gap-protected" || fault=="gap-protected-start") && protectedActive!=inGap) {
+                protectedActive=inGap;pipeline.setSourceBlocked(inGap);
+                auto blocked=pipeline.snapshot();blockedVideo=blocked.status.video_packets;blockedAudio=blocked.status.audio_packets;
+            }
             if(recoveryFault && fault=="gap-both-reset" && !gapReset && pts-epoch>=5500000) {
                 indices[0]=indices[1]=0;gapReset=true;
             }
@@ -116,6 +122,8 @@ int main(int argc,char **argv) {
             av_packet_unref(packet);
             av_packet_unref(alternatePacket);
             auto status=pipeline.snapshot();
+            if(protectedActive && (status.status.video_packets!=blockedVideo || status.status.audio_packets!=blockedAudio))
+                throw std::runtime_error("protected media was not discarded");
             if(status.status.output_disconnects!=lastOutputResets) {
                 lastOutputResets=status.status.output_disconnects;
                 std::cerr<<"OUTPUT_RESET "<<lastOutputResets<<' '<<status.status.message<<'\n';

@@ -217,7 +217,10 @@ static MunitResult native_lifecycle(const MunitParameter[],void *) {
         s->encoded_sink=*sink; return CHIAKI_ERR_SUCCESS;
     };
     api.start=[](ChiakiSession *s) {
+        munit_assert_true(s->display_sink.cantdisplay_cb!=nullptr);
         ++nativeStart; if(failStart) return CHIAKI_ERR_UNKNOWN;
+        // Control can report RP-Prohibit during connect, before CONNECTED.
+        s->display_sink.cantdisplay_cb(s->display_sink.user,true);
         ChiakiEvent e{};e.type=CHIAKI_EVENT_CONNECTED;s->event_cb(&e,s->event_cb_user);return CHIAKI_ERR_SUCCESS;
     };
     api.stop=[](ChiakiSession *){++nativeStop;return CHIAKI_ERR_SUCCESS;};
@@ -227,6 +230,10 @@ static MunitResult native_lifecycle(const MunitParameter[],void *) {
     auto o=capture_default_options();o.codec=CAPTURE_H265_HDR;auto c=connection();LocalTCPServer server(availablePort());
     auto session=makeLiveSessionWithAPI(o,c,server,api);
     munit_assert_int(session->snapshot().status.state,==,CAPTURE_WAITING_OBS);
+    munit_assert_not_null(strstr(session->snapshot().status.message,"protected content"));
+    munit_assert_false(session->snapshot().done);munit_assert_false(session->snapshot().retry);
+    borrowedSession->display_sink.cantdisplay_cb(borrowedSession->display_sink.user,false);
+    munit_assert_null(strstr(session->snapshot().status.message,"protected content"));
     ChiakiEvent event{};event.type=CHIAKI_EVENT_LOGIN_PIN_REQUEST;event.login_pin_request.pin_incorrect=true;
     borrowedSession->event_cb(&event,borrowedSession->event_cb_user);
     munit_assert_int(session->snapshot().status.state,==,CAPTURE_PIN_REQUIRED);

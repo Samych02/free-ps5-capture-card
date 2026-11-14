@@ -2,6 +2,39 @@
 
 ## Active OBS output-drop investigation
 
+### Protected-media application crash
+
+User reports a process crash when entering PS5 YouTube/media apps, and prioritizes
+it over latency/sync tuning. Two local macOS crash reports show EXC_BAD_ACCESS
+with PC zero in the core control thread, one at ctrl_connect+2372 and another
+at ctrl_thread_func+1180. The locked core calls display_sink.cantdisplay_cb
+unconditionally for connection-time RP-Prohibit and live display restrictions;
+LiveSession did not install that callback. No raw logs were enabled or crash
+reports copied into the repository.
+
+Correction registers the existing sink before core start. Its pipeline context
+outlives core join. An explicit block discards queued/incoming media, invalidates
+old timing and waits with a protected-content message rather than crashing,
+forwarding restricted content or failing a startup watchdog. Console permission
+restoration uses the fresh two-track output recovery path. No dependency source,
+decode/playback feature or restriction bypass was needed.
+
+Red: `build/protected-content-red.log` fails because the callback is null at
+start. Native lifecycle tests now invoke it before CONNECTED and exercise
+blocked/unblocked status. Integration adds established-source and initial-block
+cases, the latter lasting 5.5 seconds. Valid packets keep arriving while blocked;
+the fixture asserts none enter media counters. After unblock, both tracks must
+decode with unchanged compressed payloads, monotonic timestamps and HDR transfer.
+Focused verification logs use `build/protected-content-*.log`. Actual media-app
+entry/exit and independent review remain acceptance gates.
+
+All developer checks pass: nine native targets, 74 app unit tests, 11 policy/build
+tests and three focused integration methods including all six gap/protected
+subcases and existing HDR/header transitions. ASan/TSAN each pass four focused
+native targets and all six gap/protected subcases. Release candidate
+`build/package-protected-content/Free PS5 Capture Card.app` passes bundle
+validation for 28 arm64 Mach-O files and strict recursive signature verification.
+
 ### Real HDR launch: app-side source watchdog
 
 User captured the reconnect message "A required media track stopped arriving.
@@ -30,6 +63,12 @@ Release packaging validates 28 arm64 Mach-O files; strict recursive signature
 verification passes (`build/hdr-gap-package.log`). Independent review and actual
 PS5/OBS HDR-launch confirmation remain pending; synthetic recovery is not live
 acceptance. Stage times are in `build/hdr-gap*-timings.json`.
+
+Subsequent user confirmation: the HDR-game transition worked; their screenshot
+shows streaming audio/video, source retries 0 and OBS resets 2. This confirms
+the tested live transition kept Remote Play connected and recovered OBS output.
+It does not establish uninterrupted OBS delivery, precise sync, calibrated HDR
+colour or long-run reliability. Protected-media entry/exit is a separate gate.
 
 ### Active in-place video/HDR transition correction
 

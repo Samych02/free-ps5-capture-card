@@ -1,5 +1,42 @@
 # Finish standalone PS5 capture
 
+## Active protected-content crash correction
+
+User reprioritized a crash when opening YouTube/media apps on the PS5 over
+latency/sync work. Two local macOS crash reports (151627 and 151638 on Nov 14)
+show EXC_BAD_ACCESS at address zero in the core control thread, including
+ctrl_connect+2372. Inspection of the locked core finds unguarded calls to
+display_sink.cantdisplay_cb in both RP-Prohibit connection handling and live
+display restriction messages. LiveSession never installs that sink. The app
+must honor the restriction, not bypass protected playback.
+
+Design/plan: register the existing core display callback before session start.
+Forward its boolean to MediaPipeline under its existing mutex. While blocked,
+discard output/old timing, do not forward media or hit startup timeouts, and show
+an actionable protected-content waiting message. On unblock, require fresh audio
+and video via the existing recovery epoch; keep Remote Play and Stop/core-quit
+handling intact. No dependency modification is necessary: this is missing use
+of the existing sink API, not a change to the pinned source.
+
+Test first: native lifecycle must see a nonnull callback before start, invoke
+blocked during connect, observe a nonterminal protected-content message, then
+unblock. `build/protected-content-red.log` fails that assertion. Extend the gap
+fixture with an explicit protected interval while packets still arrive: those
+packets must be discarded and post-unblock HDR A/V must decode unchanged.
+Verify focused native/app/policy checks and protected/gap cases with ASan/TSAN;
+package and checkpoint. Actual protected-app/recovery confirmation remains a
+user/device gate. Do not enable raw core logs or copy crash reports into Git.
+
+Developer checks pass: nine native targets (8.81 s), 74 app tests (7.78 s stage),
+11 policy/build tests (1.65 s), and three focused integration methods covering
+six pause/protection cases plus all existing compatible/header transitions
+(113.27 s). Parallel ASan/TSAN jobs pass four native targets and all six pause/
+protection cases each in 62.44/68.35 s. Logs/timings use
+`build/protected-content-*`. Release candidate
+`build/package-protected-content/Free PS5 Capture Card.app` validates 28 arm64
+Mach-O files and passes strict recursive signatures. Actual protected-media
+entry/exit remains unverified until user confirmation; no release-ready claim.
+
 ## Active real-HDR source retry follow-up
 
 User reports HDR game launch still disconnects/reconnects in the icon/metrics
