@@ -2,7 +2,28 @@
 #include <cstring>
 #include <algorithm>
 #include <limits>
+extern "C" {
+#include <libavutil/error.h>
+}
 namespace capture {
+const char *outputQueueResetMessage(PacketQueue::Reason reason) {
+    switch(reason) {
+        case PacketQueue::Reason::Overflow: return "Last OBS reset: output storage limit reached.";
+        case PacketQueue::Reason::StaleMedia: return "Last OBS reset: queued media became stale.";
+        case PacketQueue::Reason::MissingTrack: return "Last OBS reset: a required media track did not arrive in time.";
+        case PacketQueue::Reason::KeyframeTimeout: return "Last OBS reset: no fresh keyframe before the startup deadline.";
+        case PacketQueue::Reason::Timestamp: return "Last OBS reset: media timestamps were discontinuous.";
+        case PacketQueue::Reason::InvalidData: return "Last OBS reset: invalid encoded packet metadata.";
+        case PacketQueue::Reason::ConfigurationChanged: return "Last OBS reset: output configuration changed.";
+        default: return "Last OBS reset: output session changed.";
+    }
+}
+const char *outputWriteResetMessage(int error) {
+    if(error==AVERROR(ETIMEDOUT)) return "Last OBS reset: local socket write stalled.";
+    if(error==AVERROR(EPIPE) || error==AVERROR(ECONNRESET)) return "Last OBS reset: client closed the local connection.";
+    if(error==AVERROR_EXIT) return "Last OBS reset: local socket write was cancelled.";
+    return "Last OBS reset: local socket write failed.";
+}
 unsigned nextRetryAttempt(unsigned previous,uint64_t stableUs) {
     if(stableUs>=30000000) return 1;
     return previous==std::numeric_limits<unsigned>::max()?previous:previous+1;

@@ -58,6 +58,15 @@ is still pending.
 
 - **Waiting for OBS and both tracks** does not claim OBS decoded anything.
   **Sending audio and video** means both compressed tracks were written.
+- Diagnostic builds show **OBS resets** separately from **source retries**, plus
+  a retained **Last OBS reset:** message. This distinguishes peer closure, stalled
+  writes, queue storage/freshness, missing tracks and startup-keyframe waits. The
+  output counter/history belong to the current PS5 source session, not all app
+  launches. The message stays visible after an OBS reconnect and is not a new
+  fatal error. Ordinary Stop does not deliberately count as an output fault.
+  For repeated drops, report that exact line and the selected mode/bitrate—never
+  credentials or media payloads. No timeout or buffering limits were relaxed by
+  this instrumentation.
 - Transient loss retries with bounded backoff. In-use, rejected credentials and
   incompatible media errors need action. Stop before retrying a fatal error.
 - A login prompt accepts a masked **4-digit PS5 login passcode**; pairing uses

@@ -34,6 +34,10 @@ not represent an independent approval.
   measured end-to-end timing or process memory bounds.
 - Inspect recursive bundling, rpaths, architectures, minimum OS, ad-hoc signing,
   license copies and actual FFmpeg/OpenSSL compatibility/source obligations.
+- OBS-drop follow-up: review receive-only TCP half-close support, full peer-close
+  and stalled-write cleanup, per-source reset counting and reason precedence when
+  a queue reset aborts a write. Static messages must stay free of protocol strings
+  and credentials. The user-specific live-drop root cause is not yet confirmed.
 
 ## Evidence and limitations
 

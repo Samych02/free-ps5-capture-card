@@ -1,5 +1,45 @@
 # Finish standalone PS5 capture
 
+## Active OBS disconnect investigation
+
+User reports OBS repeatedly disconnects while the capture app returns to
+Waiting for OBS, including after reducing requested bitrate from 60 to 15 Mbps.
+Sanitized local OBS log inspection confirms successful connections followed by
+drops on the correct localhost port. A few earlier opens used an invalid 92950
+port, but that does not explain the successful-connection drops. No credential
+file, live media or additional client connection was accessed during diagnosis.
+
+The previous build could not distinguish peer close, stalled write, stale queue,
+missing-track delivery or startup-keyframe timeout: `Pipeline.cpp` discarded those
+reasons when closing output. This follow-up adds instrumentation, not guessed timing
+changes: retain a static sanitized last-output-reset message plus a per-source
+OBS reset counter in the existing status, and surface it through the existing
+Swift status readout. No protocol logging, media capture, extra devices or timing/
+memory-budget changes. Test with local synthetic peer-close and source-pause
+faults on temporary nondefault ports, never attach to the user's active endpoint.
+
+A further controlled socket experiment reproduced a concrete transport defect:
+a read-only receiver calling `shutdown(SHUT_WR)` received zero Matroska bytes
+because `clientAlive()` interpreted receive EOF as the whole connection closing.
+TCP send-half closure still allows the peer to receive. Regression
+`test_pipeline_accepts_receive_only_tcp_peer` failed in `build/receive-only-red.log`.
+The minimal correction accepts read EOF and relies on existing bounded writes
+to detect a fully closed/nonreading receiver. No timing or storage limit changes.
+Whether this behavior caused the user's OBS drops remains unconfirmed.
+
+- [x] Red tests for reset diagnostics and synthetic peer/pause faults, plus a
+  receive-only TCP half-close regression. A missing test import was corrected
+  before recording the app's actual failing diagnostic decode assertions.
+- [x] Static last-reset messages and a separate per-source output reset counter;
+  receive-only TCP compatibility fix, unchanged timeouts/queues/media policy.
+- [x] Native/app/sanitizer regression and new developer diagnostic bundle:
+  10 native targets, 71 app tests, 10 ASan targets, 7 selected TSAN targets and
+  7 policy tests pass (`build/obs-check-*.log`). Release candidate:
+  `build/package-obs-diagnostics/Free PS5 Capture Card.app`. Bundle validation
+  passes for 28 arm64 Mach-O files; strict recursive signature verification passes.
+- [ ] User reproduces a drop and reports the last-reset message; root cause and
+  actual remedy remain unproven until then.
+
 Storage follow-up: [the current architecture](../architecture.md) supersedes
 the historical Keychain persistence requirements in this continuation.
 The current user-approved build uses an owner-only unencrypted file and starts

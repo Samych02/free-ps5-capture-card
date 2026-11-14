@@ -89,7 +89,10 @@ void LocalTCPServer::disconnect() {
 bool LocalTCPServer::clientAlive() {
     if(client_<0) return false;
     uint8_t byte; auto n=recv(client_,&byte,1,MSG_PEEK|MSG_DONTWAIT);
-    return n>0 || (n<0 && (errno==EAGAIN || errno==EWOULDBLOCK || errno==EINTR));
+    // EOF here means the peer closed its SEND half, not necessarily its receive
+    // half. Read-only TCP media clients may do this and still consume our data.
+    // A fully closed receiver is detected by bounded writes (EPIPE/reset/timeout).
+    return n>=0 || (errno==EAGAIN || errno==EWOULDBLOCK || errno==EINTR);
 }
 void LocalTCPServer::rejectExtraClients() {
     for(int count=0;count<8;++count) { int fd=accept(listener_,nullptr,nullptr); if(fd<0) break; close(fd); }

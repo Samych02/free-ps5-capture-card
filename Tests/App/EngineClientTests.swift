@@ -1,7 +1,22 @@
 import XCTest
+import CaptureEngine
 @testable import FreePS5CaptureCard
 
 final class EngineClientTests: XCTestCase {
+    func testNativeStatusKeepsOutputResetCauseSeparateFromSourceRetries() {
+        var value = capture_status()
+        value.width = 1920; value.video_packets = 500; value.audio_packets = 600
+        value.reconnects = 2; value.output_disconnects = 3
+        let message = "Last OBS reset: queued media became stale."
+        withUnsafeMutableBytes(of: &value.message) { $0.copyBytes(from: message.utf8) }
+        let result = NativeEngineClient.decodedStatus(value)
+        XCTAssertEqual(result.outputDisconnects, 3)
+        XCTAssertEqual(result.reconnects, 2)
+        XCTAssertEqual(result.videoPackets, 500)
+        XCTAssertEqual(result.audioPackets, 600)
+        XCTAssertEqual(result.width, 1920)
+        XCTAssertEqual(result.message, message)
+    }
     @MainActor func testConfigurationRequiresMatchingSavedIdentityWithoutStarting() throws {
         let engine = NativeEngineClient()
         let account = try Account(decimalID: "42")

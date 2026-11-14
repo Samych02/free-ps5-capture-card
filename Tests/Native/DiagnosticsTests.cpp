@@ -3,6 +3,9 @@
 #include <chiaki/time.h>
 #include <munit.h>
 #include <cstring>
+extern "C" {
+#include <libavutil/error.h>
+}
 static MunitResult quit_policy(const MunitParameter[],void *) {
     auto transient=capture::classifyQuit(CHIAKI_QUIT_REASON_STREAM_CONNECTION_REMOTE_DISCONNECTED);
     munit_assert_true(transient.done);munit_assert_true(transient.retry);
@@ -41,9 +44,21 @@ static MunitResult loss_counters(const MunitParameter[],void *) {
     munit_assert_uint64(status.queue_age_us,==,0);
     pipeline.stopAndJoin();return MUNIT_OK;
 }
+static MunitResult output_reset_reasons(const MunitParameter[],void *) {
+    using Reason=capture::PacketQueue::Reason;
+    munit_assert_not_null(strstr(capture::outputQueueResetMessage(Reason::StaleMedia),"stale"));
+    munit_assert_not_null(strstr(capture::outputQueueResetMessage(Reason::MissingTrack),"track"));
+    munit_assert_not_null(strstr(capture::outputQueueResetMessage(Reason::Overflow),"storage"));
+    munit_assert_not_null(strstr(capture::outputQueueResetMessage(Reason::KeyframeTimeout),"keyframe"));
+    munit_assert_not_null(strstr(capture::outputWriteResetMessage(AVERROR(ETIMEDOUT)),"stalled"));
+    munit_assert_not_null(strstr(capture::outputWriteResetMessage(AVERROR(EPIPE)),"closed"));
+    munit_assert_not_null(strstr(capture::outputWriteResetMessage(AVERROR_EXIT),"cancelled"));
+    return MUNIT_OK;
+}
 int main(int argc,char **argv) {
     MunitTest tests[]{{const_cast<char *>("/quit-policy"),quit_policy,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
         {const_cast<char *>("/loss-counters"),loss_counters,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
+        {const_cast<char *>("/output-reset-reasons"),output_reset_reasons,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
         {nullptr,nullptr,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr}};
     MunitSuite suite{const_cast<char *>("/diagnostics"),tests,nullptr,1,MUNIT_SUITE_OPTION_NONE};return munit_suite_main(&suite,nullptr,argc,argv);
 }

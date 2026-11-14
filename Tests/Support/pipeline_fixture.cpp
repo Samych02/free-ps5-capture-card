@@ -27,18 +27,29 @@ int main(int argc,char **argv) {
         sink.video_config(&video,sink.user);
         std::cerr << "READY 127.0.0.1:" << options.port << '\n';
         uint64_t start=chiaki_time_now_monotonic_us(); int64_t epoch=AV_NOPTS_VALUE; uint16_t indices[2]{};
+        uint64_t lastOutputResets=0;bool paused=false;
         while(!stopped && av_read_frame(input,packet)>=0) {
             int index=packet->stream_index; auto tb=input->streams[index]->time_base;
             int64_t pts=av_rescale_q(packet->pts,tb,AV_TIME_BASE_Q); if(epoch==AV_NOPTS_VALUE) epoch=pts;
             while(!stopped && chiaki_time_now_monotonic_us()<start+uint64_t(pts-epoch)) poll(nullptr,0,1);
             if(stopped) break;
+            if(fault=="source-pause" && !paused && pts-epoch>=2000000) {
+                auto resume=chiaki_time_now_monotonic_us()+350000;
+                while(!stopped && chiaki_time_now_monotonic_us()<resume) poll(nullptr,0,1);
+                paused=true;if(stopped)break;
+            }
             if(!audioConfigured && pts-epoch>=500000) {sink.audio_config(&audio,sink.user);audioConfigured=true;}
             if(index==0 && (av_bsf_send_packet(bsf,packet)<0 || av_bsf_receive_packet(bsf,packet)<0)) throw std::runtime_error("fixture Annex-B conversion");
             ChiakiEncodedPacket p{1,chiaki_time_now_monotonic_us(),indices[index]++,0,index==1?960u:0u,0,packet->data,size_t(packet->size)};
             if(index==0) sink.video_packet(&p,sink.user);
             else if(audioConfigured && fault!="missing-audio") sink.audio_packet(&p,sink.user);
             av_packet_unref(packet);
-            auto status=pipeline.snapshot(); if(status.done) throw std::runtime_error(status.status.message);
+            auto status=pipeline.snapshot();
+            if(status.status.output_disconnects!=lastOutputResets) {
+                lastOutputResets=status.status.output_disconnects;
+                std::cerr<<"OUTPUT_RESET "<<lastOutputResets<<' '<<status.status.message<<'\n';
+            }
+            if(status.done) throw std::runtime_error(status.status.message);
         }
         while(!stopped) poll(nullptr,0,10);
         pipeline.stopAndJoin(); av_packet_free(&packet); av_bsf_free(&bsf); avformat_close_input(&input); return 0;

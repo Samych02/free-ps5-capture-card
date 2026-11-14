@@ -1,8 +1,46 @@
 # Validation evidence
 
+## Active OBS output-drop investigation
+
+User reports repeated OBS disconnects while the app returns to Waiting for OBS.
+The symptom persists after reducing only bitrate from 60 to 15 Mbps. Relevant
+sanitized OBS media-player lines confirm successful localhost connections and
+later drops; earlier invalid 92950 inputs are not the whole explanation. Existing
+client code did not retain a local output-reset cause, so no particular source,
+queue, socket or OBS condition is yet established as this user's root cause.
+
+Instrumentation adds a static last-reset message and per-source OBS reset counter
+without altering timeouts, queue limits, media timestamps or codecs. Synthetic
+tests distinguish a deliberate peer close from a 350 ms source-delivery pause,
+on temporary test ports only. Expected missing diagnostics failed first in
+`build/output-diagnostics-red.log`, `build/output-tcp-red.log` and the corrected
+`build/output-app-red.log`. Real reproduction with a reported reset message is
+still needed; this is not a claimed fix for the user's disconnects.
+
+An additional socket experiment did reproduce an app defect: a receiver that
+half-closed its unused sending direction was disconnected before getting a
+Matroska header. `test_pipeline_accepts_receive_only_tcp_peer` failed for that
+exact reason in `build/receive-only-red.log`. The liveness check now accepts TCP
+read EOF; existing bounded writes detect actual receiver closure/failure. This
+fixes that reproduced protocol case, but OBS's use of half-close in the reported
+live session has not been established. Real disconnect resolution is pending.
+
+Verified developer candidate (2026-11-14):
+`build/package-obs-diagnostics/Free PS5 Capture Card.app`.
+`scripts/test.sh --native` passes all 10 targets;
+`scripts/test-app-unit-direct.sh` passes 71 tests;
+ASan CTest passes 10 targets and selected TSAN CTest passes 7 targets;
+`python3 -m unittest discover -s Tests/Bootstrap -v` passes 7 policy tests.
+Results are retained in `build/obs-check-*.log`. Release packaging succeeds;
+`python3 Tests/Support/check_bundle.py --app 'build/package-obs-diagnostics/Free PS5 Capture Card.app'`
+passes for 28 arm64 Mach-O files and
+`codesign --verify --deep --strict` passes for that bundle. These checks do not
+establish GUI launch, live PS5/OBS reliability or independent review acceptance.
+
 ## Current credential-file follow-up — 2026-11-14
 
-Latest developer app: `build/package-file-store/Free PS5 Capture Card.app`.
+Credential-storage checkpoint app: `build/package-file-store/Free PS5 Capture Card.app`
+(superseded by the OBS diagnostic candidate above).
 This build supersedes the earlier Keychain-backed artifacts below. It starts
 fresh, without reading/migrating/deleting existing Keychain records, as explicitly
 approved by the user. Account identity and PS5 keys now use an unencrypted file

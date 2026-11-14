@@ -7,6 +7,7 @@ struct EngineStatus: Equatable {
     var width: UInt32 = 0, height: UInt32 = 0, fpsNumerator: UInt32 = 0, fpsDenominator: UInt32 = 1
     var videoPackets: UInt64 = 0, audioPackets: UInt64 = 0, reconnects: UInt64 = 0, queuedBytes: UInt64 = 0
     var lostVideoFrames: UInt64 = 0, missingAudioPackets: UInt64 = 0, queueAgeMicroseconds: UInt64 = 0
+    var outputDisconnects: UInt64 = 0
 }
 @MainActor
 protocol EngineControlling: AnyObject {
@@ -44,6 +45,14 @@ private struct EngineTeardown: @unchecked Sendable {
 
 @MainActor
 final class NativeEngineClient: EngineControlling {
+    nonisolated static func decodedStatus(_ value: capture_status) -> EngineStatus {
+        let message = withUnsafeBytes(of: value.message) { String(decoding: $0.prefix(while: { $0 != 0 }), as: UTF8.self) }
+        return EngineStatus(message: message, width: value.width, height: value.height, fpsNumerator: value.fps_num,
+                            fpsDenominator: value.fps_den, videoPackets: value.video_packets, audioPackets: value.audio_packets,
+                            reconnects: value.reconnects, queuedBytes: value.queued_bytes,
+                            lostVideoFrames: value.lost_video_frames, missingAudioPackets: value.missing_audio_packets,
+                            queueAgeMicroseconds: value.queue_age_us, outputDisconnects: value.output_disconnects)
+    }
     private let relay = EngineRelay()
     private var handle: OpaquePointer?
     var onState: ((EngineState) -> Void)? {
@@ -93,12 +102,7 @@ final class NativeEngineClient: EngineControlling {
         var value = capture_status()
         value.size = UInt32(MemoryLayout.size(ofValue: value)); value.version = UInt32(CAPTURE_API_VERSION)
         guard capture_engine_get_status(handle, &value) == CAPTURE_OK else { return EngineStatus() }
-        let message = withUnsafeBytes(of: value.message) { String(decoding: $0.prefix(while: { $0 != 0 }), as: UTF8.self) }
-        return EngineStatus(message: message, width: value.width, height: value.height, fpsNumerator: value.fps_num,
-                            fpsDenominator: value.fps_den, videoPackets: value.video_packets, audioPackets: value.audio_packets,
-                            reconnects: value.reconnects, queuedBytes: value.queued_bytes,
-                            lostVideoFrames: value.lost_video_frames, missingAudioPackets: value.missing_audio_packets,
-                            queueAgeMicroseconds: value.queue_age_us)
+        return Self.decodedStatus(value)
     }
     func submitPIN(_ pin: String) -> Bool {
         guard let handle, pin.utf8.count == 4, pin.utf8.allSatisfy({ (48...57).contains($0) }) else { return false }

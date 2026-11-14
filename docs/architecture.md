@@ -48,9 +48,16 @@ The live owned queue allows 3 MiB, with separate bounded startup/parser, packet,
 core-frame (4 MiB), header (64 KiB), cluster and AVIO storage. This is not a process
 RSS limit. Library/allocator/transport overhead and growth require measurement.
 Socket writes are nonblocking with a 500 ms stall budget; second consumers close.
+Receive EOF on the client's unused sending half is not treated as proof that its
+receiving half closed. Read-only peers remain valid; write errors/timeouts detect
+closed or nonreading consumers under the existing bounds.
 Low-frequency status includes both packet counts, source loss/hole counts, queued
 bytes/oldest queued-packet age, actual encoded dimensions/cadence and retries.
 Queue age excludes an in-flight lease and is not end-to-end latency.
+OBS output resets have a separate per-source counter and a retained, static
+sanitized reason. A client closing, a bounded write stalling, and a queue reset
+are not conflated with a PS5 session retry. Fatal source errors take precedence
+over this history. No raw socket/protocol strings or media payloads are logged.
 
 The app never opens a codec, plays media, initializes controller/microphone media,
 tone-maps or records. OBS decodes both tracks and optionally encodes final output.

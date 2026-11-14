@@ -1,6 +1,7 @@
 #include "Pipeline.h"
 #include "AnnexB.h"
 #include "MatroskaMuxer.h"
+#include "Diagnostics.h"
 #include <chiaki/time.h>
 #include <atomic>
 #include <thread>
@@ -19,6 +20,8 @@ struct MediaPipeline::Impl {
     const char *message="";
     uint64_t videoCount=0,audioCount=0,videoGeneration=0,audioGeneration=0,signature=0;
     uint64_t videoLosses=0,audioHoles=0;
+    uint64_t outputDisconnects=0;
+    const char *lastOutputMessage="";
     uint64_t firstHeaderUs=0,originUs=0,lastVideoUs=0,lastAudioUs=0;
     ChiakiEncodedAudioConfig audio{};
     std::optional<ChiakiEncodedPacket> firstVideo,firstAudio;
@@ -126,8 +129,12 @@ struct MediaPipeline::Impl {
     void run() {
         std::unique_ptr<MatroskaMuxer> mux; Parameters audioParameters;
         uint64_t clientEpoch=0,lastIDR=0; int64_t epoch=0; bool wroteAudio=false,wroteVideo=false;
-        unsigned overflows=0; bool networkError=false;
-        auto close=[&] {
+        unsigned overflows=0; int networkError=0;
+        auto close=[&](const char *reason=nullptr) {
+            if(reason && hasOBS && !stopping) {
+                std::lock_guard<std::mutex> lock(mutex);
+                ++outputDisconnects;lastOutputMessage=reason;
+            }
             mux.reset(); audioParameters.reset(); server.disconnect(); hasOBS=false; outputReady=false;
             if(queue.stats().connected) queue.detach();
             wroteAudio=wroteVideo=false;
@@ -144,31 +151,31 @@ struct MediaPipeline::Impl {
                 hasOBS=true; queue.attach(chiaki_time_now_monotonic_us()); lastIDR=0;
             }
             server.rejectExtraClients();
-            if(!server.clientAlive()) { close(); continue; }
+            if(!server.clientAlive()) { close("Last OBS reset: client closed the local connection."); continue; }
             uint64_t now=chiaki_time_now_monotonic_us(); queue.maintain(now); auto stats=queue.stats();
             if(!stats.connected) {
                 if(stats.reason==PacketQueue::Reason::Overflow && ++overflows>=5) fail(CAPTURE_ERROR_OVERFLOW,"Repeated media overflow. Stop and lower the bitrate before retrying.");
-                close(); continue;
+                close(outputQueueResetMessage(stats.reason)); continue;
             }
             if(!stats.ready && now-lastIDR>=1000000) { request(); lastIDR=now; }
             auto leased=queue.pop(now);
             if(!leased) { poll(nullptr,0,5); continue; }
-            networkError=false;
+            networkError=0;
             try {
                 if(!mux) {
                     std::shared_ptr<VideoFormat> current;
                     { std::lock_guard<std::mutex> lock(mutex); current=format; }
                     auto config=queue.configuration();
-                    if(!current || !config || config->epoch!=leased->epoch) { close(); continue; }
+                    if(!current || !config || config->epoch!=leased->epoch) { close(outputQueueResetMessage(queue.stats().reason)); continue; }
                     clientEpoch=leased->epoch; epoch=leased->timing.ptsUs;
                     audioParameters=liveAudioParameters(config->audio);
                     mux=std::make_unique<MatroskaMuxer>(std::vector<Track>{{current->parameters.get(),AV_TIME_BASE_Q,current->frameRate},{audioParameters.get(),AV_TIME_BASE_Q,{0,1}}},
                         [&](const uint8_t *p,int n) {
                             int rc=server.write(p,n,[&]{return stopping || failed || queue.stats().epoch!=clientEpoch;});
-                            if(rc<0) networkError=true; return rc;
+                            if(rc<0) networkError=rc; return rc;
                         },true);
                 }
-                if(leased->epoch!=clientEpoch || queue.stats().epoch!=clientEpoch) { close(); continue; }
+                if(leased->epoch!=clientEpoch || queue.stats().epoch!=clientEpoch) { close(outputQueueResetMessage(queue.stats().reason)); continue; }
                 if(leased->metadata.flags&CHIAKI_ENCODED_MISSING) continue;
                 auto packet=av_packet_alloc(); if(!packet) throw std::bad_alloc();
                 if(av_new_packet(packet,int(leased->buffer->size()))<0) { av_packet_free(&packet); throw std::bad_alloc(); }
@@ -181,9 +188,15 @@ struct MediaPipeline::Impl {
                 if(packet->stream_index==0) wroteVideo=true; else wroteAudio=true;
                 av_packet_free(&packet); outputReady=wroteVideo && wroteAudio;
             } catch(...) {
-                if(!networkError && !stopping && !failed && queue.stats().epoch==clientEpoch)
+                auto state=queue.stats();
+                if(!networkError && !stopping && !failed && state.epoch==clientEpoch)
                     fail(CAPTURE_ERROR_MEDIA,"Cannot mux a safe two-track stream. Check codec and timing compatibility.");
-                close();
+                const char *reason=nullptr;
+                if(!stopping && !failed) {
+                    reason=(!state.connected || state.epoch!=clientEpoch)
+                        ?outputQueueResetMessage(state.reason):outputWriteResetMessage(networkError);
+                }
+                close(reason);
             }
         }
         close();
@@ -201,9 +214,10 @@ ChiakiEncodedMediaSink MediaPipeline::sink() {
 SessionSnapshot MediaPipeline::snapshot() {
     auto &p=*impl_; auto stats=p.queue.stats(); std::lock_guard<std::mutex> lock(p.mutex);
     SessionSnapshot s; s.done=p.failed; s.retry=p.retry; s.status.state=p.failed?CAPTURE_FAILED:p.outputReady?CAPTURE_STREAMING:CAPTURE_WAITING_OBS;
-    s.status.error=p.error; strncpy(s.status.message,p.message,sizeof(s.status.message)-1);
+    s.status.error=p.error; strncpy(s.status.message,p.failed?p.message:p.lastOutputMessage,sizeof(s.status.message)-1);
     s.status.video_packets=p.videoCount; s.status.audio_packets=p.audioCount; s.status.queued_bytes=stats.bytes;
     s.status.lost_video_frames=p.videoLosses;s.status.missing_audio_packets=p.audioHoles;
+    s.status.output_disconnects=p.outputDisconnects;
     auto now=chiaki_time_now_monotonic_us();
     s.status.queue_age_us=stats.oldestReceiptUs && now>=stats.oldestReceiptUs?now-stats.oldestReceiptUs:0;
     s.status.codec=p.options.codec;

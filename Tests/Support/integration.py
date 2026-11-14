@@ -276,6 +276,62 @@ class RemuxTests(unittest.TestCase):
         finally:
             process.terminate(); process.wait(timeout=3); process.stderr.close()
 
+    def test_pipeline_reports_output_reset_causes(self):
+        for fault in ("peer-close", "source-pause"):
+            with self.subTest(fault=fault):
+                with socket.socket() as reserve:
+                    reserve.bind(("127.0.0.1",0)); port=reserve.getsockname()[1]
+                process=subprocess.Popen([str(BUILD / "bin/capture-pipeline-fixture"),str(BUILD / "fixtures/h264-opus.mkv"),"0",str(port),fault],stderr=subprocess.PIPE)
+                try:
+                    with selectors.DefaultSelector() as selector:
+                        selector.register(process.stderr,selectors.EVENT_READ)
+                        self.assertTrue(selector.select(5)); self.assertIn(b"READY",process.stderr.readline())
+                        with socket.create_connection(("127.0.0.1",port),timeout=6) as stream:
+                            header=b""
+                            while len(header)<4:
+                                block=stream.recv(4-len(header)); self.assertTrue(block); header+=block
+                            self.assertEqual(header,bytes.fromhex("1a45dfa3"))
+                            if fault=="source-pause":
+                                while stream.recv(65536): pass
+                        self.assertTrue(selector.select(2),"output reset reason was not reported")
+                        event=process.stderr.readline()
+                        self.assertIn(b"OUTPUT_RESET 1 Last OBS reset:",event)
+                        if fault=="peer-close": self.assertIn(b"client closed",event)
+                        else: self.assertRegex(event,rb"(?:stale|required media track)")
+                        self.assertIsNone(process.poll(),"source session failed rather than resetting only OBS output")
+                finally:
+                    process.terminate()
+                    try: process.wait(timeout=3)
+                    except subprocess.TimeoutExpired:
+                        process.kill(); process.wait(); self.fail("diagnostic fixture stop exceeded 3 seconds")
+                    process.stderr.close()
+
+    def test_pipeline_accepts_receive_only_tcp_peer(self):
+        with socket.socket() as reserve:
+            reserve.bind(("127.0.0.1",0)); port=reserve.getsockname()[1]
+        process=subprocess.Popen([str(BUILD / "bin/capture-pipeline-fixture"),str(BUILD / "fixtures/h264-opus.mkv"),"0",str(port)],stderr=subprocess.PIPE)
+        try:
+            with selectors.DefaultSelector() as selector:
+                selector.register(process.stderr,selectors.EVENT_READ)
+                self.assertTrue(selector.select(5)); self.assertIn(b"READY",process.stderr.readline())
+            with socket.create_connection(("127.0.0.1",port),timeout=6) as stream:
+                # TCP FIN only closes this client's sending direction. It is a
+                # valid read-only media consumer and can still receive A/V.
+                stream.shutdown(socket.SHUT_WR)
+                received=b""
+                while len(received)<16384:
+                    block=stream.recv(16384-len(received))
+                    self.assertTrue(block,"sender disconnected a receive-only TCP peer")
+                    received+=block
+                self.assertEqual(received[:4],bytes.fromhex("1a45dfa3"))
+                self.assertIsNone(process.poll())
+        finally:
+            process.terminate()
+            try: process.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                process.kill(); process.wait(); self.fail("receive-only fixture stop exceeded 3 seconds")
+            process.stderr.close()
+
     def test_invalid_port_is_rejected(self):
         for value in ("0", "1023", "65536", "abc", "9295junk"):
             result = subprocess.run([str(self.replay), "--fixture", str(BUILD / "fixtures/h264-opus.mkv"),
@@ -317,7 +373,8 @@ if __name__ == "__main__":
         names = [n for n in names if n in ("test_tcp_streams_both_tracks_with_fresh_headers_on_reconnect",
                  "test_invalid_port_is_rejected", "test_occupied_port_is_not_silently_changed",
                  "test_receiver_pipeline_delivers_both_tracks", "test_pipeline_missing_audio_fails_instead_of_waiting_forever",
-                 "test_pipeline_accepts_late_audio_configuration_and_obs_reconnect", "test_local_transport_faults")]
+                 "test_pipeline_accepts_late_audio_configuration_and_obs_reconnect", "test_local_transport_faults",
+                 "test_pipeline_reports_output_reset_causes", "test_pipeline_accepts_receive_only_tcp_peer")]
     suite = unittest.TestSuite()
     if args.case in ("synthetic-clock", "all"):
         suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(ClockTests))
