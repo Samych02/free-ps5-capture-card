@@ -17,6 +17,26 @@ import CaptureEngine
     func shutdown() async {}
 }
 final class PairingTests: XCTestCase {
+    func testPairingCodeValidationMatchesExactlyEightASCIIDigits() {
+        XCTAssertTrue(PairingRequest.validPIN("01234567"))
+        for input in ["", "1234", "123456789", "１２３４５６７８", "1234567a", "1234 678"] {
+            XCTAssertFalse(PairingRequest.validPIN(input))
+        }
+    }
+    @MainActor func testDiscoveryProgressCanRestartAndCancelWithoutStaleErrors() throws {
+        let service = FakeConsoleService(), model = PairingModel(service: FakeConsoleService(), store: FileCredentialStore(access: FakeCredentialFile()))
+        let subject = PairingModel(service: service, store: FileCredentialStore(access: FakeCredentialFile()))
+        subject.setAccount(try Account(decimalID: "42"))
+        subject.discover(); XCTAssertTrue(subject.isDiscovering)
+        let stale = service.discovery
+        service.discovery?(.failure(.permission))
+        XCTAssertFalse(subject.isDiscovering); XCTAssertNotNil(subject.discoveryMessage)
+        XCTAssertNil(subject.message)
+        subject.discover(); XCTAssertTrue(subject.isDiscovering); XCTAssertNil(subject.discoveryMessage)
+        stale?(.failure(.failed)); XCTAssertNil(subject.discoveryMessage)
+        subject.cancel(); XCTAssertFalse(subject.isDiscovering)
+        XCTAssertFalse(model.isDiscovering)
+    }
     @MainActor func testShutdownWaitsForAlreadyStartedNativeJoin() async throws {
         let started = expectation(description: "pairing created")
         let joining = expectation(description: "native join started")
@@ -238,7 +258,7 @@ final class PairingTests: XCTestCase {
         let account = try Account(decimalID: "42")
         let service = FakeConsoleService(); let model = PairingModel(service: service, store: FileCredentialStore(access: FakeCredentialFile()))
         model.setAccount(account); model.discover(); service.discovery?(.failure(.permission))
-        XCTAssertEqual(model.message, PairingError.permission.localizedDescription)
+        XCTAssertEqual(model.discoveryMessage, PairingError.permission.localizedDescription)
     }
     @MainActor func testFailedReplacementKeepsExistingPairing() async throws {
         let account = try Account(decimalID: "42"), original = console(account)

@@ -5,142 +5,108 @@ struct MainView: View {
     @ObservedObject var model: AppModel
     @ObservedObject var account: AccountModel
     @ObservedObject var pairing: PairingModel
-    @State private var loginPIN = ""
+    @State private var copied = false
+    @State private var copyFeedback: Task<Void, Never>?
+
+    private var presentation: CapturePresentation {
+        CapturePresentation(state: model.state, status: model.status, isStopping: model.isStopping)
+    }
+    private var startBlocker: String? {
+        if account.awaitingRedirect || account.busy { return "Finish or cancel PSN sign-in before starting capture." }
+        if account.account == nil { return "Sign in to PSN and pair your PS5 to get started." }
+        if pairing.busy { return "Wait for pairing to finish." }
+        if pairing.paired == nil { return "Pair your PS5 before starting capture." }
+        if !model.optionsAreValid { return "Enter a valid local TCP port in Stream settings." }
+        return nil
+    }
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
-                HStack(alignment: .top, spacing: 12) {
-                    Image(nsImage: NSApp.applicationIconImage)
-                        .resizable().frame(width: 44, height: 44).accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Free PS5 Capture Card").font(.title2.bold())
-                        Text("Compressed audio and video. Straight to OBS.").foregroundStyle(.secondary)
-                    }
-                }
-                AccountConsoleView(model: account, pairing: pairing, capture: model)
-                    .disabled(model.active)
-                    .help(model.active ? "Stop capture before changing or forgetting credentials." : "Configure your PSN identity and PS5.")
-                GroupBox("Stream options") {
-                    Form {
-                        Picker("Video codec", selection: $model.options.codec) {
-                            Text("H264").tag(StreamOptions.Codec.h264)
-                            Text("H265 (Default)").tag(StreamOptions.Codec.h265)
-                            Text("H265 HDR").tag(StreamOptions.Codec.hdr)
-                        }
-                        Picker("Resolution", selection: $model.options.height) {
-                            Text("1080p").tag(1080); Text("720p").tag(720)
-                        }
-                        Picker("Frame rate", selection: $model.options.fps) {
-                            Text("60 fps").tag(60); Text("30 fps").tag(30)
-                        }
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Bitrate: \(model.options.bitrate / 1000) Mbps")
-                                .monospacedDigit().accessibilityIdentifier("bitrateReadout")
-                            Slider(value: Binding(get: { Double(model.options.bitrate) }, set: { model.options.bitrate = Int($0) }),
-                                   in: 2000...100000, step: 1000) { Text("Bitrate") }
-                            Text("Recommended starting point: 15 Mbps").font(.caption).foregroundStyle(.secondary)
-                        }
-                        TextField("Local TCP port", value: $model.options.port, format: .number.grouping(.never))
-                            .textFieldStyle(.roundedBorder)
-                            .help("1024–65535. OBS must use the same port. Defaults to 9295.")
-                    }.padding(8).disabled(model.active)
-                    if !model.options.isValid { Text("Choose a port from 1024 to 65535.").foregroundStyle(.red) }
-                    if model.options.codec == .hdr {
-                        Text("HDR passthrough requires an HDR-capable PS5 game and correct OBS colour settings. No tone mapping or silent SDR fallback.")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-                }
-                GroupBox("OBS output") {
-                    VStack(alignment: .leading, spacing: 12) {
-                        LabeledContent("Status", value: status)
-                        if !model.status.message.isEmpty {
-                            Text(model.status.message).font(.callout).textSelection(.enabled)
-                        }
-                        HStack {
-                            Text(model.obsURL).font(.system(.body, design: .monospaced)).textSelection(.enabled)
-                            Spacer()
-                            Button("Copy URL", systemImage: "doc.on.doc") {
-                                NSPasteboard.general.clearContents()
-                                NSPasteboard.general.setString(model.obsURL, forType: .string)
-                            }.disabled(!model.options.isValid)
-                        }
-                        Text("In OBS, add one Media Source, turn off Local File, paste this URL, and choose matroska as the input format. Both tracks use this source.")
-                            .font(.caption).foregroundStyle(.secondary)
-                        DisclosureGroup(isExpanded: $model.showOutputMetrics) {
-                            VStack(alignment: .leading, spacing: 8) {
-                                if model.status.width > 0 {
-                                    Text("Received: \(model.status.width)×\(model.status.height) · nominal \(cadence) fps · video \(model.status.videoPackets) · audio \(model.status.audioPackets)")
-                                        .font(.caption).monospacedDigit().accessibilityIdentifier("receivedMediaStatus")
-                                    Text("Queue: \(model.status.queuedBytes / 1024) KiB / \(model.status.queueAgeMicroseconds / 1000) ms · video lost \(model.status.lostVideoFrames) · audio missing \(model.status.missingAudioPackets) · source retries \(model.status.reconnects) · OBS resets \(model.status.outputDisconnects)")
-                                        .font(.caption).foregroundStyle(.secondary).monospacedDigit()
-                                    if model.status.videoClockElapsedMicroseconds > 0 {
-                                        Text("Nominal counter drift vs ingress: video \(model.status.videoClockDriftMicroseconds / 1000) ms · audio \(model.status.audioClockDriftMicroseconds / 1000) ms")
-                                            .font(.caption).foregroundStyle(.secondary).monospacedDigit().accessibilityIdentifier("sourceClockDrift")
-                                        Text("Observed counters: video \(counterRate(model.status.videoClockPosition, model.status.videoClockElapsedMicroseconds))/s · audio \(counterRate(model.status.audioClockPosition, model.status.audioClockElapsedMicroseconds))/s · \(model.status.audioSamplesPerPacket) samples/audio packet")
-                                            .font(.caption).foregroundStyle(.secondary).monospacedDigit().accessibilityIdentifier("sourceClockRates")
-                                    }
-                                } else {
-                                    Text("Metrics appear when media arrives.")
-                                        .font(.caption).foregroundStyle(.secondary)
-                                }
-                            }
-                            .padding(.top, 4)
-                            .accessibilityIdentifier("outputMetrics")
-                        } label: {
-                            Text(model.showOutputMetrics ? "Hide metrics" : "Show metrics")
-                        }
-                        .accessibilityIdentifier("outputMetricsDisclosure")
-                        HStack {
-                            Button("Start Capture", systemImage: "play.fill") {
-                                model.requestStart(account: account.account, console: pairing.paired)
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .disabled(model.active || !model.options.isValid || account.account == nil || pairing.paired == nil || account.busy || account.awaitingRedirect || pairing.busy)
-                            Button("Stop", systemImage: "stop.fill") { model.stop() }.disabled(!model.active)
-                        }
-                    }.padding(8)
-                }
-                Text("No preview or local playback. Stop before changing setup. Closing the window leaves capture running; Quit disconnects from the PS5.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }.padding(26).frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .frame(minWidth: 500, idealWidth: 560, minHeight: 500)
-        .sheet(isPresented: Binding(get: { model.state == .pinRequired }, set: { if !$0 { model.stop() } })) {
+        VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 16) {
-                Text("PS5 login passcode").font(.headline)
-                Text("Enter the 4-digit console login passcode. This is not the 8-digit Link Device code. It is used once and never saved.")
-                if !model.status.message.isEmpty { Text(model.status.message).font(.callout).foregroundStyle(.red) }
-                SecureField("4-digit login passcode", text: $loginPIN).textFieldStyle(.roundedBorder)
-                HStack {
-                    Button("Cancel") { loginPIN = ""; model.stop() }
-                    Button("Continue") {
-                        _ = model.submitPIN(loginPIN); loginPIN = ""
-                    }.disabled(loginPIN.utf8.count != 4 || !loginPIN.utf8.allSatisfy({ (48...57).contains($0) }))
-                        .keyboardShortcut(.defaultAction)
+                HStack(spacing: 12) {
+                    Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 48, height: 48).accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Free PS5 Capture Card").font(.title2.bold())
+                        Text("Your PS5. One OBS source. Video and audio.").font(.callout).foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 0)
                 }
-            }.padding(24).frame(width: 380)
-                .onDisappear { loginPIN = "" }
+                CaptureStatusView(presentation: presentation)
+                HStack(spacing: 10) {
+                    Button("Start Capture", systemImage: "play.fill") {
+                        model.requestStart(account: account.account, console: pairing.paired)
+                    }
+                    .buttonStyle(.borderedProminent).controlSize(.large)
+                    .disabled(model.active || model.isStopping || startBlocker != nil)
+                    .help(startBlocker ?? "Start forwarding your PS5’s compressed video and audio to OBS.")
+                    Button(model.isStopping ? "Stopping…" : "Stop", systemImage: "stop.fill") { model.stop() }
+                        .controlSize(.large).disabled(!model.active || model.isStopping)
+                    Spacer()
+                }
+                if !model.active, let blocker = startBlocker {
+                    Text(blocker).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                } else if model.state == .failed {
+                    Text("Stop to reset capture before trying again or changing setup.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            .padding(24).frame(maxWidth: 760, alignment: .leading)
+            Divider()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    AccountConsoleView(model: account, pairing: pairing, capture: model)
+                        .help(model.active ? "Stop capture before changing account or pairing." : "Configure your PSN identity and PS5.")
+                    outputSection
+                    StreamSettingsView(model: model)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("No preview or local playback. Closing this window keeps capture running; Quit disconnects from the PS5.")
+                        Text("Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1.0") · Release candidate")
+                    }
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(24).frame(maxWidth: 760, alignment: .leading).frame(maxWidth: .infinity)
+            }
+        }
+        .tint(.blue)
+        .frame(minWidth: 540, idealWidth: 620, maxWidth: 900, minHeight: 600)
+        .sheet(isPresented: Binding(get: { model.state == .pinRequired && !model.isStopping }, set: { presented in
+            // A native state transition can dismiss the sheet after successful
+            // submission. Only an actual dismissal while still requesting PIN
+            // should stop the session.
+            if !presented { model.dismissPINSheet() }
+        })) {
+            LoginPasscodeSheet(model: model)
+        }
+        .onChange(of: model.obsURL) { _, _ in copyFeedback?.cancel(); copied = false }
+        .onDisappear { copyFeedback?.cancel(); copied = false }
+    }
+    private var outputSection: some View {
+        UtilitySection(title: "OBS connection", symbol: "link") {
+            HStack(alignment: .center, spacing: 12) {
+                Text(model.obsURL).font(.system(.body, design: .monospaced))
+                    .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Button(copied ? "Copied" : "Copy URL", systemImage: copied ? "checkmark" : "doc.on.doc") { copyURL() }
+                    .disabled(!model.optionsAreValid).accessibilityIdentifier("copyOBSURL")
+            }
+            Text("In OBS, add a Media Source, turn off Local File, paste this URL and set Input Format to matroska. This one source carries both video and audio.")
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            DisclosureGroup(isExpanded: $model.showOutputMetrics) {
+                OutputMetricsView(status: model.status)
+            } label: {
+                Text(model.showOutputMetrics ? "Hide metrics" : "Show metrics").font(.callout)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityIdentifier("outputMetricsDisclosure")
         }
     }
-    private var cadence: String {
-        guard model.status.fpsDenominator > 0 else { return "unknown" }
-        return String(format: "%.2f", Double(model.status.fpsNumerator) / Double(model.status.fpsDenominator))
-    }
-    private func counterRate(_ position: UInt64, _ elapsedMicroseconds: UInt64) -> String {
-        guard elapsedMicroseconds > 0 else { return "unknown" }
-        return String(format: "%.3f", Double(position) * 1_000_000 / Double(elapsedMicroseconds))
-    }
-    private var status: String {
-        switch model.state {
-        case .idle: return "Idle — not connected"
-        case .stopped: return "Stopped"
-        case .connecting: return "Connecting to PS5…"
-        case .waitingOBS: return "Connected — waiting for OBS and both tracks"
-        case .streaming: return "Sending audio and video to OBS"
-        case .retrying: return "Reconnecting…"
-        case .pinRequired: return "PS5 login passcode required"
-        case .failed: return "Capture failed — stop before retrying"
-        case .unavailable: return "Cannot start — check pairing and stream options"
+    private func copyURL() {
+        guard model.optionsAreValid else { return }
+        NSPasteboard.general.clearContents()
+        guard NSPasteboard.general.setString(model.obsURL, forType: .string) else { return }
+        copyFeedback?.cancel(); copied = true
+        copyFeedback = Task {
+            do { try await Task.sleep(for: .seconds(2)) } catch { return }
+            copied = false
         }
     }
 }

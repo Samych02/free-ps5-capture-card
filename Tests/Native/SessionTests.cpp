@@ -11,6 +11,8 @@
 #include <chrono>
 #include <thread>
 #include <vector>
+#include <algorithm>
+#include <stdexcept>
 #include <poll.h>
 using namespace capture;
 struct Events {
@@ -20,6 +22,9 @@ struct Events {
     std::atomic<bool> requestPin{false};
     bool transientFirst=false;
     bool ownedThenBusy=false,freshBusy=false;
+    bool throwFirst=false;
+    std::atomic<int> factories{0};
+    std::vector<capture_state> published;
 };
 struct FakeSession: SessionBackend {
     Events &events; bool joined=false;unsigned snapshots=0;
@@ -34,7 +39,7 @@ struct FakeSession: SessionBackend {
             strcpy(s.status.message,"Source video stopped arriving. Reconnecting.");
         }
         if(events.transientFirst && events.starts==1) {s.done=true;s.retry=true;s.status.state=CAPTURE_FAILED;}
-        if(events.ownedThenBusy && events.starts>=3) strcpy(s.status.message,"Last OBS reset: output configuration changed.");
+        if(events.ownedThenBusy && events.starts>=3) strcpy(s.status.last_output_message,"Last OBS reset: output configuration changed.");
         return s;
     }
     void submitPin(const char *,size_t n) override { if(n==4) { ++events.pins; events.requestPin=false; } }
@@ -54,8 +59,11 @@ static capture_connection connection() {
 static capture_engine *create(capture_options o,Events &events) {
     capture_result result;
     return capture_engine_create_with_factory(&o,[](capture_state state,void *ctx) {
-        auto &e=*static_cast<Events *>(ctx); std::lock_guard<std::mutex> lock(e.mutex); e.state=state; e.changed.notify_all();
-    },&events,&result,[&](const auto &,const auto &,auto &) { return std::make_unique<FakeSession>(events); });
+        auto &e=*static_cast<Events *>(ctx); std::lock_guard<std::mutex> lock(e.mutex); e.state=state; e.published.push_back(state); e.changed.notify_all();
+    },&events,&result,[&](const auto &,const auto &,auto &) {
+        if(++events.factories==1 && events.throwFirst)throw std::runtime_error("test connection failure");
+        return std::make_unique<FakeSession>(events);
+    });
 }
 static bool wait(Events &e,capture_state state) {
     std::unique_lock<std::mutex> lock(e.mutex);
@@ -109,6 +117,21 @@ static MunitResult retry_and_cancel(const MunitParameter[],void *) {
     capture_engine_destroy(engine);munit_assert_int(cancel.starts.load(),==,1);
     return MUNIT_OK;
 }
+static MunitResult retry_exception_is_not_terminal(const MunitParameter[],void *) {
+    Events e;e.throwFirst=true;auto o=capture_default_options();o.port=availablePort();auto c=connection();
+    auto engine=create(o,e);capture_engine_configure(engine,&o,&c);capture_engine_start(engine);
+    munit_assert_true(wait(e,CAPTURE_WAITING_OBS));
+    {
+        std::lock_guard<std::mutex> lock(e.mutex);
+        munit_assert_true(std::find(e.published.begin(),e.published.end(),CAPTURE_FAILED)==e.published.end());
+        munit_assert_true(std::find(e.published.begin(),e.published.end(),CAPTURE_RETRYING)!=e.published.end());
+    }
+    capture_status status{};status.size=sizeof(status);status.version=CAPTURE_API_VERSION;
+    capture_engine_get_status(engine,&status);munit_assert_string_equal(status.message,"");
+    munit_assert_not_null(strstr(status.last_source_message,"Cannot establish"));
+    capture_engine_stop(engine);munit_assert_true(wait(e,CAPTURE_STOPPED));capture_engine_destroy(engine);
+    return MUNIT_OK;
+}
 static MunitResult transport_faults(const MunitParameter[],void *) {
     uint16_t port=availablePort();LocalTCPServer server(port);
     auto connectClient=[&]{
@@ -155,13 +178,15 @@ static MunitResult owned_busy_recovers(const MunitParameter[],void *) {
     munit_assert_int(e.starts.load(),==,3);munit_assert_int(e.joins.load(),==,2);
     capture_status status{};status.size=sizeof(status);status.version=CAPTURE_API_VERSION;
     munit_assert_int(capture_engine_get_status(engine,&status),==,CAPTURE_OK);
-    munit_assert_not_null(strstr(status.message,"Last source retry: Source video stopped arriving."));
-    munit_assert_null(strstr(status.message,"PS5 is busy"));
-    munit_assert_not_null(strstr(status.message,"Last OBS reset:"));
+    munit_assert_string_equal(status.message,"");
+    munit_assert_not_null(strstr(status.last_source_message,"Source video stopped arriving."));
+    munit_assert_null(strstr(status.last_source_message,"PS5 is busy"));
+    munit_assert_not_null(strstr(status.last_output_message,"Last OBS reset:"));
     capture_engine_stop(engine);munit_assert_true(wait(e,CAPTURE_STOPPED));
     capture_engine_get_status(engine,&status);munit_assert_string_equal(status.message,"");
+    munit_assert_string_equal(status.last_source_message,"");munit_assert_uint64(status.output_disconnects,==,0);
     capture_engine_configure(engine,&o,&c);capture_engine_start(engine);munit_assert_true(wait(e,CAPTURE_WAITING_OBS));
-    capture_engine_get_status(engine,&status);munit_assert_null(strstr(status.message,"Last source retry:"));
+    capture_engine_get_status(engine,&status);munit_assert_string_equal(status.last_source_message,"");
     capture_engine_destroy(engine);
     munit_assert_int(e.joins.load(),==,4);
     return MUNIT_OK;
@@ -231,9 +256,11 @@ static MunitResult native_lifecycle(const MunitParameter[],void *) {
     auto session=makeLiveSessionWithAPI(o,c,server,api);
     munit_assert_int(session->snapshot().status.state,==,CAPTURE_WAITING_OBS);
     munit_assert_not_null(strstr(session->snapshot().status.message,"protected content"));
+    munit_assert_int(session->snapshot().status.phase,==,CAPTURE_PHASE_CONTENT_BLOCKED);
     munit_assert_false(session->snapshot().done);munit_assert_false(session->snapshot().retry);
     borrowedSession->display_sink.cantdisplay_cb(borrowedSession->display_sink.user,false);
     munit_assert_null(strstr(session->snapshot().status.message,"protected content"));
+    munit_assert_int(session->snapshot().status.phase,==,CAPTURE_PHASE_MEDIA_PAUSED);
     ChiakiEvent event{};event.type=CHIAKI_EVENT_LOGIN_PIN_REQUEST;event.login_pin_request.pin_incorrect=true;
     borrowedSession->event_cb(&event,borrowedSession->event_cb_user);
     munit_assert_int(session->snapshot().status.state,==,CAPTURE_PIN_REQUIRED);
@@ -262,6 +289,7 @@ int main(int argc,char **argv) {
         {const_cast<char *>("/pin-identity"),pin_and_identity,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
         {const_cast<char *>("/native-lifecycle"),native_lifecycle,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
         {const_cast<char *>("/retry-cancel"),retry_and_cancel,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
+        {const_cast<char *>("/retry-exception-state"),retry_exception_is_not_terminal,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
         {const_cast<char *>("/transport-faults"),transport_faults,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
         {const_cast<char *>("/core-initialization"),core_initialization_is_serialized,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
         {const_cast<char *>("/owned-busy-recovers"),owned_busy_recovers,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},

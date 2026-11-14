@@ -13,11 +13,14 @@ import Foundation
     @Published private(set) var paired: PairedConsole?
     @Published private(set) var busy = false
     @Published private(set) var message: String?
+    @Published private(set) var isDiscovering = false
+    @Published private(set) var discoveryMessage: String?
     private let service: ConsoleServicing
     private let store: CredentialStore
     private var account: Account?
     private var generation = UUID()
     private var discoveryGeneration = UUID()
+    private var discoveryTimer: Task<Void, Never>?
     init(service: ConsoleServicing, store: CredentialStore) { self.service = service; self.store = store }
     func setAccount(_ account: Account?) {
         cancel(); self.account = account; paired = nil; consoles = []
@@ -27,14 +30,21 @@ import Foundation
         } catch { message = PairingError.storage.localizedDescription }
     }
     func discover() {
-        guard account != nil else { return }
-        message = nil
+        guard account != nil, !busy else { return }
+        discoveryTimer?.cancel(); isDiscovering = true; discoveryMessage = nil
         let current = UUID(); discoveryGeneration = current
+        discoveryTimer = Task { [weak self] in
+            do { try await Task.sleep(for: .seconds(5)) } catch { return }
+            guard let self, self.discoveryGeneration == current else { return }
+            self.isDiscovering = false
+        }
         service.discover { [weak self] result in
             guard let self, self.discoveryGeneration == current else { return }
             switch result {
             case .success(let consoles): self.consoles = consoles
-            case .failure(let error): self.message = error.localizedDescription
+            case .failure(let error):
+                self.discoveryTimer?.cancel(); self.isDiscovering = false
+                self.discoveryMessage = error.localizedDescription
             }
         }
     }
@@ -58,6 +68,7 @@ import Foundation
     }
     func cancel() {
         generation = UUID(); discoveryGeneration = UUID(); service.cancelPairing(); busy = false; message = nil
+        discoveryTimer?.cancel(); isDiscovering = false; discoveryMessage = nil
     }
     func updateAddress(_ address: String, expected: PairedConsole) -> Bool {
         message = nil
@@ -78,6 +89,9 @@ import Foundation
         cancel()
         do { try store.forgetPairing(); paired = nil } catch { message = PairingError.storage.localizedDescription }
     }
-    func stopDiscovery() async { discoveryGeneration = UUID(); await service.stopDiscovery() }
+    func stopDiscovery() async {
+        discoveryGeneration = UUID(); discoveryTimer?.cancel(); isDiscovering = false
+        await service.stopDiscovery()
+    }
     func shutdown() async { cancel(); await service.shutdown() }
 }

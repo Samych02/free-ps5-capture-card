@@ -23,14 +23,21 @@ final class EngineClientTests: XCTestCase {
         value.width = 1920; value.video_packets = 500; value.audio_packets = 600
         value.reconnects = 2; value.output_disconnects = 3
         let message = "Last OBS reset: queued media became stale."
-        withUnsafeMutableBytes(of: &value.message) { $0.copyBytes(from: message.utf8) }
+        withUnsafeMutableBytes(of: &value.last_output_message) { $0.copyBytes(from: message.utf8) }
+        let source = "A source connection ended."
+        withUnsafeMutableBytes(of: &value.last_source_message) { $0.copyBytes(from: source.utf8) }
+        value.state = CAPTURE_WAITING_OBS; value.phase = CAPTURE_PHASE_CONTENT_BLOCKED
         let result = NativeEngineClient.decodedStatus(value)
         XCTAssertEqual(result.outputDisconnects, 3)
         XCTAssertEqual(result.reconnects, 2)
         XCTAssertEqual(result.videoPackets, 500)
         XCTAssertEqual(result.audioPackets, 600)
         XCTAssertEqual(result.width, 1920)
-        XCTAssertEqual(result.message, message)
+        XCTAssertEqual(result.message, "")
+        XCTAssertEqual(result.lastOutputMessage, message)
+        XCTAssertEqual(result.lastSourceMessage, source)
+        XCTAssertEqual(result.nativeState, .waitingOBS)
+        XCTAssertEqual(result.phase, .protectedContent)
     }
     @MainActor func testConfigurationRequiresMatchingSavedIdentityWithoutStarting() throws {
         let engine = NativeEngineClient()

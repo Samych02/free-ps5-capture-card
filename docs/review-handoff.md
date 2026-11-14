@@ -58,6 +58,26 @@ not represent an independent approval.
 
 ## Evidence and limitations
 
+### 0.1.0 release-candidate UI/status review
+
+Review changes after `2b345f1` in `CaptureEngine.h`, `Engine.cpp`, `Pipeline.cpp`,
+`App/EngineClient.swift`, `App/AppModel.swift`, `CapturePresentation.swift`,
+`PairingModel.swift`, all views, the single-window app/delegate and related tests.
+Expected: typed current phases and separate bounded history, no false streaming
+while paused/blocked, no transient terminal-failure flash during auto retry,
+consistent asynchronous snapshot/state handling, strict visible port/pairing-code
+validation, duplicate-action guards and safe PIN dismissal/cancellation.
+Keep credential edits locked through Stop acknowledgement; inspect conditional
+disabled states and focus/cancellation in account, pairing, address and PIN sheets.
+The single window must close/reopen without stopping an active capture, while
+Quit still waits for cleanup. Inspect actual fake-data SwiftUI screenshots in
+`build/ui-polish`; no user credential files are involved in those renderings.
+Check that C API v2 layout/version and bundled Swift client/framework match.
+
+No independent review pass is claimed by the author. Automated, rendering and
+manual/release evidence must remain separate. Public distribution is not
+authorized. Remaining gates are explicit in `docs/release-checklist.md`.
+
 ### Protected-content crash review scope
 
 Review display-sink registration in `Session.cpp` and `setSourceBlocked` in

@@ -8,6 +8,11 @@ struct StreamOptions: Codable, Equatable {
     var fps = 60
     var bitrate = 15000
     var port = 9295
+    static func validPort(_ text: String) -> Int? {
+        guard !text.isEmpty, text.utf8.count <= 5, text.utf8.allSatisfy({ (48...57).contains($0) }),
+              let port = Int(text), (1024...65535).contains(port) else { return nil }
+        return port
+    }
     var isValid: Bool { [720, 1080].contains(height) && [30, 60].contains(fps) && (2000...100000).contains(bitrate) && (1024...65535).contains(port) }
     var native: capture_options {
         var value = capture_default_options()

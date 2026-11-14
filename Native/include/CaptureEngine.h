@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #define CAPTURE_API __attribute__((visibility("default")))
-#define CAPTURE_API_VERSION 1
+#define CAPTURE_API_VERSION 2
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -22,6 +22,10 @@ typedef enum { CAPTURE_IDLE, CAPTURE_STOPPED, CAPTURE_CONNECTING, CAPTURE_WAITIN
 typedef enum { CAPTURE_ERROR_NONE, CAPTURE_ERROR_PORT, CAPTURE_ERROR_CONNECTION,
     CAPTURE_ERROR_IDENTITY, CAPTURE_ERROR_IN_USE, CAPTURE_ERROR_MEDIA,
     CAPTURE_ERROR_OVERFLOW, CAPTURE_ERROR_INTERNAL } capture_error;
+/* Presentation facts, not inferred from translated or historical messages. */
+typedef enum { CAPTURE_PHASE_NONE, CAPTURE_PHASE_WAITING_MEDIA,
+    CAPTURE_PHASE_WAITING_OBS, CAPTURE_PHASE_STARTING_OUTPUT, CAPTURE_PHASE_STREAMING,
+    CAPTURE_PHASE_MEDIA_PAUSED, CAPTURE_PHASE_CONTENT_BLOCKED } capture_phase;
 typedef struct {
     uint32_t size, version;
     capture_state state;
@@ -35,7 +39,9 @@ typedef struct {
     uint64_t video_clock_elapsed_us, audio_clock_elapsed_us;
     uint64_t video_clock_position, audio_clock_position;
     uint32_t audio_samples_per_packet;
-    char message[192]; /* sanitized, no protocol strings or credential material */
+    capture_phase phase;
+    char message[192]; /* current issue only; sanitized, no protocol strings or credentials */
+    char last_output_message[192], last_source_message[192]; /* historical diagnostics */
 } capture_status;
 /* Callback data is borrowed; copy it before dispatching elsewhere. Callbacks
  * run on the engine worker. Never block them on the UI/main thread. */
@@ -46,7 +52,7 @@ CAPTURE_API capture_engine *capture_engine_create(const capture_options *options
     capture_callback callback, void *context, capture_result *error);
 /* Nonblocking and repeatable. Does not sleep/shut down the console. */
 CAPTURE_API capture_result capture_engine_stop(capture_engine *engine);
-/* Capture is not implemented in this milestone; returns CAPTURE_UNAVAILABLE. */
+/* Requires a configured connection; starts asynchronously. */
 CAPTURE_API capture_result capture_engine_start(capture_engine *engine);
 /* Call off the main thread, outside a callback; joins before freeing. Context
  * must remain alive until this returns. Returns INVALID_STATE from a callback. */

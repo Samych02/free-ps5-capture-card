@@ -1,0 +1,73 @@
+# 0.1.0 first-release checklist
+
+This is a **release candidate**, not a claim that every release gate has passed.
+The supported build currently targets Apple Silicon and macOS 26+.
+
+## Candidate scope
+
+- One native window with persistent capture controls and clear current health.
+- Typed states for source connection, media preparation/pause, protected content,
+  OBS connection/output start, streaming, passcode, retry, stopping and error.
+- Historical output resets/source retries separated from current issues and kept
+  behind the remembered metrics disclosure. Counter drift is not labelled A/V sync.
+- Strict visible port and pairing-code validation; explicit PIN/Stop progress.
+- Consistent account, pairing, address and passcode sheets; cancellable discovery.
+- Existing capture-frame icon, local credential-file policy and compressed
+  video-plus-audio architecture retained. No preview, playback or capture bypass.
+
+## Developer evidence
+
+The living evidence and exact commands are maintained in
+[the execution plan](plans/release-ui-polish.md) and
+[validation notes](validation.md). Off-screen screenshots in `build/ui-polish`
+use real SwiftUI views with synthetic credentials and engine data only. They are
+layout evidence, **not** a substitute for interactive accessibility/device tests.
+
+- [x] Final app/native/status/transition/protected-content regressions pass.
+- [x] Focused sanitizer and policy/build checks pass.
+- [x] Debug/Release app builds and UI-test compilation pass.
+- [x] Light/dark/narrow screens and all setup sheets rendered/reviewed.
+- [x] Packaged runtime closure, icon, version, notices and signatures verified.
+- [ ] Independent code/license/security review completed and findings resolved.
+
+Current local candidate: `build/package-release-candidate/Free PS5 Capture Card.app`
+(0.1.0 build 2), archived as `build/FreePS5CaptureCard-0.1.0-rc1-arm64.zip`.
+Developer verification: 88 app tests, nine native targets, 11 policy/build tests,
+focused transition/protected-content tests and ASan/TSAN checks. Thirty real-view
+test renderings are available; interactive UI automation remains unverified.
+
+## Hands-on acceptance still required
+
+- [ ] Current candidate: sign-in/pairing/manual-IP/forget flows, cancellation and
+  storage errors. Never collect or publish real OAuth URLs, passcodes or keys.
+- [ ] Keyboard focus, VoiceOver, light/dark appearance, window resize, close/reopen
+  from Dock/menu, Stop, Quit and passcode submission/rejection on a real session.
+- [ ] Current candidate: PS5 → OBS picture and source-mixer audio for H264, H265
+  and H265 HDR; game transitions and protected-media entry/exit without crashing.
+- [ ] Measured A/V sync at minute 1 and minute 30: residual mismatch ≤40 ms and
+  drift ≤20 ms; use a suitable permitted source, **not PS5 YouTube/media apps**.
+- [ ] Verify actual HDR bit depth/range/PQ/BT.2020 and final display/recording colour.
+- [ ] Investigate reported ~1 s TV-to-OBS latency separately from lip-sync. Existing
+  OBS screenshot shows 1 MB network buffering, hardware decoding on and 1 s
+  reconnect delay; none alone proves the delay's cause.
+- [ ] Longer capture/transition soak, network loss, consumer recovery, sleep/wake,
+  CPU/RSS and OBS-drop checks. No promise of continuous capture through sleep.
+- [ ] Launch on a clean account/machine without developer paths and verify local
+  network permissions and signed-bundle behavior.
+
+Earlier user evidence confirms real pairing, all three synthetic OBS feeds and
+one HDR-game transition with **source retries 0 / OBS resets 2**. That evidence
+must not be relabelled as calibrated HDR, precise sync or full current-candidate
+acceptance. Protected-content crash handling has automated evidence; live
+entry/exit confirmation remains separate.
+
+## Distribution authorization and limitations
+
+- Developer bundles are ad-hoc signed, **not notarized** or Developer ID releases.
+- No publishing/upload, GitHub release/tag, Applications install, autostart or
+  notarization is authorized by this checklist. Request separate authorization.
+- If public distribution is approved, choose signing/notarization and packaging
+  deliberately; do not silently disable Gatekeeper or alter system settings.
+- Preserve LICENSE, third-party notices/embedded notices and a reviewable changelog.
+- Clearly disclose unencrypted owner-only credential storage and the unauthenticated
+  localhost OBS endpoint. Do not describe either as encryption or app-only access.

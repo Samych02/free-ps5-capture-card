@@ -2,6 +2,45 @@
 
 ## Active OBS output-drop investigation
 
+### 0.1.0 RC1 UI/status polish developer checkpoint
+
+Current local candidate: `build/package-release-candidate/Free PS5 Capture Card.app`,
+0.1.0 build 2, local ZIP `build/FreePS5CaptureCard-0.1.0-rc1-arm64.zip`.
+The native status layout is now API v2: typed output/media phase, separate current
+message and historical source/output messages. Current health is presented
+independently of old reset/retry history. Paused/protected cannot report streaming;
+all automatic-retry paths use retry state rather than flashing a terminal error.
+Stop clears history and unlocks setup only after acknowledgement.
+
+App fixes include raw port validation, discovery progress/error separation,
+strict pairing-code input, duplicate Stop/PIN guards, consistent snapshot/state
+handling, safe PIN dismissal, single-window reopen, copy feedback and cohesive
+native views with left-aligned remembered metrics. No media algorithm, auth
+protocol, credential policy or display restriction bypass was added.
+
+Evidence: 88 app tests (`build/release-polish-close-app.log`), nine native targets
+(`build/release-polish-close-native.log`), 11 policy/build tests, successful Debug/
+Release and UI-test compilation, plus focused transition/gap/protected/reset/
+no-fallback integration (`build/release-polish-final-transitions.log`). Five native
+targets each pass ASan/TSAN final rechecks; prior focused sanitizer integration
+also covers all six pause/protected cases and output-reset reasons. A controller-
+review regression caught an additional transient exception failure-state path
+(`build/release-polish-exception-red.log`), now corrected and reverified.
+
+Thirty off-screen real SwiftUI PNGs in `build/ui-polish` exercise light/dark,
+narrow widths, metrics/history, setup, sign-in, pairing, address, passcode, valid/
+invalid settings and current health variants using fakes, never real credentials
+or network. These are layout evidence, not interactive UI acceptance. Developer
+Mode remains disabled on this host; no OS permissions were changed. Bundle checks
+pass 28 arm64 Mach-O files, version/build/icon/no-test-plugin assertions and strict
+recursive signing. Local archive CRC, version and icon checks pass.
+
+No publication, notarization or Applications installation occurred. Independent
+review, current-device/manual accessibility/window/PIN checks, measured sync,
+calibrated HDR, reported latency, soak and clean-machine launch remain open in
+`docs/release-checklist.md`. This is an RC for acceptance, not a blanket release
+readiness or zero-bug claim.
+
 ### Protected-media application crash
 
 User reports a process crash when entering PS5 YouTube/media apps, and prioritizes

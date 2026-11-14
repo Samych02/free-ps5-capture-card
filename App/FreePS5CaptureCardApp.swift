@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct FreePS5CaptureCardApp: App {
+    @Environment(\.openWindow) private var openWindow
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @StateObject private var model = AppModel(defaults: Self.preferences)
     @StateObject private var account = AccountModel()
@@ -17,9 +18,12 @@ struct FreePS5CaptureCardApp: App {
         return .standard
     }
     var body: some Scene {
-        WindowGroup {
+        Window("Free PS5 Capture Card", id: "capture") {
             MainView(model: model, account: account, pairing: pairing)
-                .onAppear { delegate.model = model; delegate.account = account; delegate.pairing = pairing }
+                .onAppear {
+                    delegate.model = model; delegate.account = account; delegate.pairing = pairing
+                    delegate.reopenWindow = { openWindow(id: "capture") }
+                }
                 .task {
                     #if DEBUG
                     // XCTest hosts the real app but must not touch the user's
@@ -30,6 +34,13 @@ struct FreePS5CaptureCardApp: App {
                     pairing.setAccount(account.account)
                 }
         }
-            .defaultSize(width: 540, height: 640)
+            .defaultSize(width: 620, height: 820)
+            .windowResizability(.contentMinSize)
+            .commands {
+                CommandGroup(after: .windowArrangement) {
+                    Button("Show Capture Window") { openWindow(id: "capture") }
+                        .keyboardShortcut("0", modifiers: .command)
+                }
+            }
     }
 }

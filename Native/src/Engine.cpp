@@ -37,12 +37,17 @@ struct capture_engine {
     }
     void emit(capture_state state) {
         capture_status s{}; { std::lock_guard<std::mutex> lock(mutex); s=status; }
-        s.state=state; if(state==CAPTURE_STOPPED || state==CAPTURE_IDLE) { s.error=CAPTURE_ERROR_NONE; s.message[0]=0; }
+        if(state==CAPTURE_STOPPED || state==CAPTURE_IDLE) s={};
+        else if(state==CAPTURE_CONNECTING) {
+            auto previous=s;s={};s.reconnects=previous.reconnects;
+            memcpy(s.last_source_message,previous.last_source_message,sizeof(s.last_source_message));
+        }
+        s.state=state;
         publish(s);
     }
     bool cancelled() { std::lock_guard<std::mutex> lock(mutex); return closing || stops; }
-    void failure(capture_error error,const char *message) {
-        capture_status s{}; s.state=CAPTURE_FAILED; s.error=error; strncpy(s.message,message,sizeof(s.message)-1); publish(s);
+    void failure(capture_error error,const char *message,capture_state state=CAPTURE_FAILED) {
+        capture_status s{}; s.state=state; s.error=error; strncpy(s.message,message,sizeof(s.message)-1); publish(s);
     }
     void capture() {
         std::unique_ptr<capture::LocalTCPServer> server;
@@ -82,13 +87,8 @@ struct capture_engine {
                     }
                     if(snapshot.done && snapshot.retry && (!busyReleaseRetry || lastSourceRetry.empty()))
                         lastSourceRetry.assign(snapshot.status.message,strnlen(snapshot.status.message,sizeof(snapshot.status.message)));
-                    if(!snapshot.done && !lastSourceRetry.empty() &&
-                       (snapshot.status.state==CAPTURE_WAITING_OBS || snapshot.status.state==CAPTURE_STREAMING)) {
-                        auto current=std::string(snapshot.status.message,strnlen(snapshot.status.message,sizeof(snapshot.status.message)));
-                        auto message="Last source retry: "+lastSourceRetry+(current.empty()?"":" "+current);
-                        memset(snapshot.status.message,0,sizeof(snapshot.status.message));
-                        strncpy(snapshot.status.message,message.c_str(),sizeof(snapshot.status.message)-1);
-                    }
+                    strncpy(snapshot.status.last_source_message,lastSourceRetry.c_str(),sizeof(snapshot.status.last_source_message)-1);
+                    if(snapshot.done && snapshot.retry) snapshot.status.state=CAPTURE_RETRYING;
                     if(snapshot.status.state==CAPTURE_STREAMING) {
                         if(!streaming) {streaming=true;stableSince=now;}
                         stableUs=std::chrono::duration_cast<std::chrono::microseconds>(now-stableSince).count();
@@ -103,7 +103,7 @@ struct capture_engine {
                 session->stopAndJoin();
             } catch(...) {
                 lastSourceRetry="Cannot establish the PS5 connection. Check power, Remote Play, network permissions and pairing.";
-                failure(CAPTURE_ERROR_CONNECTION,lastSourceRetry.c_str());retry=true;
+                failure(CAPTURE_ERROR_CONNECTION,lastSourceRetry.c_str(),CAPTURE_RETRYING);retry=true;
             }
             // Arm only after a previously established attempt is fully torn
             // down. Busy/failed replacement attempts must not extend the grace.

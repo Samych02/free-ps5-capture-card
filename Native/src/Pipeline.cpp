@@ -315,10 +315,15 @@ ChiakiEncodedMediaSink MediaPipeline::sink() {
 }
 SessionSnapshot MediaPipeline::snapshot() {
     auto &p=*impl_; auto stats=p.queue.stats(); std::lock_guard<std::mutex> lock(p.mutex);
-    SessionSnapshot s; s.done=p.failed; s.retry=p.retry; s.status.state=p.failed?CAPTURE_FAILED:p.outputReady?CAPTURE_STREAMING:CAPTURE_WAITING_OBS;
+    SessionSnapshot s; s.done=p.failed; s.retry=p.retry;
+    s.status.phase=p.failed?CAPTURE_PHASE_NONE:p.sourceBlocked?CAPTURE_PHASE_CONTENT_BLOCKED:
+        p.sourceRecovering?CAPTURE_PHASE_MEDIA_PAUSED:(!p.frozen || !p.format)?CAPTURE_PHASE_WAITING_MEDIA:
+        !p.hasOBS?CAPTURE_PHASE_WAITING_OBS:p.outputReady?CAPTURE_PHASE_STREAMING:CAPTURE_PHASE_STARTING_OUTPUT;
+    s.status.state=p.failed?CAPTURE_FAILED:s.status.phase==CAPTURE_PHASE_STREAMING?CAPTURE_STREAMING:CAPTURE_WAITING_OBS;
     s.status.error=p.error; strncpy(s.status.message,p.failed?p.message:p.sourceBlocked?
         "PS5 cannot stream protected content. Return to the home screen or a game to resume capture.":p.sourceRecovering?
-        "Source media paused; waiting for fresh audio and video. PS5 connection remains open.":p.lastOutputMessage.c_str(),sizeof(s.status.message)-1);
+        "Source media paused; waiting for fresh audio and video. PS5 connection remains open.":"",sizeof(s.status.message)-1);
+    strncpy(s.status.last_output_message,p.lastOutputMessage.c_str(),sizeof(s.status.last_output_message)-1);
     s.status.video_packets=p.videoCount; s.status.audio_packets=p.audioCount; s.status.queued_bytes=stats.bytes;
     s.status.lost_video_frames=p.videoLosses;s.status.missing_audio_packets=p.audioHoles;
     s.status.output_disconnects=p.outputDisconnects;

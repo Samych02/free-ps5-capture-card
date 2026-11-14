@@ -1,5 +1,12 @@
 # Finish standalone PS5 capture
 
+## Active first-release UI/status continuation
+
+User requests whole-app polish and first-release preparation and approved the
+native single-window direction. Execute `docs/plans/release-ui-polish.md` as the
+living plan. Retain unresolved actual-device/independent-review release gates;
+the request does not authorize publishing, notarization or Applications install.
+
 ## Active protected-content crash correction
 
 User reprioritized a crash when opening YouTube/media apps on the PS5 over

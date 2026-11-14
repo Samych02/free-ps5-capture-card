@@ -5,15 +5,18 @@ Media Source over localhost TCP/Matroska. OBS decodes both tracks and performs
 any final encoding. No app preview, local sound, controller, microphone, media
 decoder, encoder or tone mapper.
 
-**Development build — live acceptance is pending.** Earlier builds established
+Unofficial project; not affiliated with Sony Interactive Entertainment or the OBS Project.
+
+**0.1.0 release candidate — final acceptance is pending.** Earlier builds established
 browser login, real pairing and all three synthetic feeds in OBS.
 Real PS5-to-OBS sync, HDR output, long-run reliability and independent review
 are not yet verified.
 
-**Credential storage changed:** this build starts fresh with an unencrypted,
-owner-only local file instead of Keychain. Sign in and pair again once; old
-Keychain records are neither read nor deleted. Current file-backed real-device
-persistence remains a manual check.
+**Credential storage:** account and PS5 keys use an unencrypted, owner-only local
+file, not Keychain. Historical Keychain records are never read, migrated or
+deleted. This UI update does not reset existing file-based credentials; users
+coming from a Keychain-only build must sign in and pair once. Current-candidate
+file-backed real-device persistence remains a manual acceptance check.
 
 ## Use
 
@@ -27,7 +30,13 @@ Apple Silicon, **macOS 26+** for the current Homebrew-based build.
 
 In **OBS output**, **Show metrics** expands all received-media, queue and clock
 statistics; **Hide metrics** collapses them. The choice is remembered, starting
-hidden. Capture status, errors, URL and controls always remain available.
+hidden. Current health and Start/Stop stay at the top; historical reset/retry
+messages appear only under **Recent events** inside metrics. Expand **Manage
+account and pairing** to change an existing PS5 or account. Closing the window
+keeps capture running; use **Window → Show Capture Window** (⌘0) to reopen it.
+
+See the [first-release checklist](docs/release-checklist.md) for what is verified,
+what still needs hands-on acceptance, and distribution limitations.
 
 See [setup and OBS instructions](docs/setup.md), [architecture](docs/architecture.md),
 and [validation / pending gates](docs/validation.md). HDR never silently falls

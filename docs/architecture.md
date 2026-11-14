@@ -79,6 +79,17 @@ signals display is permitted again, fresh two-track recovery is required before
 OBS output reopens. The callback context outlives all core threads; core join
 precedes pipeline destruction. This honors the console restriction, not bypasses it.
 
+The bundled C API is version 2: `capture_status.phase` expresses media/output
+readiness separately from the source connection state. Current issues use
+`message`; historical output/source causes use bounded `last_output_message`
+and `last_source_message` fields. Healthy streaming never reuses an old reset as
+its current error, and paused/protected output cannot report a streaming phase.
+All clients in the app/framework bundle rebuild together; old API versions and
+wrong-sized records are rejected, not reinterpreted. The Swift model reads one
+native snapshot so a delayed state callback cannot be combined with newer status
+from another phase. Stop clears old session metrics/history, and the UI keeps
+setup locked until native Stop acknowledgement.
+
 Audio PTS advances by exact validated Opus samples with a frozen initial phase.
 Live video PTS uses first-fragment ingress times mapped onto that audio sample
 timeline: a fixed 16×25 ms bucket lower envelope of valid audio receipt-minus-media

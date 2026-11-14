@@ -2,8 +2,12 @@ import Foundation
 import CaptureEngine
 
 enum EngineState: Equatable { case idle, stopped, connecting, waitingOBS, streaming, retrying, pinRequired, failed, unavailable }
+enum EnginePhase: Equatable { case none, waitingMedia, waitingOBS, startingOutput, streaming, paused, protectedContent }
 struct EngineStatus: Equatable {
+    var nativeState: EngineState?
+    var phase: EnginePhase = .none
     var message = ""
+    var lastOutputMessage = "", lastSourceMessage = ""
     var width: UInt32 = 0, height: UInt32 = 0, fpsNumerator: UInt32 = 0, fpsDenominator: UInt32 = 1
     var videoPackets: UInt64 = 0, audioPackets: UInt64 = 0, reconnects: UInt64 = 0, queuedBytes: UInt64 = 0
     var lostVideoFrames: UInt64 = 0, missingAudioPackets: UInt64 = 0, queueAgeMicroseconds: UInt64 = 0
@@ -51,7 +55,21 @@ private struct EngineTeardown: @unchecked Sendable {
 final class NativeEngineClient: EngineControlling {
     nonisolated static func decodedStatus(_ value: capture_status) -> EngineStatus {
         let message = withUnsafeBytes(of: value.message) { String(decoding: $0.prefix(while: { $0 != 0 }), as: UTF8.self) }
-        return EngineStatus(message: message, width: value.width, height: value.height, fpsNumerator: value.fps_num,
+        let output = withUnsafeBytes(of: value.last_output_message) { String(decoding: $0.prefix(while: { $0 != 0 }), as: UTF8.self) }
+        let source = withUnsafeBytes(of: value.last_source_message) { String(decoding: $0.prefix(while: { $0 != 0 }), as: UTF8.self) }
+        let phase: EnginePhase
+        switch value.phase {
+        case CAPTURE_PHASE_WAITING_MEDIA: phase = .waitingMedia
+        case CAPTURE_PHASE_WAITING_OBS: phase = .waitingOBS
+        case CAPTURE_PHASE_STARTING_OUTPUT: phase = .startingOutput
+        case CAPTURE_PHASE_STREAMING: phase = .streaming
+        case CAPTURE_PHASE_MEDIA_PAUSED: phase = .paused
+        case CAPTURE_PHASE_CONTENT_BLOCKED: phase = .protectedContent
+        default: phase = .none
+        }
+        return EngineStatus(nativeState: decodedState(value.state), phase: phase, message: message,
+                            lastOutputMessage: output, lastSourceMessage: source,
+                            width: value.width, height: value.height, fpsNumerator: value.fps_num,
                             fpsDenominator: value.fps_den, videoPackets: value.video_packets, audioPackets: value.audio_packets,
                             reconnects: value.reconnects, queuedBytes: value.queued_bytes,
                             lostVideoFrames: value.lost_video_frames, missingAudioPackets: value.missing_audio_packets,
@@ -60,6 +78,18 @@ final class NativeEngineClient: EngineControlling {
                             videoClockElapsedMicroseconds: value.video_clock_elapsed_us, audioClockElapsedMicroseconds: value.audio_clock_elapsed_us,
                             videoClockPosition: value.video_clock_position, audioClockPosition: value.audio_clock_position,
                             audioSamplesPerPacket: value.audio_samples_per_packet)
+    }
+    nonisolated static func decodedState(_ value: capture_state) -> EngineState {
+        switch value {
+        case CAPTURE_STOPPED: return .stopped
+        case CAPTURE_CONNECTING: return .connecting
+        case CAPTURE_WAITING_OBS: return .waitingOBS
+        case CAPTURE_STREAMING: return .streaming
+        case CAPTURE_RETRYING: return .retrying
+        case CAPTURE_PIN_REQUIRED: return .pinRequired
+        case CAPTURE_FAILED: return .failed
+        default: return .idle
+        }
     }
     private let relay = EngineRelay()
     private var handle: OpaquePointer?
@@ -73,18 +103,7 @@ final class NativeEngineClient: EngineControlling {
         handle = capture_engine_create(&options, { state, context in
             guard let context else { return }
             let relay = Unmanaged<EngineRelay>.fromOpaque(context).takeUnretainedValue()
-            let mapped: EngineState
-            switch state {
-            case CAPTURE_STOPPED: mapped = .stopped
-            case CAPTURE_CONNECTING: mapped = .connecting
-            case CAPTURE_WAITING_OBS: mapped = .waitingOBS
-            case CAPTURE_STREAMING: mapped = .streaming
-            case CAPTURE_RETRYING: mapped = .retrying
-            case CAPTURE_PIN_REQUIRED: mapped = .pinRequired
-            case CAPTURE_FAILED: mapped = .failed
-            default: mapped = .idle
-            }
-            relay.receive(mapped)
+            relay.receive(NativeEngineClient.decodedState(state))
         }, Unmanaged.passUnretained(relay).toOpaque(), &error)
     }
     func start() -> Bool {

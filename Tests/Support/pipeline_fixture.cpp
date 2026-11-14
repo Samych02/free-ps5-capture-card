@@ -126,7 +126,7 @@ int main(int argc,char **argv) {
                 throw std::runtime_error("protected media was not discarded");
             if(status.status.output_disconnects!=lastOutputResets) {
                 lastOutputResets=status.status.output_disconnects;
-                std::cerr<<"OUTPUT_RESET "<<lastOutputResets<<' '<<status.status.message<<'\n';
+                std::cerr<<"OUTPUT_RESET "<<lastOutputResets<<' '<<status.status.last_output_message<<'\n';
             }
             if(status.done) {std::cerr<<"SOURCE_FAILURE retry="<<status.retry<<'\n';throw std::runtime_error(status.status.message);}
             if(recoveryFault && !gapReported && pts-epoch>=6500000) {

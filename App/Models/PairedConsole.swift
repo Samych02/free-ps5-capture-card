@@ -24,13 +24,16 @@ struct DiscoveredConsole: Identifiable, Equatable {
     let standby: Bool
 }
 struct PairingRequest {
+    static func validPIN(_ text: String) -> Bool {
+        text.utf8.count == 8 && text.utf8.allSatisfy({ (48...57).contains($0) })
+    }
     let address: String
     let pin: String
     let account: Account
     let expectedID: String?
     init(address: String, pin: String, account: Account, expectedID: String? = nil) throws {
         self.address = try Self.validAddress(address)
-        guard pin.utf8.count == 8, pin.utf8.allSatisfy({ (48...57).contains($0) }) else { throw PairingError.pin }
+        guard Self.validPIN(pin) else { throw PairingError.pin }
         self.pin = pin; self.account = account; self.expectedID = expectedID
     }
     static func validAddress(_ text: String) throws -> String {

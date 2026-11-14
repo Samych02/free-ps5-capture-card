@@ -19,7 +19,7 @@ struct ChangeAddressSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Change PS5 IP address").font(.title2.bold())
+            Label("Change PS5 IP address", systemImage: "network").font(.title2.bold())
             Text("Use the new address of the same PS5. Your existing pairing keys stay saved—no Link Device code or PSN sign-in is needed.")
                 .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             TextField("PS5 IP address", text: $address)
@@ -30,13 +30,13 @@ struct ChangeAddressSheet: View {
             Text("Find it in PS5 Settings → Network → Connection Status → View Connection Status. Enter an IP address without a URL or port.")
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             if capture.active {
-                Text("Stop capture before changing the IP address.").font(.callout).foregroundStyle(.red)
+                InlineNotice(text: "Stop capture before changing the IP address.")
             } else if !currentPairing || pairing.busy {
-                Text(PairingError.pairingChanged.localizedDescription).font(.callout).foregroundStyle(.red)
+                InlineNotice(text: PairingError.pairingChanged.localizedDescription)
             } else if !validAddress {
-                Text(PairingError.address.localizedDescription).font(.callout).foregroundStyle(.red)
+                InlineNotice(text: PairingError.address.localizedDescription)
             } else if attemptedSave, let message = pairing.message {
-                Text(message).font(.callout).foregroundStyle(.red)
+                InlineNotice(text: message)
             }
             Text("Saving updates the address only. The next capture attempt checks whether the PS5 is reachable and accepts the saved keys.")
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
