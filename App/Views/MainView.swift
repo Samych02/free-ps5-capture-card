@@ -66,12 +66,12 @@ struct MainView: View {
                         Text("In OBS, add one Media Source, turn off Local File, paste this URL, and choose matroska as the input format. Both tracks use this source.")
                             .font(.caption).foregroundStyle(.secondary)
                         if model.status.width > 0 {
-                            Text("Received: \(model.status.width)×\(model.status.height) · \(cadence) fps · video \(model.status.videoPackets) · audio \(model.status.audioPackets)")
+                            Text("Received: \(model.status.width)×\(model.status.height) · nominal \(cadence) fps · video \(model.status.videoPackets) · audio \(model.status.audioPackets)")
                                 .font(.caption).monospacedDigit().accessibilityIdentifier("receivedMediaStatus")
                             Text("Queue: \(model.status.queuedBytes / 1024) KiB / \(model.status.queueAgeMicroseconds / 1000) ms · video lost \(model.status.lostVideoFrames) · audio missing \(model.status.missingAudioPackets) · source retries \(model.status.reconnects) · OBS resets \(model.status.outputDisconnects)")
                                 .font(.caption).foregroundStyle(.secondary).monospacedDigit()
                             if model.status.videoClockElapsedMicroseconds > 0 {
-                                Text("Clock drift vs ingress: video \(model.status.videoClockDriftMicroseconds / 1000) ms · audio \(model.status.audioClockDriftMicroseconds / 1000) ms")
+                                Text("Nominal counter drift vs ingress: video \(model.status.videoClockDriftMicroseconds / 1000) ms · audio \(model.status.audioClockDriftMicroseconds / 1000) ms")
                                     .font(.caption).foregroundStyle(.secondary).monospacedDigit().accessibilityIdentifier("sourceClockDrift")
                                 Text("Observed counters: video \(counterRate(model.status.videoClockPosition, model.status.videoClockElapsedMicroseconds))/s · audio \(counterRate(model.status.audioClockPosition, model.status.audioClockElapsedMicroseconds))/s · \(model.status.audioSamplesPerPacket) samples/audio packet")
                                     .font(.caption).foregroundStyle(.secondary).monospacedDigit().accessibilityIdentifier("sourceClockRates")

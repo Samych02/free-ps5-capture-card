@@ -32,11 +32,23 @@ being collapsed into an indefinitely retried connection failure.
 
 The patched pinned core supplies compressed video/Opus, source indices, receipt
 timestamps, configuration generations and loss/recovery metadata. `Pipeline.cpp`
-checks bounds/startup metadata, builds a rational timeline, freezes least-delay
-source offsets and forwards leased queue packets into FFmpeg's public Matroska
-mux API. Parsers run without opening decoders. Actual SPS/VUI cadence, colour
+checks bounds/startup metadata and forwards leased queue packets into FFmpeg's
+public Matroska mux API. Parsers run without opening decoders. SPS/VUI nominal cadence, colour
 and reorder constraints govern admission; HEVC static HDR SEI is retained and
 changes trigger source reconnection.
+
+Audio PTS advances by exact validated Opus samples with a frozen initial phase.
+Live video PTS uses first-fragment ingress times mapped onto that audio sample
+timeline: a fixed 16×25 ms bucket lower envelope of valid audio receipt-minus-media
+delay relates the shared monotonic ingress clock to the audio clock. Missing
+markers do not train the estimator; payload gaps retain its last valid reference
+while existing track-gap/reset rules apply. Video PTS is immutable at admission;
+equal/backward receipt times clamp forward by 1 us. Raw indices still provide wrap,
+duplicate, reordering and discontinuity checks, but SPS FPS is not treated as the
+transport frame-index clock. A counter-based strategy remains for tests with a
+verified counter clock; live selection is explicit, never a runtime fallback.
+No encoded frame is decoded, resampled, duplicated or dropped by this mapper.
+Ingress jitter is not an encoder timestamp; measured A/V sync remains a gate.
 
 Both tracks are mandatory. Each OBS connection gets fresh Matroska state and a
 common epoch, not independent per-track zeroes. Source reconnection destroys the
@@ -65,7 +77,8 @@ Per-source clock diagnostics compare each accepted unwrapped counter's nominal
 media duration with elapsed first-to-last receipt time, independently of the
 frozen phase estimate. Both signed drifts, counter spans and the audio sample
 duration reach status; UI reports observed counter rates separately from SPS FPS.
-These numbers diagnose nominal-cadence assumptions without changing timestamps.
+These diagnostics remain nominal counter measurements, not corrected output-clock
+error; negative nominal video drift can remain visible while output is healthy.
 
 The app never opens a codec, plays media, initializes controller/microphone media,
 tone-maps or records. OBS decodes both tracks and optionally encodes final output.

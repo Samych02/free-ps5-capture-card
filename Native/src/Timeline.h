@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <optional>
+#include <array>
 
 namespace capture {
 enum class MediaTrack { Video, Audio };
@@ -8,6 +9,7 @@ struct TimelineConfig {
     uint32_t fpsNum = 60, fpsDen = 1;
     uint32_t audioRate = 48000, samplesPerFrame = 960;
     int64_t audioOffsetUs = 0; // Positive delays audio, before common normalization.
+    bool audioAnchoredIngressVideo = false; // Explicit live strategy; never infer transport cadence from SPS.
 };
 class Timeline {
 public:
@@ -27,6 +29,8 @@ public:
     Observation observe(MediaTrack track, uint16_t index, uint64_t firstReceiptUs,
                         uint32_t samples = 0, bool missing = false);
     bool freeze(uint64_t nowUs);
+    // In ingress-video mode only the latest video position is queryable. Copy
+    // its PTS at admission; subsequent audio observations never rewrite it.
     std::optional<int64_t> pts(MediaTrack track, uint64_t position) const;
     Diagnostics diagnostics(MediaTrack) const;
     bool failed() const { return failed_; }
@@ -40,6 +44,13 @@ private:
     TimelineConfig config_;
     uint64_t originUs_;
     bool frozen_ = false, failed_ = false;
+    struct DelayBucket { uint64_t epoch=UINT64_MAX; int64_t delayUs=0; };
+    static constexpr uint64_t DelayBucketUs=25000;
+    std::array<DelayBucket,16> audioDelays_{};
+    uint64_t audioDelayReceiptUs_=0;
+    std::optional<int64_t> ingressVideoPts_;
     int64_t mediaTime(MediaTrack track, uint64_t position) const;
+    void rememberAudioDelay(uint64_t receipt, int64_t mediaUs);
+    bool updateIngressVideoPts();
 };
 }

@@ -44,7 +44,11 @@ not represent an independent approval.
   measured counter progression. Diagnostic drift is media-duration minus elapsed
   receipt time, not measured A/V sync; per-track spans must survive counter wrap,
   ignore rejected duplicate/reordered packets and remain separate from OBS epochs.
-  No timing correction has yet been applied on the strength of screenshots alone.
+  The measured live video mismatch is now addressed with an explicit audio-anchored
+  ingress-video strategy. Review audio-delay bucket aging and missing-payload
+  handling, immutable/monotonic video PTS, overflow bounds, continued exact audio
+  sample PTS and OBS reconnect continuity. The correction uses ingress timing,
+  not encoder PTS; verify real A/V sync and jitter behaviour independently.
 
 ## Evidence and limitations
 

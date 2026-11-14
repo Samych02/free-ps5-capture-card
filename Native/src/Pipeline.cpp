@@ -41,7 +41,7 @@ struct MediaPipeline::Impl {
     void tickClock(uint64_t now) {
         if(!clock && format && firstAudio && firstVideo) {
             originUs=std::min(firstAudio->first_receipt_us,firstVideo->first_receipt_us);
-            clock=std::make_unique<Timeline>(TimelineConfig{uint32_t(format->frameRate.num),uint32_t(format->frameRate.den),audio.sample_rate,audio.samples_per_frame,0},originUs);
+            clock=std::make_unique<Timeline>(TimelineConfig{uint32_t(format->frameRate.num),uint32_t(format->frameRate.den),audio.sample_rate,audio.samples_per_frame,0,true},originUs);
             clock->observe(MediaTrack::Video,firstVideo->frame_index,firstVideo->first_receipt_us);
             clock->observe(MediaTrack::Audio,firstAudio->frame_index,firstAudio->first_receipt_us,firstAudio->samples);
         }

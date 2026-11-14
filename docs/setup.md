@@ -81,6 +81,12 @@ is still pending.
   the current PS5 session even when OBS reconnects. Network jitter can affect
   these values; they are not measured A/V sync or hardware-clock accuracy.
   Report both clock lines together with the reset message after a drop.
+  The clock-correction build explicitly maps video ingress timing onto the audio
+  sample clock instead of deriving video timestamps from nominal SPS FPS. The
+  **Nominal counter drift vs ingress** line remains diagnostic: a negative video
+  value is not itself a failure after this correction. Watch the actual output
+  state and OBS reset count. No decoder or separate audio source is introduced,
+  and real synchronization still needs verification.
 - Transient loss retries with bounded backoff. In-use, rejected credentials and
   incompatible media errors need action. Stop before retrying a fatal error.
 - A login prompt accepts a masked **4-digit PS5 login passcode**; pairing uses

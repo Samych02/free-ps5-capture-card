@@ -2,6 +2,41 @@
 
 ## Active OBS output-drop investigation
 
+### Measured video clock mismatch and corrective candidate
+
+The latest live screenshot reports SPS 59.94 fps versus 58.921/s video counter
+progression, nominal video-clock drift -650 ms; audio is 100.001/s, 480 samples
+per packet and 0 ms drift. Both tracks remain fresh (audio 10 ms/video 17 ms),
+zero source retries/loss/hole counters, 9 OBS resets and audio-start +858 ms.
+This identifies the fixed SPS-period video mapping as the divergent clock. It
+does not measure end-to-end A/V synchronization or establish why the source's
+delivered video counter cadence differs from SPS metadata.
+
+The correction retains the audio sample/index PTS and initial phase, maps live
+video ingress times onto that audio timeline using a bounded recent lower-envelope
+audio-delay estimate, and freezes each video PTS when admitted. No queue/timeouts,
+payloads, codecs/HDR selection, audio resampling or decoding are changed. This
+supersedes the fixed video-counter mapping; SPS remains nominal codec metadata.
+Ingress jitter/differential network delay still requires real sync assessment.
+
+`build/clock-fix-red.log` records failed non-SPS cadence/burst timestamp assertions.
+`build/clock-fix-pipeline-red.log` records failure to produce a readable Matroska
+header in all three modes for a continuous synthetic 30-fps source whose SPS
+declares 60 fps. Metadata is retagged in test-only FFmpeg; compressed media is not
+captured from the user. The same native suite first passes all 10 targets in
+`build/clock-fix-native-green.log`, including all-mode playback/reconnect regression.
+Expanded tests cover two-hour virtual runs with ±500 ppm audio rate error, bounded
+ingress jitter, video cadence changes, wraps, immutable/strictly ordered video
+PTS, exact audio PTS and compressed-payload subsequence preservation.
+
+Latest corrective candidate: `build/package-clock-fix/Free PS5 Capture Card.app`.
+Final verification (`build/clock-fix-check-*.log`): 10 native targets, 72 app tests,
+10 ASan targets, 7 selected TSAN targets and 7 policy tests pass; Release packaging
+succeeds. `Tests/Support/check_bundle.py --app` validates 28 arm64 Mach-O files;
+`codesign --verify --deep --strict` passes. The reproduced all-codec failure is
+corrected in automated regression, but actual live OBS resolution, synchronization,
+HDR/soak and independent review remain unverified release gates.
+
 ### Growing startup offset and counter-clock diagnostic follow-up
 
 The user supplied two screenshots from an unchanged source session. The retained
@@ -24,11 +59,11 @@ elapsed receipt spans, signed nominal-duration drift and audio samples per packe
 Clock diagnostics are unaffected by a constant start phase, and retain unwrapped
 positions across raw-counter wraps while excluding rejected duplicate/reordered
 observations. They do not alter timestamps, clocks, reset limits or buffering.
-Native missing-metric assertions fail in `build/clock-rate-red.log`; app bridge
-assertions fail in `build/clock-rate-app-red.log`. A live retry must identify the
-clock mismatch before a timing correction is justified.
+Native missing-metric assertions failed in `build/clock-rate-red.log`; app bridge
+assertions failed in `build/clock-rate-app-red.log`. The subsequent live screenshot
+above identified the divergent video clock before implementing the correction.
 
-Latest developer candidate: `build/package-clock-diagnostics/Free PS5 Capture Card.app`.
+Previous clock-diagnostic candidate: `build/package-clock-diagnostics/Free PS5 Capture Card.app`.
 `build/clock-check-*.log` records 10 native targets, 72 app tests, 10 ASan targets,
 7 selected TSAN targets and 7 policy tests passing, plus successful Release
 packaging. `Tests/Support/check_bundle.py --app` passes for 28 arm64 Mach-O files;

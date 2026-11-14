@@ -47,7 +47,9 @@ Timeline::Observation Timeline::observe(MediaTrack track, uint16_t index, uint64
     if(!missing) {
         clock.hasPayload = true;
         if(!frozen_) clock.offsetUs = std::min(clock.offsetUs, int64_t(receipt - originUs_) - mediaUs);
+        if(track==MediaTrack::Audio && config_.audioAnchoredIngressVideo) rememberAudioDelay(receipt,mediaUs);
     }
+    if(frozen_ && track==MediaTrack::Video && config_.audioAnchoredIngressVideo && !updateIngressVideoPts()) return fail();
     return {Status::Accepted, nextPosition};
 }
 bool Timeline::freeze(uint64_t now) {
@@ -56,17 +58,44 @@ bool Timeline::freeze(uint64_t now) {
     if(now < originUs_ || now - originUs_ < ObservationUs) return false;
     if(!video_.hasPayload || !audio_.hasPayload) { failed_ = true; return false; }
     frozen_ = true;
+    if(config_.audioAnchoredIngressVideo && !updateIngressVideoPts()) {failed_=true;return false;}
     return true;
 }
 std::optional<int64_t> Timeline::pts(MediaTrack track, uint64_t position) const {
     const auto &clock = track == MediaTrack::Video ? video_ : audio_;
     if(!frozen_ || failed_ || !clock.hasPayload || position > clock.position) return std::nullopt;
+    if(track==MediaTrack::Video && config_.audioAnchoredIngressVideo)
+        return position==video_.position?ingressVideoPts_:std::nullopt;
     __int128 value;
     try { value = mediaTime(track, position); } catch(const std::overflow_error &) { return std::nullopt; }
     value += clock.offsetUs;
     if(track == MediaTrack::Audio) value += config_.audioOffsetUs;
     if(value < INT64_MIN || value > INT64_MAX) return std::nullopt;
     return static_cast<int64_t>(value);
+}
+void Timeline::rememberAudioDelay(uint64_t receipt,int64_t mediaUs) {
+    auto epoch=receipt/DelayBucketUs;
+    auto &bucket=audioDelays_[epoch%audioDelays_.size()];
+    auto delay=int64_t(receipt-originUs_)-mediaUs;
+    if(bucket.epoch!=epoch) bucket={epoch,delay};
+    else bucket.delayUs=std::min(bucket.delayUs,delay);
+    audioDelayReceiptUs_=std::max(audioDelayReceiptUs_,receipt);
+}
+bool Timeline::updateIngressVideoPts() {
+    // Convert shared ingress time into the unchanged audio sample timeline.
+    // Train only on valid audio payloads, never synthetic missing markers.
+    // Age buckets relative to the last real audio payload, not wall time, so a
+    // temporary missing-track gap retains the last estimate and existing policy.
+    auto epoch=audioDelayReceiptUs_/DelayBucketUs;
+    int64_t delay=INT64_MAX;
+    for(const auto &bucket:audioDelays_)
+        if(bucket.epoch<=epoch && epoch-bucket.epoch<audioDelays_.size()) delay=std::min(delay,bucket.delayUs);
+    if(delay==INT64_MAX) return false;
+    __int128 value=__int128(video_.receiptUs-originUs_)+audio_.offsetUs-delay;
+    if(ingressVideoPts_) value=std::max(value,__int128(*ingressVideoPts_)+1);
+    if(value<INT64_MIN || value>INT64_MAX) return false;
+    ingressVideoPts_=static_cast<int64_t>(value);
+    return true;
 }
 Timeline::Diagnostics Timeline::diagnostics(MediaTrack track) const {
     const auto &clock=track==MediaTrack::Video?video_:audio_;

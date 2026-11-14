@@ -31,12 +31,20 @@ def probe(path, packets=False):
 def first_frame(path):
     return json.loads(run("ffprobe", "-v", "error", "-select_streams", "v:0",
                           "-read_intervals", "%+0.1", "-show_frames", "-of", "json",
-                          str(path)).stdout)["frames"][0]
+                           str(path)).stdout)["frames"][0]
+
+
+def normalized_vcl(path, mode):
+    raw=run("ffmpeg","-v","error","-i",str(path),"-map","0:v:0","-c","copy","-bsf:v",
+            "h264_mp4toannexb" if mode==0 else "hevc_mp4toannexb","-f","h264" if mode==0 else "hevc","pipe:1").stdout
+    import re
+    units=re.split(b"\x00\x00(?:\x00)?\x01",raw)
+    return [n.rstrip(b"\0") for n in units if n and ((n[0]&31) in (1,2,3,4,5) if mode==0 else ((n[0]>>1)&63)<32)]
 
 
 class ClockTests(unittest.TestCase):
     def test_two_hour_clock_and_owned_queue(self):
-        for binary, count in (("capture-timeline-tests", 7), ("capture-queue-tests", 14)):
+        for binary, count in (("capture-timeline-tests", 9), ("capture-queue-tests", 14)):
             with self.subTest(suite=binary):
                 result = run(str(BUILD / "Tests/Native" / binary), timeout=30)
                 self.assertIn(f"{count} of {count} (100%) tests successful".encode(), result.stdout)
@@ -131,13 +139,7 @@ class RemuxTests(unittest.TestCase):
                 before,after=probe(source,True),probe(output,True)
                 self.assertEqual([p["data_hash"] for p in before["packets"] if p["stream_index"]==1],
                                  [p["data_hash"] for p in after["packets"] if p["stream_index"]==1])
-                def vcl(path):
-                    raw=run("ffmpeg","-v","error","-i",str(path),"-map","0:v:0","-c","copy","-bsf:v",
-                            "h264_mp4toannexb" if mode==0 else "hevc_mp4toannexb","-f","h264" if mode==0 else "hevc","pipe:1").stdout
-                    import re
-                    units=re.split(b"\x00\x00(?:\x00)?\x01",raw)
-                    return [n.rstrip(b"\0") for n in units if n and ((n[0]&31) in (1,2,3,4,5) if mode==0 else ((n[0]>>1)&63)<32)]
-                self.assertEqual(vcl(source),vcl(output))
+                self.assertEqual(normalized_vcl(source,mode),normalized_vcl(output,mode))
                 run("ffmpeg","-v","error","-xerror","-i",str(output),"-f","null","-")
                 frame=first_frame(output)
                 self.assertEqual(frame["color_primaries"],"bt2020" if mode==2 else "bt709")
@@ -261,6 +263,58 @@ class RemuxTests(unittest.TestCase):
             if process.poll() is None: process.terminate(); process.wait(timeout=3)
             process.stderr.close()
 
+    def test_pipeline_uses_delivery_cadence_not_sps_as_video_clock(self):
+        for mode,name in enumerate(MODES):
+            with self.subTest(mode=name), tempfile.TemporaryDirectory() as tmp:
+                source=Path(tmp)/"retagged.mkv"
+                # Deliberately declare 60 fps in codec metadata while preserving
+                # the fixture's real 30-fps packet cadence and every payload.
+                bsf="h264_metadata=tick_rate=120" if mode==0 else "hevc_metadata=tick_rate=60"
+                run("ffmpeg","-v","error","-y","-i",str(BUILD/"fixtures"/(name+".mkv")),
+                    "-map","0","-c","copy","-bsf:v",bsf,str(source),timeout=20)
+                metadata=json.loads(run(str(BUILD/"bin/capture-live-format"),str(source),str(mode)).stdout)
+                self.assertEqual(metadata["fps_num"]/metadata["fps_den"],60)
+                original_audio=[p["data_hash"] for p in probe(source,True)["packets"] if p["stream_index"]==1]
+                original_video=normalized_vcl(source,mode)
+                with socket.socket() as reserve:
+                    reserve.bind(("127.0.0.1",0));port=reserve.getsockname()[1]
+                process=subprocess.Popen([str(BUILD/"bin/capture-pipeline-fixture"),str(source),str(mode),str(port)],stderr=subprocess.PIPE)
+                try:
+                    with selectors.DefaultSelector() as selector:
+                        selector.register(process.stderr,selectors.EVENT_READ)
+                        self.assertTrue(selector.select(5));self.assertIn(b"READY",process.stderr.readline())
+                    for iteration,duration in enumerate((3,1)):
+                        output=Path(tmp)/f"cadence-{iteration}.mkv"
+                        try:
+                            run("ffmpeg","-v","error","-y","-analyzeduration","100000","-probesize","65536",
+                                "-f","matroska","-i",f"tcp://127.0.0.1:{port}","-t",str(duration),
+                                "-map","0","-c","copy",str(output),timeout=12)
+                        except subprocess.CalledProcessError as error:
+                            self.fail("continuous mismatched-cadence source did not remain readable: "+error.stderr.decode(errors="replace"))
+                        observed=probe(output,True)
+                        self.assertEqual([s["codec_type"] for s in observed["streams"]],["video","audio"])
+                        spans=[]
+                        for track in (0,1):
+                            pts=[float(p["pts_time"]) for p in observed["packets"] if p["stream_index"]==track]
+                            self.assertGreater(pts[-1]-pts[0],duration-0.2,"fresh tracks lost alignment despite continuous ingress")
+                            spans.append(pts[-1]-pts[0])
+                            if track==0:self.assertAlmostEqual((len(pts)-1)/spans[-1],30,delta=1)
+                        self.assertLess(abs(spans[0]-spans[1]),0.1)
+                        copied_audio=[p["data_hash"] for p in observed["packets"] if p["stream_index"]==1]
+                        copied_video=normalized_vcl(output,mode)
+                        for original,copied in ((original_audio,copied_audio),(original_video,copied_video)):
+                            self.assertTrue(copied)
+                            self.assertTrue(any(original[i:i+len(copied)]==copied for i in range(len(original)-len(copied)+1)),
+                                            "timestamp correction changed or skipped compressed payloads")
+                        run("ffmpeg","-v","error","-xerror","-i",str(output),"-f","null","-",timeout=10)
+                        if mode==2:self.assertEqual(first_frame(output)["color_transfer"],"smpte2084")
+                finally:
+                    process.terminate()
+                    try:process.wait(timeout=3)
+                    except subprocess.TimeoutExpired:
+                        process.kill();process.wait();self.fail("cadence fixture stop exceeded 3 seconds")
+                    process.stderr.close()
+
     def test_pipeline_accepts_late_audio_configuration_and_obs_reconnect(self):
         with socket.socket() as reserve:
             reserve.bind(("127.0.0.1",0)); port=reserve.getsockname()[1]
@@ -374,7 +428,8 @@ if __name__ == "__main__":
                  "test_invalid_port_is_rejected", "test_occupied_port_is_not_silently_changed",
                  "test_receiver_pipeline_delivers_both_tracks", "test_pipeline_missing_audio_fails_instead_of_waiting_forever",
                  "test_pipeline_accepts_late_audio_configuration_and_obs_reconnect", "test_local_transport_faults",
-                 "test_pipeline_reports_output_reset_causes", "test_pipeline_accepts_receive_only_tcp_peer")]
+                 "test_pipeline_reports_output_reset_causes", "test_pipeline_accepts_receive_only_tcp_peer",
+                 "test_pipeline_uses_delivery_cadence_not_sps_as_video_clock")]
     suite = unittest.TestSuite()
     if args.case in ("synthetic-clock", "all"):
         suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(ClockTests))

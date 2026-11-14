@@ -2,6 +2,58 @@
 
 ## Active OBS disconnect investigation
 
+### Measured cause and clock correction
+
+The clock-diagnostic live screenshot establishes the divergent clock: parsed SPS
+59.94 fps, observed video counter 58.921/s, nominal video duration -650 ms versus
+receipt elapsed; audio 100.001/s with 480 samples/packet and 0 ms drift. Both tracks
+are fresh (10/17 ms), zero source retries/loss/hole counters, 9 OBS resets and
+startup audio-start +858 ms. The app's fixed SPS-period video mapping compresses
+the actual video timeline and eventually prevents overlap with fresh audio.
+
+Correction design within the approved fix scope: retain exact audio sample/index
+PTS and its frozen phase. Live video uses first-fragment ingress times mapped to
+that audio sample clock, not a hard-coded replacement FPS. A fixed 16×25 ms bucket
+lower-envelope estimate of valid audio receipt-minus-media delay maps the common
+monotonic ingress clock into the existing audio timeline, following audio clock
+rate without resampling. Missing-audio markers do not train this estimate; during
+temporary payload gaps retain the last valid estimate and existing reset policy.
+Video PTS is fixed when admitted, strictly monotonic (equal/backward receipt times
+clamp forward by 1 us); already-issued PTS is never recomputed on audio arrivals.
+SPS remains codec/nominal-rate metadata, not proof of transport cadence. This is
+an explicit live strategy, not a silent runtime fallback; the counter strategy
+remains for verified-clock synthetic tests. No new buffering, decoder, encoding,
+frame dropping, source restarts or timestamp re-anchoring on OBS reconnect.
+
+Alternatives rejected: hard-coding the observed 58.921 rate would only fit this
+run; widening queues hides accumulating error; switching to Syphon violates the
+compressed-only/single-source scope. Risk: ingress jitter/differential network
+delay is not an encoder presentation timestamp. The lower envelope controls the
+audio reference, not video network jitter. Actual A/V sync/HDR/soak remains a live
+acceptance gate and is not proven by timestamp consistency alone.
+
+Execution/verification:
+- [x] Red accelerated tests for non-SPS cadence, audio hardware-rate drift,
+  variable video cadence, wraps, burst timestamps and immutable issued PTS.
+- [x] Red actual-pipeline regressions with retagged SPS metadata but unchanged
+  synthetic packet cadence; all H264/H265/HDR payloads and mandatory audio retained.
+- [x] Minimal audio-anchored ingress-video mapper, explicitly enabled for live use.
+  Initial full native regression passes all 10 targets in
+  `build/clock-fix-native-green.log`, including all modes and late OBS reconnect.
+  Expanded jitter/rate/payload-preservation tests and final checks run in
+  `build/clock-fix-check-*.log` before packaging `build/package-clock-fix`.
+  The expanded fast-audio-clock test initially assumed a zero calibration phase;
+  actual unchanged least-delay calibration correctly produced -125 us. The test
+  now asserts exact audio sample advances plus that fixed frozen phase, rather
+  than incorrectly requiring the phase to be zero. Targeted timeline rerun passes.
+- [x] Native/app/ASan/TSAN/policy/package verification: 10 native targets,
+  72 app tests, 10 ASan targets, 7 selected TSAN targets and 7 policy tests pass
+  (`build/clock-fix-check-*.log`). Release candidate:
+  `build/package-clock-fix/Free PS5 Capture Card.app`. Bundle validation passes
+  for 28 arm64 Mach-O files; strict recursive signature verification passes.
+  Code diff reviewed locally; independent review remains a release gate.
+- [ ] User retries corrected build; real resolution/sync still unverified.
+
 ### Counter-clock investigation after user continuation
 
 The user approved continuing the clock-mapping investigation, not replacing the

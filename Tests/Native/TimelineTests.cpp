@@ -1,6 +1,7 @@
 #include "Timeline.h"
 #include <munit.h>
 #include <stdexcept>
+#include <algorithm>
 
 using namespace capture;
 static MunitResult common_clock(const MunitParameter[], void *) {
@@ -127,6 +128,66 @@ static MunitResult diagnostics_phase_wrap_and_duplicates(const MunitParameter[],
     }
     return MUNIT_OK;
 }
+static MunitResult ingress_video_follows_audio_clock(const MunitParameter[],void *) {
+    for(uint64_t audioPeriod:{9995u,10005u}) {
+        Timeline clock({60000,1001,48000,480,0,true},0);
+        clock.observe(MediaTrack::Video,0,0);clock.observe(MediaTrack::Audio,0,0,480);
+        uint64_t video=0,audio=0;int64_t lastVideo=-1;
+        std::optional<int64_t> audioPhase;
+        // Two hours per direction of 500 ppm audio hardware-rate error, with
+        // bounded ingress jitter. Video cadence changes without codec changes.
+        uint64_t nextVideo=1000000/59;
+        while(true) {
+            uint64_t nextAudio=(audio+1)*audioPeriod+((audio+1)%5)*1000;
+            uint64_t now=std::min(nextVideo,nextAudio);
+            if(now>7200000000ull) break;
+            if(now>=Timeline::ObservationUs) {
+                munit_assert_true(clock.freeze(now));
+                if(!audioPhase) audioPhase=clock.pts(MediaTrack::Audio,0);
+            }
+            if(nextVideo<=nextAudio) {
+                auto observation=clock.observe(MediaTrack::Video,uint16_t(++video),nextVideo);
+                munit_assert_true(observation.status==Timeline::Status::Accepted);
+                if(now>=Timeline::ObservationUs) {
+                    auto pts=clock.pts(MediaTrack::Video,observation.position);
+                    munit_assert_true(pts.has_value());munit_assert_int64(*pts,>,lastVideo);
+                    auto expected=int64_t(__int128(nextVideo)*10000/audioPeriod)+*audioPhase;
+                    munit_assert_int64(*pts-expected,>, -12000);
+                    munit_assert_int64(*pts-expected,<,12000);
+                    lastVideo=*pts;
+                }
+                auto rate=(now/60000000)%3==0?59u:(now/60000000)%3==1?30u:60u;
+                nextVideo+=1000000/rate;
+                if(video%3==0) nextVideo-=2000;
+                else nextVideo+=1000;
+            } else {
+                auto observation=clock.observe(MediaTrack::Audio,uint16_t(++audio),nextAudio,480);
+                munit_assert_true(observation.status==Timeline::Status::Accepted);
+                if(now>=Timeline::ObservationUs)
+                    munit_assert_int64(*clock.pts(MediaTrack::Audio,observation.position),==,int64_t(audio*10000)+*audioPhase);
+            }
+        }
+    }
+    return MUNIT_OK;
+}
+static MunitResult ingress_video_pts_are_immutable(const MunitParameter[],void *) {
+    Timeline clock({60,1,48000,480,0,true},0);
+    clock.observe(MediaTrack::Video,0,0);clock.observe(MediaTrack::Audio,0,20000,480);
+    munit_assert_true(clock.freeze(250000));
+    clock.observe(MediaTrack::Audio,25,270000,480);
+    auto first=clock.observe(MediaTrack::Video,1,280000);
+    auto pts=clock.pts(MediaTrack::Video,first.position);
+    munit_assert_true(pts.has_value());munit_assert_int64(*pts,==,280000);
+    // A new lower-delay audio observation must not reinterpret issued video PTS.
+    clock.observe(MediaTrack::Audio,26,270001,480);
+    munit_assert_int64(*clock.pts(MediaTrack::Video,first.position),==,*pts);
+    auto second=clock.observe(MediaTrack::Video,2,280000);
+    auto secondPts=clock.pts(MediaTrack::Video,second.position);
+    munit_assert_int64(*secondPts,==,289999);
+    auto burst=clock.observe(MediaTrack::Video,3,280000);
+    munit_assert_int64(*clock.pts(MediaTrack::Video,burst.position),==,*secondPts+1);
+    return MUNIT_OK;
+}
 int main(int argc, char **argv) {
     MunitTest tests[] = {
         {const_cast<char *>("/common-clock"), common_clock, nullptr, nullptr, MUNIT_TEST_OPTION_NONE, nullptr},
@@ -136,6 +197,8 @@ int main(int argc, char **argv) {
         {const_cast<char *>("/validation-missing"), validation_and_missing, nullptr, nullptr, MUNIT_TEST_OPTION_NONE, nullptr},
         {const_cast<char *>("/counter-rate-diagnostics"), counter_rate_diagnostics, nullptr, nullptr, MUNIT_TEST_OPTION_NONE, nullptr},
         {const_cast<char *>("/diagnostics-phase-wrap-duplicates"), diagnostics_phase_wrap_and_duplicates, nullptr, nullptr, MUNIT_TEST_OPTION_NONE, nullptr},
+        {const_cast<char *>("/ingress-audio-clock"), ingress_video_follows_audio_clock, nullptr, nullptr, MUNIT_TEST_OPTION_NONE, nullptr},
+        {const_cast<char *>("/ingress-immutable-pts"), ingress_video_pts_are_immutable, nullptr, nullptr, MUNIT_TEST_OPTION_NONE, nullptr},
         {nullptr, nullptr, nullptr, nullptr, MUNIT_TEST_OPTION_NONE, nullptr}};
     MunitSuite suite{const_cast<char *>("/timeline"), tests, nullptr, 1, MUNIT_SUITE_OPTION_NONE};
     return munit_suite_main(&suite, nullptr, argc, argv);
