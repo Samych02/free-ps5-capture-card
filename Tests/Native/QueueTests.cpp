@@ -187,6 +187,50 @@ static MunitResult stale_preroll_cannot_be_ready(const MunitParameter[], void *)
     munit_assert_size(f.queue.stats().queued, ==, 1);
     return MUNIT_OK;
 }
+static MunitResult missing_track_details(const MunitParameter[], void *) {
+    using Stage=PacketQueue::MissingStage;
+    PacketQueue unconfigured; unconfigured.attach(0); unconfigured.maintain(250001);
+    munit_assert_true(unconfigured.stats().missing.stage==Stage::Configuration);
+    Fixture startup; startup.queue.attach(0);
+    startup.push(MediaTrack::Video,1000000,VideoAccess::IDR,1,3,100000);
+    startup.push(MediaTrack::Audio,1300000,VideoAccess::Predicted,1,3,100000);
+    startup.queue.maintain(350001);
+    auto initial=startup.queue.stats();
+    munit_assert_true(initial.reason==PacketQueue::Reason::MissingTrack);
+    munit_assert_true(initial.missing.stage==Stage::StartupAlignment);
+    munit_assert_true(initial.missing.audioStartDeltaUs.has_value());
+    munit_assert_int64(*initial.missing.audioStartDeltaUs,==,300000);
+    munit_assert_uint64(initial.missing.audioAgeUs,==,250001);
+    // Preserve the reset-time sample despite subsequent wall-clock progress.
+    startup.queue.maintain(900000);
+    munit_assert_uint64(startup.queue.stats().missing.audioAgeUs,==,250001);
+    startup.queue.attach(1000000);
+    munit_assert_true(startup.queue.stats().missing.stage==Stage::None);
+    return MUNIT_OK;
+}
+static MunitResult missing_track_delivery_details(const MunitParameter[], void *) {
+    using Stage=PacketQueue::MissingStage;
+    for(auto absent:{Stage::Audio,Stage::Video,Stage::Both}) {
+        Fixture f; f.queue.attach(0);
+        f.push(MediaTrack::Video,0,VideoAccess::IDR,1,3,0);
+        f.push(MediaTrack::Audio,0,VideoAccess::Predicted,1,3,0);
+        while(f.queue.pop(0,true)) {}
+        // Keep the other track fresh and drained; no stale queued media masks
+        // the receipt-age check, and no real-time sleep is needed.
+        if(absent!=Stage::Both) {
+            auto present=absent==Stage::Audio?MediaTrack::Video:MediaTrack::Audio;
+            f.push(present,200000,VideoAccess::Predicted,1,3,200000);
+            while(f.queue.pop(200000,true)) {}
+        }
+        f.queue.maintain(250001);
+        auto state=f.queue.stats();
+        munit_assert_true(state.reason==PacketQueue::Reason::MissingTrack);
+        munit_assert_true(state.missing.stage==absent);
+        munit_assert_uint64(state.missing.audioAgeUs,==,absent==Stage::Video?50001:250001);
+        munit_assert_uint64(state.missing.videoAgeUs,==,absent==Stage::Audio?50001:250001);
+    }
+    return MUNIT_OK;
+}
 int main(int argc,char **argv) {
     MunitTest tests[] = {
         {const_cast<char *>("/startup-owned"), startup_and_owned, nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
@@ -201,6 +245,8 @@ int main(int argc,char **argv) {
         {const_cast<char *>("/admission-before-copy"), admission_before_copy, nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
         {const_cast<char *>("/lease-outlives-queue"), lease_outlives_queue, nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
         {const_cast<char *>("/stale-preroll-readiness"), stale_preroll_cannot_be_ready, nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
+        {const_cast<char *>("/missing-track-details"), missing_track_details, nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
+        {const_cast<char *>("/missing-track-delivery-details"), missing_track_delivery_details, nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
         {nullptr,nullptr,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr}};
     MunitSuite suite{const_cast<char *>("/queue"),tests,nullptr,1,MUNIT_SUITE_OPTION_NONE};
     return munit_suite_main(&suite,nullptr,argc,argv);

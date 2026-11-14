@@ -2,6 +2,37 @@
 
 ## Active OBS disconnect investigation
 
+### Live retry after TCP compatibility fix
+
+The user reproduced black output on the diagnostic candidate. Screenshot:
+20 OBS resets, zero source retries/lost-video/missing-audio counters, retained
+`a required media track did not arrive in time`, with both receive counters
+nonzero. The TCP compatibility correction therefore did not resolve this live
+case. This establishes the queue's MissingTrack path, but not which track or
+whether the failure occurred during timestamp alignment rather than delivery.
+Passive socket inspection found the app and OBS connected on localhost; no extra
+consumer was attached. Do not infer continuous delivery from cumulative counts.
+
+Follow-up design/plan (within the approved diagnostic scope): preserve a bounded
+reset snapshot before queue state is cleared, distinguishing missing configuration,
+startup alignment and audio/video/both delivery gaps. Include per-track receipt
+ages and startup audio-minus-video PTS offset where available. Keep existing
+thresholds, queues and output policy unchanged. Prefer this to increasing timeout
+limits without evidence or recording live payloads.
+
+- [x] Red tests for startup-vs-delivery reset details and snapshot retention
+  (`build/track-detail-red.log`, `build/track-message-red.log`).
+- [x] Thread the reset snapshot through existing sanitized status text. New queue
+  cases and message tests pass; first full regression found only two test-harness
+  expectations to update (queue case count 12→14 and the old generic message).
+- [x] Verify native/app/sanitizer/package checks: 10 native targets, 71 app tests,
+  10 ASan targets, 7 selected TSAN targets and 7 policy tests pass. The user
+  cancelled the first complete run during TSAN; only unfinished stages were
+  resumed after continuation. Logs: `build/track-check-*.log`. Candidate:
+  `build/package-track-diagnostics/Free PS5 Capture Card.app`; 28 arm64 Mach-O
+  bundle validation and strict recursive signature checks pass.
+- [ ] Establish the specific live failure from the detailed reset before fixing it.
+
 User reports OBS repeatedly disconnects while the capture app returns to
 Waiting for OBS, including after reducing requested bitrate from 60 to 15 Mbps.
 Sanitized local OBS log inspection confirms successful connections followed by

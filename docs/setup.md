@@ -67,6 +67,12 @@ is still pending.
   For repeated drops, report that exact line and the selected mode/bitrate—never
   credentials or media payloads. No timeout or buffering limits were relaxed by
   this instrumentation.
+  Newer diagnostic builds distinguish **startup alignment failed** from an
+  **audio delivery gap**, **video delivery gap**, missing configuration or both
+  tracks. Packet ages are retained from the reset instant (or time since OBS
+  attachment if that track never entered the queue). **audio-start** is a startup
+  timestamp comparison, not a measured synchronization error. Include the entire
+  message when reporting a drop.
 - Transient loss retries with bounded backoff. In-use, rejected credentials and
   incompatible media errors need action. Stop before retrying a fatal error.
 - A login prompt accepts a masked **4-digit PS5 login passcode**; pairing uses

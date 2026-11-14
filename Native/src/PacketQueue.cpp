@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cstring>
 #include <stdexcept>
+#include <limits>
 namespace capture {
 struct QueueBudget {
     size_t limit=PacketQueue::MaxBytes;
@@ -41,8 +42,20 @@ size_t PacketQueue::queued() const {
 }
 void PacketQueue::clearPackets() { for(auto &packet : packets_) packet.reset(); }
 void PacketQueue::reset(Reason reason) {
+    if(reason!=Reason::MissingTrack) missing_={};
     clearPackets(); connected_ = false; ready_ = false; discardLeading_ = false;
     startPts_.reset(); lastVideoPts_.reset(); lastAudioPts_.reset(); reason_ = reason; ++epoch_;
+}
+void PacketQueue::resetMissing(MissingStage stage,uint64_t now) {
+    missing_={};missing_.stage=stage;
+    missing_.audioAgeUs=now>=lastAudioReceiptUs_?now-lastAudioReceiptUs_:0;
+    missing_.videoAgeUs=now>=lastVideoReceiptUs_?now-lastVideoReceiptUs_:0;
+    if(startPts_ && lastAudioPts_) {
+        auto delta=__int128(*lastAudioPts_)-*startPts_;
+        missing_.audioStartDeltaUs=static_cast<int64_t>(std::clamp(delta,
+            __int128(std::numeric_limits<int64_t>::min()),__int128(std::numeric_limits<int64_t>::max())));
+    }
+    reset(Reason::MissingTrack);
 }
 PacketQueue::Result PacketQueue::configureVideo(const ChiakiEncodedVideoConfig &video) {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -84,6 +97,7 @@ bool PacketQueue::attach(uint64_t now) {
     clearPackets(); connected_ = true; ready_ = false; discardLeading_ = false;
     attachedUs_ = now; lastVideoReceiptUs_ = now; lastAudioReceiptUs_ = now;
     startPts_.reset(); lastVideoPts_.reset(); lastAudioPts_.reset(); reason_ = Reason::None; ++epoch_;
+    missing_={};
     return true;
 }
 void PacketQueue::detach() { std::lock_guard<std::mutex> lock(mutex_); reset(Reason::Detached); }
@@ -105,9 +119,9 @@ void PacketQueue::updateReady() {
 void PacketQueue::maintainLocked(uint64_t now) {
     if(!connected_) return;
     if(now < attachedUs_) { reset(Reason::Timestamp); return; }
-    if((!hasVideo_ || !hasAudio_) && now - attachedUs_ > MaxAgeUs) { reset(Reason::MissingTrack); return; }
+    if((!hasVideo_ || !hasAudio_) && now - attachedUs_ > MaxAgeUs) { resetMissing(MissingStage::Configuration,now); return; }
     if(!ready_) {
-        if(startPts_ && now >= startReceiptUs_ && now - startReceiptUs_ > MaxAgeUs) reset(Reason::MissingTrack);
+        if(startPts_ && now >= startReceiptUs_ && now - startReceiptUs_ > MaxAgeUs) resetMissing(MissingStage::StartupAlignment,now);
         else if(!startPts_ && now - attachedUs_ > KeyframeWaitUs) reset(Reason::KeyframeTimeout);
         return;
     }
@@ -115,8 +129,9 @@ void PacketQueue::maintainLocked(uint64_t now) {
         if(packet && now >= packet->metadata.first_receipt_us && now - packet->metadata.first_receipt_us > MaxAgeUs) {
             reset(Reason::StaleMedia); return;
         }
-    if((now >= lastVideoReceiptUs_ && now - lastVideoReceiptUs_ > MaxAgeUs) ||
-       (now >= lastAudioReceiptUs_ && now - lastAudioReceiptUs_ > MaxAgeUs)) reset(Reason::MissingTrack);
+    bool videoLate=now >= lastVideoReceiptUs_ && now - lastVideoReceiptUs_ > MaxAgeUs;
+    bool audioLate=now >= lastAudioReceiptUs_ && now - lastAudioReceiptUs_ > MaxAgeUs;
+    if(videoLate || audioLate) resetMissing(videoLate?(audioLate?MissingStage::Both:MissingStage::Video):MissingStage::Audio,now);
 }
 void PacketQueue::maintain(uint64_t now) { std::lock_guard<std::mutex> lock(mutex_); maintainLocked(now); }
 PacketQueue::Result PacketQueue::push(MediaTrack track, const ChiakiEncodedPacket &packet, PacketTiming timing, VideoAccess access, uint64_t now) {
@@ -205,6 +220,6 @@ PacketQueue::Stats PacketQueue::stats() const {
     std::lock_guard<std::mutex> lock(mutex_);
     uint64_t oldest=0;
     for(const auto &packet:packets_) if(packet && (!oldest || packet->metadata.first_receipt_us<oldest)) oldest=packet->metadata.first_receipt_us;
-    return {budget_->bytes.load(), budget_->buffers.load()+1, queued(), epoch_, connected_, ready_, reason_,oldest};
+    return {budget_->bytes.load(), budget_->buffers.load()+1, queued(), epoch_, connected_, ready_, reason_,oldest,missing_};
 }
 }

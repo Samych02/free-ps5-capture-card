@@ -45,7 +45,13 @@ public:
     static constexpr uint64_t MaxAgeUs = 250000, KeyframeWaitUs = 5000000;
     enum class Result { Accepted, Dropped, Stale, Reset, Invalid };
     enum class Reason { None, Detached, Overflow, StaleMedia, ConfigurationChanged, InvalidData, Timestamp, MissingTrack, KeyframeTimeout };
-    struct Stats { size_t bytes, entries, queued; uint64_t epoch; bool connected, ready; Reason reason; uint64_t oldestReceiptUs=0; };
+    enum class MissingStage { None, Configuration, StartupAlignment, Audio, Video, Both };
+    struct MissingDetails {
+        MissingStage stage=MissingStage::None;
+        uint64_t audioAgeUs=0,videoAgeUs=0;
+        std::optional<int64_t> audioStartDeltaUs;
+    };
+    struct Stats { size_t bytes, entries, queued; uint64_t epoch; bool connected, ready; Reason reason; uint64_t oldestReceiptUs=0; MissingDetails missing; };
     explicit PacketQueue(size_t storageLimit = MaxBytes);
     Result configureVideo(const ChiakiEncodedVideoConfig &);
     Result configureAudio(const ChiakiEncodedAudioConfig &);
@@ -66,10 +72,12 @@ private:
     uint64_t lastVideoReceiptUs_ = 0, lastAudioReceiptUs_ = 0;
     std::optional<int64_t> startPts_, lastVideoPts_, lastAudioPts_;
     Reason reason_ = Reason::None;
+    MissingDetails missing_;
     std::shared_ptr<const QueuedBuffer> copy(const uint8_t *, size_t);
     bool canCopy(size_t size) const;
     void clearPackets();
     void reset(Reason);
+    void resetMissing(MissingStage, uint64_t now);
     void maintainLocked(uint64_t);
     void pruneAudio(int64_t boundaryUs);
     void updateReady();

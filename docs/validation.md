@@ -2,6 +2,35 @@
 
 ## Active OBS output-drop investigation
 
+### Live retry and more specific track diagnostics
+
+The user reproduced black OBS output with the TCP compatibility candidate.
+The status screenshot reports 20 OBS resets, zero source retries/video losses/
+audio holes, nonzero cumulative video/audio receive counters and the retained
+MissingTrack message. This confirms a local queue reset, not its specific trigger:
+the old text conflates missing configuration, startup timestamp alignment, and
+steady-state audio/video delivery gaps. Cumulative receive counts do not prove
+uninterrupted delivery or accepted timestamp progression.
+
+The follow-up captures the missing-track stage, per-track queue receipt ages and
+the startup audio PTS minus starting video PTS before reset clears queue state.
+Status text includes these bounded numeric diagnostics, not payloads or protocol
+strings. Ages are sampled at the reset, not a continuously updating measurement;
+before a track's first admitted packet, age is relative to OBS attachment.
+The startup offset is the last admitted audio PTS minus the starting keyframe
+PTS, not measured A/V sync. Thresholds and queue/reset policy remain unchanged.
+Expected missing details failed in `build/track-detail-red.log`; expected detailed
+messages failed in `build/track-message-red.log`. Specific live cause and remedy
+remain pending a retry with the more detailed diagnostic candidate.
+
+Latest developer candidate: `build/package-track-diagnostics/Free PS5 Capture Card.app`.
+Verification in `build/track-check-*.log`: 10 native targets, 71 app tests,
+10 ASan targets, 7 selected TSAN targets and 7 policy tests pass; Release packaging
+succeeds. `Tests/Support/check_bundle.py --app` validates 28 arm64 Mach-O files,
+and `codesign --verify --deep --strict` passes for this bundle. The initial run
+was user-cancelled during TSAN, not a spontaneous test failure; unfinished stages
+were subsequently rerun successfully. Live resolution remains unverified.
+
 User reports repeated OBS disconnects while the app returns to Waiting for OBS.
 The symptom persists after reducing only bitrate from 60 to 15 Mbps. Relevant
 sanitized OBS media-player lines confirm successful localhost connections and
@@ -25,7 +54,7 @@ read EOF; existing bounded writes detect actual receiver closure/failure. This
 fixes that reproduced protocol case, but OBS's use of half-close in the reported
 live session has not been established. Real disconnect resolution is pending.
 
-Verified developer candidate (2026-11-14):
+Earlier TCP compatibility candidate (2026-11-14):
 `build/package-obs-diagnostics/Free PS5 Capture Card.app`.
 `scripts/test.sh --native` passes all 10 targets;
 `scripts/test-app-unit-direct.sh` passes 71 tests;

@@ -55,10 +55,33 @@ static MunitResult output_reset_reasons(const MunitParameter[],void *) {
     munit_assert_not_null(strstr(capture::outputWriteResetMessage(AVERROR_EXIT),"cancelled"));
     return MUNIT_OK;
 }
+static MunitResult missing_track_messages(const MunitParameter[],void *) {
+    using Queue=capture::PacketQueue;
+    Queue::Stats state{}; state.reason=Queue::Reason::MissingTrack;
+    state.missing.audioAgeUs=251999;state.missing.videoAgeUs=1000;
+    for(auto stage:{Queue::MissingStage::Configuration,Queue::MissingStage::StartupAlignment,
+                    Queue::MissingStage::Audio,Queue::MissingStage::Video,Queue::MissingStage::Both}) {
+        state.missing.stage=stage;
+        state.missing.audioStartDeltaUs=-301000;
+        auto message=capture::outputQueueResetMessage(state);
+        const char *expected=stage==Queue::MissingStage::Configuration?"configuration":
+            stage==Queue::MissingStage::StartupAlignment?"startup alignment":
+            stage==Queue::MissingStage::Audio?"audio delivery":
+            stage==Queue::MissingStage::Video?"video delivery":"both tracks";
+        munit_assert_not_null(strstr(message.c_str(),expected));
+        munit_assert_not_null(strstr(message.c_str(),"audio age 251 ms"));
+        munit_assert_not_null(strstr(message.c_str(),"video age 1 ms"));
+        if(stage==Queue::MissingStage::StartupAlignment)
+            munit_assert_not_null(strstr(message.c_str(),"audio-start -301 ms"));
+        munit_assert_size(message.size(),<,sizeof(capture_status{}.message));
+    }
+    return MUNIT_OK;
+}
 int main(int argc,char **argv) {
     MunitTest tests[]{{const_cast<char *>("/quit-policy"),quit_policy,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
         {const_cast<char *>("/loss-counters"),loss_counters,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
         {const_cast<char *>("/output-reset-reasons"),output_reset_reasons,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
+        {const_cast<char *>("/missing-track-messages"),missing_track_messages,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
         {nullptr,nullptr,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr}};
     MunitSuite suite{const_cast<char *>("/diagnostics"),tests,nullptr,1,MUNIT_SUITE_OPTION_NONE};return munit_suite_main(&suite,nullptr,argc,argv);
 }

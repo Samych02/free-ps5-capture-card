@@ -6,6 +6,21 @@ extern "C" {
 #include <libavutil/error.h>
 }
 namespace capture {
+std::string outputQueueResetMessage(const PacketQueue::Stats &state) {
+    using Stage=PacketQueue::MissingStage;
+    if(state.reason!=PacketQueue::Reason::MissingTrack || state.missing.stage==Stage::None)
+        return outputQueueResetMessage(state.reason);
+    const auto &detail=state.missing;
+    const char *cause=detail.stage==Stage::Configuration?"missing track configuration":
+        detail.stage==Stage::StartupAlignment?"startup alignment failed":
+        detail.stage==Stage::Audio?"audio delivery gap":
+        detail.stage==Stage::Video?"video delivery gap":"both tracks delivery gap";
+    std::string message="Last OBS reset: ";message+=cause;
+    message+=" (audio age "+std::to_string(detail.audioAgeUs/1000)+" ms, video age "+std::to_string(detail.videoAgeUs/1000)+" ms";
+    if(detail.stage==Stage::StartupAlignment && detail.audioStartDeltaUs)
+        message+=", audio-start "+std::to_string(*detail.audioStartDeltaUs/1000)+" ms";
+    return message+").";
+}
 const char *outputQueueResetMessage(PacketQueue::Reason reason) {
     switch(reason) {
         case PacketQueue::Reason::Overflow: return "Last OBS reset: output storage limit reached.";

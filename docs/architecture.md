@@ -54,10 +54,13 @@ closed or nonreading consumers under the existing bounds.
 Low-frequency status includes both packet counts, source loss/hole counts, queued
 bytes/oldest queued-packet age, actual encoded dimensions/cadence and retries.
 Queue age excludes an in-flight lease and is not end-to-end latency.
-OBS output resets have a separate per-source counter and a retained, static
-sanitized reason. A client closing, a bounded write stalling, and a queue reset
+OBS output resets have a separate per-source counter and a retained sanitized
+reason using fixed text and bounded numeric diagnostics. A client closing, a bounded write stalling, and a queue reset
 are not conflated with a PS5 session retry. Fatal source errors take precedence
 over this history. No raw socket/protocol strings or media payloads are logged.
+Missing-track resets preserve configuration/startup/delivery stage, per-track
+receipt ages and any startup audio-to-keyframe PTS delta before clearing state.
+This snapshot does not relax queue policy or represent an end-to-end sync measure.
 
 The app never opens a codec, plays media, initializes controller/microphone media,
 tone-maps or records. OBS decodes both tracks and optionally encodes final output.
