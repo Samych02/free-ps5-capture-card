@@ -31,6 +31,10 @@ typedef struct {
     uint64_t video_packets, audio_packets, reconnects, queued_bytes;
     uint64_t lost_video_frames, missing_audio_packets, queue_age_us;
     uint64_t output_disconnects;
+    int64_t video_clock_drift_us, audio_clock_drift_us;
+    uint64_t video_clock_elapsed_us, audio_clock_elapsed_us;
+    uint64_t video_clock_position, audio_clock_position;
+    uint32_t audio_samples_per_packet;
     char message[192]; /* sanitized, no protocol strings or credential material */
 } capture_status;
 /* Callback data is borrowed; copy it before dispatching elsewhere. Callbacks

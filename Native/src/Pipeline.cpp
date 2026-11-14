@@ -218,6 +218,13 @@ SessionSnapshot MediaPipeline::snapshot() {
     s.status.video_packets=p.videoCount; s.status.audio_packets=p.audioCount; s.status.queued_bytes=stats.bytes;
     s.status.lost_video_frames=p.videoLosses;s.status.missing_audio_packets=p.audioHoles;
     s.status.output_disconnects=p.outputDisconnects;
+    s.status.audio_samples_per_packet=p.audio.samples_per_frame;
+    if(p.clock) {
+        auto video=p.clock->diagnostics(MediaTrack::Video),audio=p.clock->diagnostics(MediaTrack::Audio);
+        s.status.video_clock_drift_us=video.driftUs;s.status.audio_clock_drift_us=audio.driftUs;
+        s.status.video_clock_elapsed_us=video.elapsedUs;s.status.audio_clock_elapsed_us=audio.elapsedUs;
+        s.status.video_clock_position=video.position;s.status.audio_clock_position=audio.position;
+    }
     auto now=chiaki_time_now_monotonic_us();
     s.status.queue_age_us=stats.oldestReceiptUs && now>=stats.oldestReceiptUs?now-stats.oldestReceiptUs:0;
     s.status.codec=p.options.codec;

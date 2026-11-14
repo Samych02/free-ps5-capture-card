@@ -36,7 +36,7 @@ def first_frame(path):
 
 class ClockTests(unittest.TestCase):
     def test_two_hour_clock_and_owned_queue(self):
-        for binary, count in (("capture-timeline-tests", 5), ("capture-queue-tests", 14)):
+        for binary, count in (("capture-timeline-tests", 7), ("capture-queue-tests", 14)):
             with self.subTest(suite=binary):
                 result = run(str(BUILD / "Tests/Native" / binary), timeout=30)
                 self.assertIn(f"{count} of {count} (100%) tests successful".encode(), result.stdout)

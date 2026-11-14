@@ -8,6 +8,10 @@ struct EngineStatus: Equatable {
     var videoPackets: UInt64 = 0, audioPackets: UInt64 = 0, reconnects: UInt64 = 0, queuedBytes: UInt64 = 0
     var lostVideoFrames: UInt64 = 0, missingAudioPackets: UInt64 = 0, queueAgeMicroseconds: UInt64 = 0
     var outputDisconnects: UInt64 = 0
+    var videoClockDriftMicroseconds: Int64 = 0, audioClockDriftMicroseconds: Int64 = 0
+    var videoClockElapsedMicroseconds: UInt64 = 0, audioClockElapsedMicroseconds: UInt64 = 0
+    var videoClockPosition: UInt64 = 0, audioClockPosition: UInt64 = 0
+    var audioSamplesPerPacket: UInt32 = 0
 }
 @MainActor
 protocol EngineControlling: AnyObject {
@@ -51,7 +55,11 @@ final class NativeEngineClient: EngineControlling {
                             fpsDenominator: value.fps_den, videoPackets: value.video_packets, audioPackets: value.audio_packets,
                             reconnects: value.reconnects, queuedBytes: value.queued_bytes,
                             lostVideoFrames: value.lost_video_frames, missingAudioPackets: value.missing_audio_packets,
-                            queueAgeMicroseconds: value.queue_age_us, outputDisconnects: value.output_disconnects)
+                            queueAgeMicroseconds: value.queue_age_us, outputDisconnects: value.output_disconnects,
+                            videoClockDriftMicroseconds: value.video_clock_drift_us, audioClockDriftMicroseconds: value.audio_clock_drift_us,
+                            videoClockElapsedMicroseconds: value.video_clock_elapsed_us, audioClockElapsedMicroseconds: value.audio_clock_elapsed_us,
+                            videoClockPosition: value.video_clock_position, audioClockPosition: value.audio_clock_position,
+                            audioSamplesPerPacket: value.audio_samples_per_packet)
     }
     private let relay = EngineRelay()
     private var handle: OpaquePointer?

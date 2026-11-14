@@ -40,6 +40,11 @@ not represent an independent approval.
   stay free of protocol strings and credentials. The user reproduced MissingTrack
   after the TCP fix; distinguish startup alignment from actual delivery gaps.
   The user-specific live-drop root cause is not yet confirmed.
+- Clock follow-up: inspect the distinction between SPS nominal cadence and
+  measured counter progression. Diagnostic drift is media-duration minus elapsed
+  receipt time, not measured A/V sync; per-track spans must survive counter wrap,
+  ignore rejected duplicate/reordered packets and remain separate from OBS epochs.
+  No timing correction has yet been applied on the strength of screenshots alone.
 
 ## Evidence and limitations
 

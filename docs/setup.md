@@ -73,6 +73,14 @@ is still pending.
   attachment if that track never entered the queue). **audio-start** is a startup
   timestamp comparison, not a measured synchronization error. Include the entire
   message when reporting a drop.
+  Clock-diagnostic builds also show **Clock drift vs ingress** and **Observed
+  counters**. Positive drift means counter-derived duration advances faster than
+  observed receipt time; negative means slower. Rates use unwrapped counter
+  advances, not decoded/displayed FPS or simply the number of callbacks. They
+  include source counter gaps, exclude rejected duplicates/reordering, and span
+  the current PS5 session even when OBS reconnects. Network jitter can affect
+  these values; they are not measured A/V sync or hardware-clock accuracy.
+  Report both clock lines together with the reset message after a drop.
 - Transient loss retries with bounded backoff. In-use, rejected credentials and
   incompatible media errors need action. Stop before retrying a fatal error.
 - A login prompt accepts a masked **4-digit PS5 login passcode**; pairing uses

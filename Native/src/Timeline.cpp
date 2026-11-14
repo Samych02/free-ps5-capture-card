@@ -41,6 +41,7 @@ Timeline::Observation Timeline::observe(MediaTrack track, uint16_t index, uint64
     }
     int64_t mediaUs;
     try { mediaUs = mediaTime(track, nextPosition); } catch(const std::overflow_error &) { return fail(); }
+    if(!clock.started) clock.firstReceiptUs=receipt;
     clock.started = true; clock.raw = index; clock.position = nextPosition;
     clock.receiptUs = std::max(clock.receiptUs, receipt);
     if(!missing) {
@@ -66,5 +67,13 @@ std::optional<int64_t> Timeline::pts(MediaTrack track, uint64_t position) const 
     if(track == MediaTrack::Audio) value += config_.audioOffsetUs;
     if(value < INT64_MIN || value > INT64_MAX) return std::nullopt;
     return static_cast<int64_t>(value);
+}
+Timeline::Diagnostics Timeline::diagnostics(MediaTrack track) const {
+    const auto &clock=track==MediaTrack::Video?video_:audio_;
+    if(!clock.started) return {};
+    Diagnostics result{clock.position,clock.receiptUs-clock.firstReceiptUs,0};
+    try {result.driftUs=mediaTime(track,clock.position)-int64_t(result.elapsedUs);}
+    catch(const std::overflow_error &) {result.driftUs=INT64_MAX;}
+    return result;
 }
 }

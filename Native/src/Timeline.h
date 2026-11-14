@@ -14,6 +14,10 @@ public:
     static constexpr uint64_t ObservationUs = 250000, MaxGapUs = 2000000;
     enum class Status { Accepted, Duplicate, Reordered, Discontinuity };
     struct Observation { Status status; uint64_t position; };
+    struct Diagnostics {
+        uint64_t position=0,elapsedUs=0;
+        int64_t driftUs=0;
+    };
     // fps must be independently verified by the caller, not just requested max.
     // Caller serializes this object. origin begins the MEDIA observation window
     // (e.g. stream-info, no later than initial packet entry), not authentication
@@ -24,12 +28,13 @@ public:
                         uint32_t samples = 0, bool missing = false);
     bool freeze(uint64_t nowUs);
     std::optional<int64_t> pts(MediaTrack track, uint64_t position) const;
+    Diagnostics diagnostics(MediaTrack) const;
     bool failed() const { return failed_; }
 private:
     struct Clock {
         bool started = false, hasPayload = false;
         uint16_t raw = 0;
-        uint64_t position = 0, receiptUs = 0;
+        uint64_t position = 0, receiptUs = 0, firstReceiptUs = 0;
         int64_t offsetUs = INT64_MAX;
     } video_, audio_;
     TimelineConfig config_;

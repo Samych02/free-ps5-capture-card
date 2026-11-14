@@ -61,6 +61,11 @@ over this history. No raw socket/protocol strings or media payloads are logged.
 Missing-track resets preserve configuration/startup/delivery stage, per-track
 receipt ages and any startup audio-to-keyframe PTS delta before clearing state.
 This snapshot does not relax queue policy or represent an end-to-end sync measure.
+Per-source clock diagnostics compare each accepted unwrapped counter's nominal
+media duration with elapsed first-to-last receipt time, independently of the
+frozen phase estimate. Both signed drifts, counter spans and the audio sample
+duration reach status; UI reports observed counter rates separately from SPS FPS.
+These numbers diagnose nominal-cadence assumptions without changing timestamps.
 
 The app never opens a codec, plays media, initializes controller/microphone media,
 tone-maps or records. OBS decodes both tracks and optionally encodes final output.

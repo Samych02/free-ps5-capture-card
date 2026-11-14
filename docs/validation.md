@@ -2,6 +2,39 @@
 
 ## Active OBS output-drop investigation
 
+### Growing startup offset and counter-clock diagnostic follow-up
+
+The user supplied two screenshots from an unchanged source session. The retained
+startup audio-start offset grows from +1040 ms to +3351 ms; both tracks remain
+fresh (10/18 ms, then 5/20 ms audio/video ages). Received counts advance from
+2502/4279 to 10921/18549 video/audio; OBS resets increase from 8 to 71 with zero
+source retries/loss/hole counters. This supports accumulated clock divergence,
+but does not establish which counter/cadence mapping is wrong or actual A/V sync.
+
+`build/clock_mapping_probe.cpp` uses the production Timeline to reproduce the
+failure mechanism without live media. SPS 60000/1001 plus continuous 59-fps video
+and 480-sample/10-ms audio yields -2823 ms video-duration-versus-receipt drift
+after 180 seconds, while audio drift is zero. For 60-fps video it yields +179 ms.
+The input rates are controlled hypotheses, not a claim about the user's PS5.
+The pinned upstream playback code also estimates intervals, rather than treating
+SPS as proof of transport cadence; no playback/decoder code is enabled here.
+
+Follow-up status includes independently measured per-track counter spans,
+elapsed receipt spans, signed nominal-duration drift and audio samples per packet.
+Clock diagnostics are unaffected by a constant start phase, and retain unwrapped
+positions across raw-counter wraps while excluding rejected duplicate/reordered
+observations. They do not alter timestamps, clocks, reset limits or buffering.
+Native missing-metric assertions fail in `build/clock-rate-red.log`; app bridge
+assertions fail in `build/clock-rate-app-red.log`. A live retry must identify the
+clock mismatch before a timing correction is justified.
+
+Latest developer candidate: `build/package-clock-diagnostics/Free PS5 Capture Card.app`.
+`build/clock-check-*.log` records 10 native targets, 72 app tests, 10 ASan targets,
+7 selected TSAN targets and 7 policy tests passing, plus successful Release
+packaging. `Tests/Support/check_bundle.py --app` passes for 28 arm64 Mach-O files;
+`codesign --verify --deep --strict` passes. No live clock-rate evidence or timing
+correction is claimed by these automated checks.
+
 ### Live retry and more specific track diagnostics
 
 The user reproduced black OBS output with the TCP compatibility candidate.
@@ -23,7 +56,7 @@ Expected missing details failed in `build/track-detail-red.log`; expected detail
 messages failed in `build/track-message-red.log`. Specific live cause and remedy
 remain pending a retry with the more detailed diagnostic candidate.
 
-Latest developer candidate: `build/package-track-diagnostics/Free PS5 Capture Card.app`.
+Previous track-diagnostic candidate: `build/package-track-diagnostics/Free PS5 Capture Card.app`.
 Verification in `build/track-check-*.log`: 10 native targets, 71 app tests,
 10 ASan targets, 7 selected TSAN targets and 7 policy tests pass; Release packaging
 succeeds. `Tests/Support/check_bundle.py --app` validates 28 arm64 Mach-O files,

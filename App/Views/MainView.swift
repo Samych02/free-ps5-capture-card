@@ -70,6 +70,12 @@ struct MainView: View {
                                 .font(.caption).monospacedDigit().accessibilityIdentifier("receivedMediaStatus")
                             Text("Queue: \(model.status.queuedBytes / 1024) KiB / \(model.status.queueAgeMicroseconds / 1000) ms · video lost \(model.status.lostVideoFrames) · audio missing \(model.status.missingAudioPackets) · source retries \(model.status.reconnects) · OBS resets \(model.status.outputDisconnects)")
                                 .font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                            if model.status.videoClockElapsedMicroseconds > 0 {
+                                Text("Clock drift vs ingress: video \(model.status.videoClockDriftMicroseconds / 1000) ms · audio \(model.status.audioClockDriftMicroseconds / 1000) ms")
+                                    .font(.caption).foregroundStyle(.secondary).monospacedDigit().accessibilityIdentifier("sourceClockDrift")
+                                Text("Observed counters: video \(counterRate(model.status.videoClockPosition, model.status.videoClockElapsedMicroseconds))/s · audio \(counterRate(model.status.audioClockPosition, model.status.audioClockElapsedMicroseconds))/s · \(model.status.audioSamplesPerPacket) samples/audio packet")
+                                    .font(.caption).foregroundStyle(.secondary).monospacedDigit().accessibilityIdentifier("sourceClockRates")
+                            }
                         }
                         HStack {
                             Button("Start Capture", systemImage: "play.fill") {
@@ -106,6 +112,10 @@ struct MainView: View {
     private var cadence: String {
         guard model.status.fpsDenominator > 0 else { return "unknown" }
         return String(format: "%.2f", Double(model.status.fpsNumerator) / Double(model.status.fpsDenominator))
+    }
+    private func counterRate(_ position: UInt64, _ elapsedMicroseconds: UInt64) -> String {
+        guard elapsedMicroseconds > 0 else { return "unknown" }
+        return String(format: "%.3f", Double(position) * 1_000_000 / Double(elapsedMicroseconds))
     }
     private var status: String {
         switch model.state {

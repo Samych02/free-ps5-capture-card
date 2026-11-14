@@ -2,6 +2,45 @@
 
 ## Active OBS disconnect investigation
 
+### Counter-clock investigation after user continuation
+
+The user approved continuing the clock-mapping investigation, not replacing the
+compressed transport with Syphon. Confirmed assumption in `Pipeline.cpp`: video
+PTS uses unwrapped transport frame indices multiplied by parsed SPS frame period;
+audio PTS uses unwrapped audio indices multiplied by validated Opus sample duration.
+Neither output clock is checked against observed ingress cadence after freezing.
+The pinned upstream `lib/src/ffmpegdecoder.c` separately estimates video intervals;
+that playback implementation is evidence that nominal FPS is not sufficient, not
+code to enable or copy (our app still must not decode).
+
+Controlled experiment `build/clock_mapping_probe.cpp`, compiled with the real
+`Native/src/Timeline.cpp`: with SPS 60000/1001 and continuous 59-fps video plus
+480-sample/10-ms audio, the video clock falls 2823 ms behind receipts over 180 s,
+while audio clock drift is zero. With continuous 60-fps video, it instead leads
+by 179 ms. This reproduces a mechanism consistent with the growing live offset,
+but does not establish the user's actual per-track cadence or defective clock.
+
+Next bounded diagnostic implementation: expose each clock's unwrapped position,
+elapsed first-to-last receipt time and media-duration-minus-receipt-duration drift,
+plus negotiated audio samples per packet. Show these nonsecret numbers in the
+existing status readout. Keep timestamp output, calibration, buffering and reset
+policy unchanged until actual cadence evidence identifies the incorrect mapping.
+No media or protocol capture, decoder use, or credential access.
+
+- [x] Controlled counter-rate mismatch reproduction with the actual Timeline.
+- [x] Red native tests for drift, phase independence, wraps and duplicate/reorder
+  exclusion (`build/clock-rate-red.log`).
+- [x] Red app status bridge test (`build/clock-rate-app-red.log`), then minimal
+  native/status/UI implementation. Clock span/drift computation is read-only;
+  it does not change existing output PTS or frozen calibration. Full verification
+  and `build/package-clock-diagnostics` packaging run in the background.
+- [x] Automated verification: 10 native targets, 72 app tests, 10 ASan targets,
+  7 selected TSAN targets and 7 policy tests pass (`build/clock-check-*.log`).
+  Release candidate `build/package-clock-diagnostics/Free PS5 Capture Card.app`
+  passes bundle validation for 28 arm64 Mach-O files and strict recursive
+  signature verification. Live clock diagnosis and capture resolution remain open.
+- [ ] Live rate evidence identifies clock divergence before a timing correction.
+
 ### Live retry after TCP compatibility fix
 
 The user reproduced black output on the diagnostic candidate. Screenshot:
@@ -32,6 +71,29 @@ limits without evidence or recording live payloads.
   `build/package-track-diagnostics/Free PS5 Capture Card.app`; 28 arm64 Mach-O
   bundle validation and strict recursive signature checks pass.
 - [ ] Establish the specific live failure from the detailed reset before fixing it.
+
+Detailed live screenshot: startup alignment failed, audio age 10 ms, video age
+18 ms, audio-start +1040 ms; 2502 received video packets, 4279 audio packets,
+8 OBS resets, zero source retries/loss/hole counters. Both tracks were fresh in
+the queue at the failed alignment. The +1040 ms value compares latest audio PTS
+to the starting keyframe, not same-instant A/V sync. Candidate causes are a bad
+initial phase estimate or accumulated divergence of frame-index/sample clocks;
+SPS cadence alone does not establish transport frame-index timing. Next cheap
+experiment: compare another reset snapshot after ~20 seconds without restarting
+or changing settings. Growing audio-start suggests divergence; a stable value
+suggests a persistent phase/startup-boundary problem. Neither conclusion alone
+proves which source clock is wrong. No timing-policy change is justified yet.
+
+The next unchanged-session screenshot reports audio-start +3351 ms (previously
++1040 ms), fresh audio/video ages 5/20 ms, 10921 video / 18549 audio packets,
+71 OBS resets and zero source retries/loss/hole counters. The growing startup
+offset with fresh tracks supports accumulated clock divergence, not a fixed
+startup phase alone. Since these are reset-time snapshots, not simultaneous
+source-clock measurements, the exact faulty cadence/index mapping remains to be
+established. User asked whether Syphon would be easier; no transport redesign
+has been authorized. Syphon carries decoded GPU video rather than this compressed
+two-track stream and would require app-side decoding plus a separate audio path,
+changing the current no-decoding/single-source constraints.
 
 User reports OBS repeatedly disconnects while the capture app returns to
 Waiting for OBS, including after reducing requested bitrate from 60 to 15 Mbps.

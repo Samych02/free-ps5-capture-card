@@ -3,6 +3,21 @@ import CaptureEngine
 @testable import FreePS5CaptureCard
 
 final class EngineClientTests: XCTestCase {
+    func testNativeStatusPreservesSignedClockDriftAndCounterSpans() {
+        var value = capture_status()
+        value.video_clock_drift_us = -2_823_000; value.audio_clock_drift_us = 700
+        value.video_clock_elapsed_us = 180_000_000; value.audio_clock_elapsed_us = 179_990_000
+        value.video_clock_position = 10620; value.audio_clock_position = 17999
+        value.audio_samples_per_packet = 480
+        let result = NativeEngineClient.decodedStatus(value)
+        XCTAssertEqual(result.videoClockDriftMicroseconds, -2_823_000)
+        XCTAssertEqual(result.audioClockDriftMicroseconds, 700)
+        XCTAssertEqual(result.videoClockElapsedMicroseconds, 180_000_000)
+        XCTAssertEqual(result.audioClockElapsedMicroseconds, 179_990_000)
+        XCTAssertEqual(result.videoClockPosition, 10620)
+        XCTAssertEqual(result.audioClockPosition, 17999)
+        XCTAssertEqual(result.audioSamplesPerPacket, 480)
+    }
     func testNativeStatusKeepsOutputResetCauseSeparateFromSourceRetries() {
         var value = capture_status()
         value.width = 1920; value.video_packets = 500; value.audio_packets = 600

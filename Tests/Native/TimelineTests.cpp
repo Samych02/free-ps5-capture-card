@@ -86,6 +86,47 @@ static MunitResult validation_and_missing(const MunitParameter[], void *) {
     munit_assert_true(reset.observe(MediaTrack::Video,1,2020001).status == Timeline::Status::Discontinuity);
     return MUNIT_OK;
 }
+static MunitResult counter_rate_diagnostics(const MunitParameter[],void *) {
+    // Matching Opus and variable video counters continue arriving without any
+    // lost indices. SPS 59.94 timing is not proof of 59.94 transport cadence.
+    Timeline clock({60000,1001,48000,480,0},0);
+    clock.observe(MediaTrack::Video,0,0);clock.observe(MediaTrack::Audio,0,0,480);
+    munit_assert_true(clock.freeze(250000));
+    for(uint64_t i=1;i<=18000;++i) {
+        munit_assert_true(clock.observe(MediaTrack::Video,uint16_t(i),i*1000000/59).status==Timeline::Status::Accepted);
+        munit_assert_true(clock.observe(MediaTrack::Audio,uint16_t(i),i*10000,480).status==Timeline::Status::Accepted);
+    }
+    auto video=clock.diagnostics(MediaTrack::Video),audio=clock.diagnostics(MediaTrack::Audio);
+    munit_assert_uint64(video.position,==,18000);
+    munit_assert_uint64(video.elapsedUs,==,18000ull*1000000/59);
+    munit_assert_int64(video.driftUs,==,int64_t(18000ull*1000000*1001/60000)-int64_t(video.elapsedUs));
+    munit_assert_int64(video.driftUs,<,-4000000);
+    munit_assert_uint64(audio.position,==,18000);
+    munit_assert_uint64(audio.elapsedUs,==,180000000);
+    munit_assert_int64(audio.driftUs,==,0);
+    return MUNIT_OK;
+}
+static MunitResult diagnostics_phase_wrap_and_duplicates(const MunitParameter[],void *) {
+    Timeline clock({50,1,48000,480,0},1000000);
+    clock.observe(MediaTrack::Video,65530,1050000);clock.observe(MediaTrack::Audio,65530,1040000,480);
+    munit_assert_true(clock.freeze(1250000));
+    for(uint64_t i=1;i<=100000;++i) {
+        clock.observe(MediaTrack::Video,uint16_t(65530+i),1050000+i*20000);
+        clock.observe(MediaTrack::Audio,uint16_t(65530+i),1040000+i*10000,480);
+    }
+    for(auto track:{MediaTrack::Video,MediaTrack::Audio}) {
+        auto before=clock.diagnostics(track);
+        munit_assert_int64(before.driftUs,==,0);munit_assert_uint64(before.position,==,100000);
+        auto samples=track==MediaTrack::Audio?480u:0u;
+        auto receipt=track==MediaTrack::Audio?1040000+100000ull*10000:1050000+100000ull*20000;
+        clock.observe(track,uint16_t(65530+100000),receipt+1000,samples);
+        clock.observe(track,uint16_t(65530+99999),receipt+2000,samples);
+        auto after=clock.diagnostics(track);
+        munit_assert_uint64(after.elapsedUs,==,before.elapsedUs);
+        munit_assert_int64(after.driftUs,==,0);
+    }
+    return MUNIT_OK;
+}
 int main(int argc, char **argv) {
     MunitTest tests[] = {
         {const_cast<char *>("/common-clock"), common_clock, nullptr, nullptr, MUNIT_TEST_OPTION_NONE, nullptr},
@@ -93,6 +134,8 @@ int main(int argc, char **argv) {
         {const_cast<char *>("/wrap-reorder-holes"), wrap_reorder_holes, nullptr, nullptr, MUNIT_TEST_OPTION_NONE, nullptr},
         {const_cast<char *>("/two-hour-rational"), two_hour_rational, nullptr, nullptr, MUNIT_TEST_OPTION_NONE, nullptr},
         {const_cast<char *>("/validation-missing"), validation_and_missing, nullptr, nullptr, MUNIT_TEST_OPTION_NONE, nullptr},
+        {const_cast<char *>("/counter-rate-diagnostics"), counter_rate_diagnostics, nullptr, nullptr, MUNIT_TEST_OPTION_NONE, nullptr},
+        {const_cast<char *>("/diagnostics-phase-wrap-duplicates"), diagnostics_phase_wrap_and_duplicates, nullptr, nullptr, MUNIT_TEST_OPTION_NONE, nullptr},
         {nullptr, nullptr, nullptr, nullptr, MUNIT_TEST_OPTION_NONE, nullptr}};
     MunitSuite suite{const_cast<char *>("/timeline"), tests, nullptr, 1, MUNIT_SUITE_OPTION_NONE};
     return munit_suite_main(&suite, nullptr, argc, argv);
