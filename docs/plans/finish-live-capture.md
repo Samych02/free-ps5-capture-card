@@ -2,6 +2,46 @@
 
 ## Active OBS disconnect investigation
 
+### Transition reconnect temporarily reports Remote Play in use
+
+On the clock-correction build the user reports capture failing with Remote Play
+already in use, suspected when opening/closing an HDR game. Passive process/socket
+inspection found one local capture app (the correct bundle), no second local
+Remote Play client and no established local/PS5 port-9295 connection at failure.
+The user confirms Stop → about 10 seconds → Start restores capture without pairing.
+This supports temporary console/session release, not credential corruption;
+the initiating HDR/configuration-change event is not yet captured or proven.
+
+Current code intentionally tears down/reconnects on source header/HDR changes,
+joins old receive threads before constructing a replacement, but treats every
+PS5 in-use reply as terminal—even immediately after its own established session
+was automatically restarted. This explains why a transient in-use response cannot
+recover automatically despite a later manual retry working.
+
+Scoped correction: keep in-use terminal on a fresh capture attempt. Only after
+an established session in this same capture invocation is fully torn down for an
+automatic retry, allow in-use replies during a 15-second release grace window.
+Cap these specific retry waits at 2 seconds; do not extend the window for failed/
+busy attempts. A newly established session clears the old grace context. Stop
+must cancel immediately, and genuine persistent busy remains a clear failure.
+No takeover/disconnect commands, credential/pairing changes or HDR/SDR fallback.
+
+- [x] Red pure-policy tests: fresh busy denied; recent owned teardown allowed;
+  exact expiry/backwards time denied; failed retries cannot extend the window.
+- [x] Red engine tests: established → retryable transition → busy → recovery;
+  fresh in-use remains terminal; Stop interrupts owned-busy wait.
+- [x] Minimal owner-scoped grace integration and truthful busy message. Genuine
+  red failures are in `build/release-grace-{session,diagnostics}-red.log`; matching
+  green runs pass (session 6.51 s, diagnostics 0.41 s). Full verification/package
+  runs in `build/release-grace-check-*.log` for `build/package-transition-recovery`.
+- [x] Native/app/sanitizer/policy/package verification: 10 native targets,
+  72 app tests, 10 ASan targets, 7 selected TSAN targets and 7 policy tests pass
+  (`build/release-grace-check-*.log`). Release candidate:
+  `build/package-transition-recovery/Free PS5 Capture Card.app`. Bundle validation
+  passes for 28 arm64 Mach-O files and strict recursive signature verification
+  passes. Independent review and live transitions remain release gates.
+- [ ] User validates actual game/HDR transitions; initial trigger remains unproven.
+
 ### Measured cause and clock correction
 
 The clock-diagnostic live screenshot establishes the divergent clock: parsed SPS

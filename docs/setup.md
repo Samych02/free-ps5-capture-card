@@ -87,8 +87,14 @@ is still pending.
   value is not itself a failure after this correction. Watch the actual output
   state and OBS reset count. No decoder or separate audio source is introduced,
   and real synchronization still needs verification.
-- Transient loss retries with bounded backoff. In-use, rejected credentials and
-  incompatible media errors need action. Stop before retrying a fatal error.
+- Transient loss retries with bounded backoff. A fresh connection reporting
+  Remote Play in use, rejected credentials and incompatible media need action.
+  After an established session is automatically restarted, the app allows busy
+  replies for a short 15-second release grace period with retry waits capped at
+  2 seconds. Failed/busy attempts never extend that window; Stop cancels it.
+  This helps when the console has not yet released the previous session during
+  a game/video transition. It does not take over another client or change HDR to
+  SDR. A brief OBS reconnect can still occur. Stop before retrying a fatal error.
 - A login prompt accepts a masked **4-digit PS5 login passcode**; pairing uses
   the **8-digit Link Device code**. Neither is saved.
 - For denied Local Network access, check System Settings → Privacy & Security

@@ -29,6 +29,12 @@ Live setup first initializes Chiaki's process-wide FEC tables/certificate-cache
 mutex exactly once, serialized across engine instances. Explicit server account/
 registration rejections retain a typed nonretryable identity error rather than
 being collapsed into an indefinitely retried connection failure.
+Fresh Remote Play in-use rejection remains nonretryable. Only an automatically
+restarted, previously established session within the same capture invocation
+arms a 15-second release grace period after full teardown. In-use replacements
+may retry within it, with waits capped at 2 seconds; failed replacements cannot
+refresh the window. A successful connection clears the old release context and
+Stop cancels backoff. No takeover or remote-disconnect commands are sent.
 
 The patched pinned core supplies compressed video/Opus, source indices, receipt
 timestamps, configuration generations and loss/recovery metadata. `Pipeline.cpp`

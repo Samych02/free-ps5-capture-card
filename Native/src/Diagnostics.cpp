@@ -52,7 +52,7 @@ SessionSnapshot classifyQuit(ChiakiQuitReason reason) {
     const char *message="PS5 connection ended. Retrying; check power and local network access.";
     switch(reason) {
         case CHIAKI_QUIT_REASON_SESSION_REQUEST_RP_IN_USE:
-            s.retry=false;s.status.error=CAPTURE_ERROR_IN_USE;message="Remote Play is already in use. Stop the other session and try again.";break;
+            s.retry=false;s.status.error=CAPTURE_ERROR_IN_USE;message="PS5 reports Remote Play is already in use. Stop any other client, or wait for the previous session to close, then try again.";break;
         case CHIAKI_QUIT_REASON_SESSION_REQUEST_RP_VERSION_MISMATCH:
             s.retry=false;message="PS5 Remote Play protocol version is unsupported.";break;
         case CHIAKI_QUIT_REASON_PSN_REGIST_FAILED:

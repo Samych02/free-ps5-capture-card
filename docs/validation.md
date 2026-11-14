@@ -2,6 +2,39 @@
 
 ## Active OBS output-drop investigation
 
+### Game/HDR transition follow-up: transient console in-use rejection
+
+On the clock-fix candidate, the user reports Remote Play already in use and
+suspects opening/closing an HDR game. The initiating metadata/configuration change
+is not yet captured. Passive process/socket checks found one local capture app,
+the intended clock-fix bundle, and no established port-9295 connection at failure.
+The user confirms Stop → roughly 10 seconds → Start recovers without re-pairing.
+This supports temporary session-release/reconnect handling; another device was
+not ruled out and the exact PS5 release mechanism is not independently proven.
+
+Existing code joins old sessions before replacement, but always makes in-use
+terminal. The scoped correction retains terminal rejection for fresh captures,
+and allows in-use retry only within a 15-second grace period armed by full teardown
+of a previously established session during this capture's automatic recovery.
+Failed/busy replacement attempts cannot extend it; retry waits are capped at
+2 seconds and Stop interrupts the wait. A successful connection clears old grace.
+No client takeover, credential change, remote-disconnect request or HDR fallback.
+
+Expected missing recovery/cancellation behavior fails in
+`build/release-grace-session-red.log`; expected bounded-policy behavior fails in
+`build/release-grace-diagnostics-red.log`. The initial attempt to pass a regex to
+the named-suite script was rejected before running tests (`build/release-grace-red.log`)
+and is not red-test evidence. Corrected named-suite runs provide genuine failures.
+Actual game/HDR transitions and their automatic recovery remain live gates.
+
+Latest developer candidate:
+`build/package-transition-recovery/Free PS5 Capture Card.app`.
+`build/release-grace-check-*.log` records 10 native targets, 72 app tests,
+10 ASan targets, 7 selected TSAN targets and 7 policy tests passing, plus successful
+Release packaging. `Tests/Support/check_bundle.py --app` validates 28 arm64 Mach-O
+files and `codesign --verify --deep --strict` passes. These checks do not establish
+actual HDR-transition recovery, continuous live reliability or independent review.
+
 ### Measured video clock mismatch and corrective candidate
 
 The latest live screenshot reports SPS 59.94 fps versus 58.921/s video counter
@@ -29,7 +62,7 @@ Expanded tests cover two-hour virtual runs with ±500 ppm audio rate error, boun
 ingress jitter, video cadence changes, wraps, immutable/strictly ordered video
 PTS, exact audio PTS and compressed-payload subsequence preservation.
 
-Latest corrective candidate: `build/package-clock-fix/Free PS5 Capture Card.app`.
+Previous clock-correction candidate: `build/package-clock-fix/Free PS5 Capture Card.app`.
 Final verification (`build/clock-fix-check-*.log`): 10 native targets, 72 app tests,
 10 ASan targets, 7 selected TSAN targets and 7 policy tests pass; Release packaging
 succeeds. `Tests/Support/check_bundle.py --app` validates 28 arm64 Mach-O files;

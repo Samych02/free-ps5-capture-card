@@ -19,13 +19,20 @@ struct Events {
     std::atomic<int> starts{0},joins{0},pins{0};
     std::atomic<bool> requestPin{false};
     bool transientFirst=false;
+    bool ownedThenBusy=false,freshBusy=false;
 };
 struct FakeSession: SessionBackend {
-    Events &events; bool joined=false;
+    Events &events; bool joined=false;unsigned snapshots=0;
     explicit FakeSession(Events &e):events(e) { ++e.starts; }
     ~FakeSession() { stopAndJoin(); }
     SessionSnapshot snapshot() override {
         SessionSnapshot s; s.status.state=events.requestPin?CAPTURE_PIN_REQUIRED:CAPTURE_WAITING_OBS;
+        if(events.freshBusy || (events.ownedThenBusy && events.starts==2)) {
+            s.done=true;s.retry=false;s.status.state=CAPTURE_FAILED;s.status.error=CAPTURE_ERROR_IN_USE;
+        } else if(events.ownedThenBusy && events.starts==1 && snapshots++>0) {
+            s.done=true;s.retry=true;s.status.state=CAPTURE_FAILED;s.status.error=CAPTURE_ERROR_CONNECTION;
+            strcpy(s.status.message,"Source HDR metadata changed. Reconnecting both tracks.");
+        }
         if(events.transientFirst && events.starts==1) {s.done=true;s.retry=true;s.status.state=CAPTURE_FAILED;}
         return s;
     }
@@ -134,6 +141,42 @@ static MunitResult transport_faults(const MunitParameter[],void *) {
     munit_assert_true(std::chrono::steady_clock::now()-before<std::chrono::milliseconds(100));
     return MUNIT_OK;
 }
+static bool waitOwnedBusy(Events &e,bool recovered) {
+    std::unique_lock<std::mutex> lock(e.mutex);
+    return e.changed.wait_for(lock,std::chrono::seconds(6),[&] {
+        return recovered?(e.state==CAPTURE_WAITING_OBS && e.starts>=3):(e.state==CAPTURE_RETRYING && e.starts==2);
+    });
+}
+static MunitResult owned_busy_recovers(const MunitParameter[],void *) {
+    Events e;e.ownedThenBusy=true;auto o=capture_default_options();o.port=availablePort();auto c=connection();
+    auto engine=create(o,e);capture_engine_configure(engine,&o,&c);capture_engine_start(engine);
+    munit_assert_true(waitOwnedBusy(e,true));
+    munit_assert_int(e.starts.load(),==,3);munit_assert_int(e.joins.load(),==,2);
+    capture_engine_stop(engine);munit_assert_true(wait(e,CAPTURE_STOPPED));capture_engine_destroy(engine);
+    munit_assert_int(e.joins.load(),==,3);
+    return MUNIT_OK;
+}
+static MunitResult fresh_busy_stays_terminal(const MunitParameter[],void *) {
+    Events e;e.freshBusy=true;auto o=capture_default_options();o.port=availablePort();auto c=connection();
+    auto engine=create(o,e);capture_engine_configure(engine,&o,&c);capture_engine_start(engine);
+    munit_assert_true(wait(e,CAPTURE_FAILED));
+    capture_status status{};status.size=sizeof(status);status.version=CAPTURE_API_VERSION;
+    munit_assert_int(capture_engine_get_status(engine,&status),==,CAPTURE_OK);
+    munit_assert_int(status.error,==,CAPTURE_ERROR_IN_USE);
+    munit_assert_uint64(status.reconnects,==,0);
+    capture_engine_destroy(engine);munit_assert_int(e.starts.load(),==,1);
+    return MUNIT_OK;
+}
+static MunitResult owned_busy_stop_cancels_wait(const MunitParameter[],void *) {
+    Events e;e.ownedThenBusy=true;auto o=capture_default_options();o.port=availablePort();auto c=connection();
+    auto engine=create(o,e);capture_engine_configure(engine,&o,&c);capture_engine_start(engine);
+    munit_assert_true(waitOwnedBusy(e,false));
+    auto before=std::chrono::steady_clock::now();capture_engine_stop(engine);
+    munit_assert_true(wait(e,CAPTURE_STOPPED));
+    munit_assert_true(std::chrono::steady_clock::now()-before<std::chrono::milliseconds(500));
+    capture_engine_destroy(engine);munit_assert_int(e.starts.load(),==,2);munit_assert_int(e.joins.load(),==,2);
+    return MUNIT_OK;
+}
 static MunitResult core_initialization_is_serialized(const MunitParameter[],void *) {
     std::vector<std::thread> workers;ChiakiErrorCode results[8]{};
     for(size_t i=0;i<8;++i) workers.emplace_back([&,i]{results[i]=initializeCaptureCore();});
@@ -204,6 +247,9 @@ int main(int argc,char **argv) {
         {const_cast<char *>("/retry-cancel"),retry_and_cancel,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
         {const_cast<char *>("/transport-faults"),transport_faults,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
         {const_cast<char *>("/core-initialization"),core_initialization_is_serialized,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
+        {const_cast<char *>("/owned-busy-recovers"),owned_busy_recovers,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
+        {const_cast<char *>("/fresh-busy-terminal"),fresh_busy_stays_terminal,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
+        {const_cast<char *>("/owned-busy-stop"),owned_busy_stop_cancels_wait,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
         {nullptr,nullptr,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr}};
     MunitSuite suite{const_cast<char *>("/session"),tests,nullptr,1,MUNIT_SUITE_OPTION_NONE}; return munit_suite_main(&suite,nullptr,argc,argv);
 }

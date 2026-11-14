@@ -77,11 +77,32 @@ static MunitResult missing_track_messages(const MunitParameter[],void *) {
     }
     return MUNIT_OK;
 }
+static MunitResult owned_release_grace_is_bounded(const MunitParameter[],void *) {
+    using Grace=capture::SessionReleaseGrace;
+    for(uint64_t start:{0ull,1000000ull}) {
+        Grace grace;
+        munit_assert_false(grace.allowsBusyRetry(start));
+        grace.toreDown(false,true,start);
+        munit_assert_false(grace.allowsBusyRetry(start));
+        grace.toreDown(true,false,start);
+        munit_assert_false(grace.allowsBusyRetry(start));
+        grace.toreDown(true,true,start);
+        munit_assert_true(grace.allowsBusyRetry(start));
+        munit_assert_true(grace.allowsBusyRetry(start+Grace::WindowUs-1));
+        if(start) munit_assert_false(grace.allowsBusyRetry(start-1));
+        grace.toreDown(false,true,start+Grace::WindowUs-1);
+        munit_assert_false(grace.allowsBusyRetry(start+Grace::WindowUs));
+        grace.established();
+        munit_assert_false(grace.allowsBusyRetry(start));
+    }
+    return MUNIT_OK;
+}
 int main(int argc,char **argv) {
     MunitTest tests[]{{const_cast<char *>("/quit-policy"),quit_policy,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
         {const_cast<char *>("/loss-counters"),loss_counters,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
         {const_cast<char *>("/output-reset-reasons"),output_reset_reasons,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
         {const_cast<char *>("/missing-track-messages"),missing_track_messages,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
+        {const_cast<char *>("/owned-release-grace"),owned_release_grace_is_bounded,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr},
         {nullptr,nullptr,nullptr,nullptr,MUNIT_TEST_OPTION_NONE,nullptr}};
     MunitSuite suite{const_cast<char *>("/diagnostics"),tests,nullptr,1,MUNIT_SUITE_OPTION_NONE};return munit_suite_main(&suite,nullptr,argc,argv);
 }

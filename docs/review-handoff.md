@@ -49,6 +49,12 @@ not represent an independent approval.
   handling, immutable/monotonic video PTS, overflow bounds, continued exact audio
   sample PTS and OBS reconnect continuity. The correction uses ingress timing,
   not encoder PTS; verify real A/V sync and jitter behaviour independently.
+- Transition recovery: review the owner-scoped console-release grace. Fresh busy
+  must remain terminal; only full teardown of an established automatic-retry
+  attempt arms the window. Busy/failed attempts must not extend it, reconnection
+  clears stale context, and Stop must prevent another attempt. Confirm no takeover
+  commands or HDR fallback. The user's Stop/wait/Start result supports a release
+  delay, not proof that HDR metadata was the initiating event.
 
 ## Evidence and limitations
 

@@ -48,9 +48,13 @@ struct capture_engine {
         try { server=std::make_unique<capture::LocalTCPServer>(uint16_t(options.port)); }
         catch(...) { failure(CAPTURE_ERROR_PORT,"Local output port is unavailable. Stop, choose a free port, and update OBS."); return; }
         unsigned retries=0;
+        capture::SessionReleaseGrace releaseGrace;
+        const auto captureOrigin=std::chrono::steady_clock::now();
+        auto elapsedUs=[&](auto now) {return uint64_t(std::chrono::duration_cast<std::chrono::microseconds>(now-captureOrigin).count());};
         while(!cancelled()) {
             emit(CAPTURE_CONNECTING);
             bool retry=false;
+            bool hadEstablishedSession=false,busyReleaseRetry=false;
             uint64_t stableUs=0;
             try {
                 auto session=factory(options,connection,*server);
@@ -67,6 +71,13 @@ struct capture_engine {
                     }
                     auto snapshot=session->snapshot(); snapshot.status.reconnects=retries;
                     auto now=std::chrono::steady_clock::now();
+                    if(!snapshot.done && (snapshot.status.state==CAPTURE_WAITING_OBS || snapshot.status.state==CAPTURE_STREAMING)) {
+                        hadEstablishedSession=true;releaseGrace.established();
+                    }
+                    if(snapshot.done && snapshot.status.error==CAPTURE_ERROR_IN_USE && releaseGrace.allowsBusyRetry(elapsedUs(now))) {
+                        snapshot.retry=true;snapshot.status.state=CAPTURE_RETRYING;busyReleaseRetry=true;
+                        strncpy(snapshot.status.message,"PS5 is busy after the previous session ended. Retrying briefly.",sizeof(snapshot.status.message)-1);
+                    }
                     if(snapshot.status.state==CAPTURE_STREAMING) {
                         if(!streaming) {streaming=true;stableSince=now;}
                         stableUs=std::chrono::duration_cast<std::chrono::microseconds>(now-stableSince).count();
@@ -80,11 +91,16 @@ struct capture_engine {
                 }
                 session->stopAndJoin();
             } catch(...) { failure(CAPTURE_ERROR_CONNECTION,"Cannot establish the PS5 connection. Check power, Remote Play, network permissions and pairing."); retry=true; }
+            // Arm only after a previously established attempt is fully torn
+            // down. Busy/failed replacement attempts must not extend the grace.
+            releaseGrace.toreDown(hadEstablishedSession,retry,elapsedUs(std::chrono::steady_clock::now()));
             server->disconnect();
             if(cancelled() || !retry) break;
             retries=capture::nextRetryAttempt(retries,stableUs);emit(CAPTURE_RETRYING);
             std::unique_lock<std::mutex> lock(mutex);
-            changed.wait_for(lock,std::chrono::milliseconds(capture::retryDelayMilliseconds(retries)),[&] { return closing || stops; });
+            auto delay=capture::retryDelayMilliseconds(retries);
+            if(busyReleaseRetry) delay=std::min(delay,2000u);
+            changed.wait_for(lock,std::chrono::milliseconds(delay),[&] { return closing || stops; });
         }
     }
     void run() {
