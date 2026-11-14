@@ -10,7 +10,11 @@
   Run automated tests while working. Hands-on PS5/OBS gates are deferred to the
   final handoff by user instruction; do not claim them passed beforehand.
 - No app-side media decoding/encoding, playback, preview, controller/microphone
-  features, secret logging, plaintext credential storage, or hidden HDR fallback.
+  features, secret logging, or hidden HDR fallback.
+- User explicitly replaced the Keychain requirement with a local unencrypted
+  credentials file: owner-only directory (0700), file (0600), bounded validated
+  records and atomic updates. OAuth tokens/passcodes stay transient. Start fresh;
+  never read, migrate or delete old Keychain records. No other credential copies.
 - No publishing, installation to Applications, autostart, or notarization without
   separate authorization. Independent review and actual-device evidence remain
   release gates even when development checkpoints pass.
