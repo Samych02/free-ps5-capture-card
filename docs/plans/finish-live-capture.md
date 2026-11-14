@@ -1,5 +1,45 @@
 # Finish standalone PS5 capture
 
+## Completed build-cache isolation follow-up
+
+User requests fixing Debug/Release cache thrashing specifically, without unrelated
+media work. Use `build/native/Debug` and `build/native/Release`; keep old artifacts
+untouched. Update Xcode framework references with `$(CONFIGURATION)`, Debug test
+entry points and defaults, and packaging's configuration-matched license source.
+CI continues through those same entry points. Do not rewrite historical evidence
+paths or migrate old CMake caches (their absolute paths are not relocatable).
+
+Verification: dependency-free mocked Debug→Release→Debug path regression and
+consumer checks first; focused bootstrap/policy tests and shell syntax; real Debug
+and Release native/app builds plus a warm Debug→Release→Debug round trip proving
+each native cache keeps its own build type and Ninja has no recompilation work.
+Time these stages. No media behavior changed, so do not repeat the media/sanitizer
+matrix solely for this build-path change. First builds in new directories are
+necessarily cold; subsequent switches should reuse them. Retain main checkpoint
+and the user's unrelated unstaged plan deletion.
+
+Red evidence: `build/cache-isolation-red.log` fails the independent-cache and
+consumer-selection assertions. Focused Bootstrap suite passes all 9 tests after
+the change, including mocked Debug→Release→Debug commands with spaces in paths;
+shell syntax and XcodeGen generation pass. Initial real native builds ran in
+parallel (independent configuration trees), logged in
+`build/cache-isolation-cold-{Debug,Release}.log`; stage timings are recorded in
+`build/cache-isolation-timings.json`.
+
+Completed evidence: cold native Debug/Release builds took 91.92/94.10 seconds
+in parallel. Warm Debug→Release→Debug took 1.44/1.38/1.37 seconds, each ending
+`ninja: no work to do.` Both CMake build types and every compiled object mtime
+remained unchanged through switching, app builds, tests and packaging.
+Debug/Release app builds passed in 5.87/6.97 seconds; matching native interface
+tests passed in 0.95/0.73 seconds. Direct unit-only XCTest passed all 72 tests
+(6.89-second build/test stage); this is not GUI launch acceptance.
+Embedded framework UUIDs matched their respective native configuration and
+differed between Debug and Release. Release packaging passed in 7.30 seconds:
+`build/package-cache-isolation/Free PS5 Capture Card.app`, including validation
+of 28 arm64 Mach-O files and strict recursive signature verification (0.04 s).
+Logs use `build/cache-isolation-*.log`. No media behavior changed or device gate
+was claimed; existing PS5/OBS acceptance and independent review remain deferred.
+
 ## Active OBS disconnect investigation
 
 ### Active: keep Remote Play alive across supported video changes

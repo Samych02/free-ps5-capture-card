@@ -14,6 +14,7 @@ while (($#)); do
     esac
 done
 case "$CONFIG" in Debug|Release) ;; *) echo "Invalid configuration: $CONFIG" >&2; exit 2 ;; esac
+BUILD_DIR="$ROOT/build/native/$CONFIG"
 for tool in cmake ninja brew pkg-config; do
     command -v "$tool" >/dev/null || { echo "Missing $tool; run scripts/bootstrap.sh" >&2; exit 1; }
 done
@@ -22,9 +23,9 @@ if [[ ! -x "$PYTHON" ]]; then echo "Missing isolated Python; run scripts/bootstr
 OPENSSL="$(brew --prefix openssl@3)"
 PROTOBUF="$(brew --prefix protobuf@29)"
 set -x
-cmake -S "$ROOT" -B "$ROOT/build/native" -G Ninja \
+cmake -S "$ROOT" -B "$BUILD_DIR" -G Ninja \
     -DCMAKE_BUILD_TYPE="$CONFIG" -DBUILD_TESTING="$TESTS" \
     -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DCMAKE_OSX_DEPLOYMENT_TARGET=26.0 \
     -DOPENSSL_ROOT_DIR="$OPENSSL" -DCMAKE_PREFIX_PATH="$OPENSSL;$PROTOBUF" \
     -DPROTOC="$PROTOBUF/bin/protoc" -DPYTHON_EXECUTABLE="$PYTHON"
-cmake --build "$ROOT/build/native" --parallel
+cmake --build "$BUILD_DIR" --parallel

@@ -22,13 +22,14 @@ ditto "$ROOT/build/xcode/Build/Products/$CONFIG/FreePS5CaptureCard.app" "$APP"
 mkdir -p "$APP/Contents/Resources/ProjectNotices"
 cp "$ROOT/LICENSE" "$ROOT/THIRD_PARTY_NOTICES.md" "$APP/Contents/Resources/ProjectNotices/"
 ditto "$ROOT/LICENSES" "$APP/Contents/Resources/ProjectNotices/LICENSES"
-python3 - "$ROOT" "$APP" <<'PY'
+python3 - "$ROOT" "$APP" "$CONFIG" <<'PY'
 from pathlib import Path
 import re
 import shutil
 import sys
-root, app = map(Path, sys.argv[1:])
-source = root / 'build/native/_deps/chiaki-src'
+root, app = map(Path, sys.argv[1:3])
+configuration = sys.argv[3]
+source = root / 'build/native' / configuration / '_deps/chiaki-src'
 destination = app / 'Contents/Resources/ProjectNotices/EmbeddedSources'
 for name, directory in [('chiaki', source)] + [(name, source / 'third-party' / name) for name in ('gf-complete', 'jerasure', 'nanopb')]:
     output = destination / name

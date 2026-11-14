@@ -23,7 +23,7 @@ targets:
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: "1"
     dependencies:
-      - framework: build/native/frameworks/CaptureEngine.framework
+      - framework: build/native/$(CONFIGURATION)/frameworks/CaptureEngine.framework
         embed: true
         codeSign: true
   FreePS5CaptureCardTests:
@@ -36,7 +36,7 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
     dependencies:
       - target: FreePS5CaptureCard
-      - framework: build/native/frameworks/CaptureEngine.framework
+      - framework: build/native/$(CONFIGURATION)/frameworks/CaptureEngine.framework
         embed: false
   FreePS5CaptureCardUITests:
     type: bundle.ui-testing

@@ -13,7 +13,7 @@ import unittest
 from array import array
 
 ROOT = Path(__file__).resolve().parents[2]
-BUILD = ROOT / "build/native"
+BUILD = ROOT / "build/native/Debug"
 MODES = {"h264-opus": "h264", "hevc-opus": "hevc", "hevc-hdr-opus": "hevc"}
 
 
@@ -543,7 +543,7 @@ class RemuxTests(unittest.TestCase):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--build-dir", default="build/native")
+    parser.add_argument("--build-dir", default="build/native/Debug")
     parser.add_argument("--case", choices=["remux-equivalence", "tcp", "faults", "synthetic-clock", "all"], default="all")
     args = parser.parse_args()
     BUILD = (ROOT / args.build_dir).resolve()

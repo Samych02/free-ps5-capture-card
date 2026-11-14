@@ -22,13 +22,13 @@ cd "$ROOT"
 if ((NATIVE)); then
     "$ROOT/scripts/build-native.sh" --config Debug --tests
     if [[ $FILTER == interface || $FILTER == pairing || $FILTER == media-sink || $FILTER == timeline || $FILTER == queue || $FILTER == codec-units || $FILTER == session || $FILTER == diagnostics ]]; then
-        ctest --test-dir build/native --no-tests=error -R "^capture-$FILTER$" --output-on-failure
+        ctest --test-dir build/native/Debug --no-tests=error -R "^capture-$FILTER$" --output-on-failure
     elif [[ $FILTER == mux || $FILTER == tcp ]]; then
         case_name=remux-equivalence
         if [[ $FILTER == tcp ]]; then case_name=tcp; fi
-        "$ROOT/build/python/bin/python3" Tests/Support/integration.py --build-dir build/native --case "$case_name"
+        "$ROOT/build/python/bin/python3" Tests/Support/integration.py --build-dir build/native/Debug --case "$case_name"
     else
-        ctest --test-dir build/native --no-tests=error --output-on-failure
+        ctest --test-dir build/native/Debug --no-tests=error --output-on-failure
     fi
 fi
 if ((APP || UI)); then

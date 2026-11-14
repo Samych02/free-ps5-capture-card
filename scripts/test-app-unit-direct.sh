@@ -20,7 +20,7 @@ environment = {
     'HOME': os.environ['HOME'],
     'TMPDIR': os.environ['TMPDIR'],
     'PATH': '/usr/bin:/bin',
-    'DYLD_FRAMEWORK_PATH': str(root / 'build/native/frameworks') + ':/Applications/Xcode.app/Contents/SharedFrameworks',
+    'DYLD_FRAMEWORK_PATH': str(root / 'build/native/Debug/frameworks') + ':/Applications/Xcode.app/Contents/SharedFrameworks',
     'DYLD_INSERT_LIBRARIES': str(app / 'Contents/MacOS/FreePS5CaptureCard.debug.dylib'),
 }
 result = subprocess.run([runner, str(app / 'Contents/PlugIns/FreePS5CaptureCardTests.xctest')],

@@ -52,6 +52,12 @@ python3 -m unittest discover -s Tests/Bootstrap -v
 ```
 
 App: `build/xcode/Build/Products/Debug/FreePS5CaptureCard.app`.
+Native builds use separate `build/native/Debug` and `build/native/Release` trees.
+Xcode and packaging select the matching framework automatically. Each new tree
+has a one-time cold build; switching configurations then reuses its own compiled
+objects. Older artifacts directly under `build/native` are left untouched but
+are no longer used by these scripts. Explicit CTest runs should select
+`--test-dir build/native/Debug` (or `Release`).
 `scripts/test.sh --ui` also needs a logged-in desktop and working Xcode UI
 automation permission. This currently fails to enable on the development host.
 Automated tests never sign in or contact a real PS5.
@@ -62,7 +68,7 @@ and does not silently replace a failed normal test run.
 
 Native filters: `interface`, `pairing`, `media-sink`, `timeline`, `queue`,
 `codec-units`, `session`, `diagnostics`, `mux`, `tcp`.
-`python3 Tests/Support/integration.py --build-dir build/native --case faults`
+`python3 Tests/Support/integration.py --build-dir build/native/Debug --case faults`
 exercises local recovery. Synthetic encoders/decoders are test tools only.
 Dependencies are fetched into ignored build folders, never an existing Chiaki
 checkout. Homebrew binary builds are not a reproducible binary lock.
