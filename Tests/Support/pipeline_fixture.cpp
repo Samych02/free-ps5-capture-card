@@ -49,7 +49,7 @@ int main(int argc,char **argv) {
         std::cerr << "READY 127.0.0.1:" << options.port << '\n';
         uint64_t start=chiaki_time_now_monotonic_us(); int64_t epoch=AV_NOPTS_VALUE; uint16_t indices[2]{};
         uint64_t lastOutputResets=0,videoGeneration=1,audioGeneration=1;
-        bool paused=false,transitioned=false,reported=false,replayed=false;
+        bool paused=false,transitioned=false,reported=false,replayed=false,gapReported=false,gapReset=false;
         while(!stopped && av_read_frame(input,packet)>=0) {
             int index=packet->stream_index; auto tb=input->streams[index]->time_base;
             int64_t pts=av_rescale_q(packet->pts,tb,AV_TIME_BASE_Q); if(epoch==AV_NOPTS_VALUE) epoch=pts;
@@ -74,6 +74,11 @@ int main(int argc,char **argv) {
                 sink.video_config(&video,sink.user);sink.audio_config(&audio,sink.user);transitioned=true;
             }
             if(index==0 && (av_bsf_send_packet(bsf,packet)<0 || av_bsf_receive_packet(bsf,packet)<0)) throw std::runtime_error("fixture Annex-B conversion");
+            bool recoveryFault=fault.rfind("gap-",0)==0;
+            bool inGap=pts-epoch>=2000000 && pts-epoch<5500000;
+            if(recoveryFault && fault=="gap-both-reset" && !gapReset && pts-epoch>=5500000) {
+                indices[0]=indices[1]=0;gapReset=true;
+            }
             std::vector<uint8_t> oldHeaders;
             if(index==0 && alternate && pts-epoch>=2000000) {
                 if(av_bsf_send_packet(alternateBSF,alternatePacket)<0 || av_bsf_receive_packet(alternateBSF,alternatePacket)<0)
@@ -100,8 +105,10 @@ int main(int argc,char **argv) {
             }
             ChiakiEncodedPacket p{index==0?videoGeneration:audioGeneration,chiaki_time_now_monotonic_us(),indices[index]++,0,index==1?960u:0u,0,
                 altered.empty()?packet->data:altered.data(),altered.empty()?size_t(packet->size):altered.size()};
-            if(index==0) sink.video_packet(&p,sink.user);
-            else if(audioConfigured && fault!="missing-audio") sink.audio_packet(&p,sink.user);
+            bool suppress=recoveryFault && inGap && (fault=="gap-both" || fault=="gap-both-reset" ||
+                (fault=="gap-video" && index==0) || (fault=="gap-audio" && index==1));
+            if(!suppress && index==0) sink.video_packet(&p,sink.user);
+            else if(!suppress && index==1 && audioConfigured && fault!="missing-audio") sink.audio_packet(&p,sink.user);
             if(!replayed && !oldHeaders.empty()) {
                 auto old=p;old.frame_index=uint16_t(p.frame_index-1);old.data=oldHeaders.data();old.size=oldHeaders.size();
                 sink.video_packet(&old,sink.user);replayed=true;
@@ -114,6 +121,9 @@ int main(int argc,char **argv) {
                 std::cerr<<"OUTPUT_RESET "<<lastOutputResets<<' '<<status.status.message<<'\n';
             }
             if(status.done) {std::cerr<<"SOURCE_FAILURE retry="<<status.retry<<'\n';throw std::runtime_error(status.status.message);}
+            if(recoveryFault && !gapReported && pts-epoch>=6500000) {
+                std::cerr<<"GAP_RECOVERED "<<status.status.video_packets<<' '<<status.status.audio_packets<<'\n';gapReported=true;
+            }
             if(fault.rfind("transition-",0)==0 && !reported && pts-epoch>=4000000) {
                 std::cerr<<"TRANSITION_STATUS "<<status.status.output_disconnects<<' '<<status.status.audio_clock_position<<' '
                          <<status.status.audio_packets<<' '<<status.status.video_packets<<'\n';reported=true;

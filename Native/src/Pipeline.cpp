@@ -17,6 +17,7 @@ struct MediaPipeline::Impl {
     std::mutex mutex;
     std::atomic<bool> stopping{false},failed{false},hasOBS{false},outputReady{false};
     bool retry=false,formatPending=false,parsing=false,frozen=false;
+    bool sourceRecovering=false,everCalibrated=false;
     capture_error error=CAPTURE_ERROR_NONE;
     const char *message="";
     uint64_t videoCount=0,audioCount=0,videoGeneration=0,audioGeneration=0,signature=0;
@@ -46,8 +47,26 @@ struct MediaPipeline::Impl {
         error=e; message=m; retry=canRetry; failed=true;
     }
     void fail(capture_error e,const char *m,bool canRetry=false) { std::lock_guard<std::mutex> lock(mutex); failLocked(e,m,canRetry); }
+    void recoverSourceIfStalled(uint64_t now) {
+        if(everCalibrated && !sourceRecovering && format && lastAudioUs && lastVideoUs &&
+           (now-lastAudioUs>Timeline::MaxGapUs || now-lastVideoUs>Timeline::MaxGapUs)) {
+            // Media silence is not a Remote Play disconnect. The core's
+            // connection event remains authoritative; Stop still cancels.
+            // Existing output freshness limits stay in force. Recalibrate only
+            // the next two-track output epoch, never splice a long gap into the
+            // previous clock or fabricate missing audio/video payloads.
+            sourceRecovering=true;clock.reset();frozen=false;
+            firstAudio.reset();firstVideo.reset();lastSourceVideoIndex.reset();
+            if(queue.stats().connected)queue.detach();
+        }
+    }
     void tickClock(uint64_t now) {
         if(!clock && format && firstAudio && firstVideo) {
+            // After an established source pauses, both tracks must be fresh
+            // in the same bounded observation window before a new output clock.
+            auto earliest=std::min(firstAudio->first_receipt_us,firstVideo->first_receipt_us);
+            auto latest=std::max(firstAudio->first_receipt_us,firstVideo->first_receipt_us);
+            if(sourceRecovering && (latest-earliest>Timeline::ObservationUs || now-earliest>Timeline::ObservationUs))return;
             originUs=std::min(firstAudio->first_receipt_us,firstVideo->first_receipt_us);
             clock=std::make_unique<Timeline>(TimelineConfig{uint32_t(format->frameRate.num),uint32_t(format->frameRate.den),audio.sample_rate,audio.samples_per_frame,0,true},originUs);
             clock->observe(MediaTrack::Video,firstVideo->frame_index,firstVideo->first_receipt_us);
@@ -56,6 +75,7 @@ struct MediaPipeline::Impl {
         if(clock && !frozen && now>=originUs && now-originUs>=Timeline::ObservationUs) {
             frozen=clock->freeze(now);
             if(!frozen) failLocked(CAPTURE_ERROR_CONNECTION,"Cannot establish both source clocks. Reconnecting.",true);
+            else {sourceRecovering=false;everCalibrated=true;}
         }
     }
     void replaceVideoHeader(ChiakiEncodedVideoConfig c,bool inBand=false) {
@@ -109,6 +129,9 @@ struct MediaPipeline::Impl {
         uint64_t now=chiaki_time_now_monotonic_us();
         VideoAccess access=VideoAccess::Predicted;
         if(p.size>PacketQueue::MaxPacket || (p.size && !p.data) || p.first_receipt_us>now) throw std::runtime_error("Invalid source packet bounds or timestamp");
+        // Also check at ingress: recovery must not depend on the worker being
+        // scheduled before the first packet following a long pause.
+        recoverSourceIfStalled(now);
         if(isAudio) {
             if(p.flags&CHIAKI_ENCODED_MISSING) ++audioHoles;
             if(!(p.flags&CHIAKI_ENCODED_MISSING)) {
@@ -190,10 +213,9 @@ struct MediaPipeline::Impl {
         }
         std::lock_guard<std::mutex> lock(mutex);
         auto now=chiaki_time_now_monotonic_us(); tickClock(now);
-        if(firstHeaderUs && (!format || !firstAudio || !firstVideo) && now-firstHeaderUs>5000000)
+        if(!sourceRecovering && firstHeaderUs && (!format || !firstAudio || !firstVideo) && now-firstHeaderUs>5000000)
             failLocked(CAPTURE_ERROR_MEDIA,"PS5 did not provide both tracks and usable video headers.");
-        if(format && lastAudioUs && lastVideoUs && (now-lastAudioUs>2000000 || now-lastVideoUs>2000000))
-            failLocked(CAPTURE_ERROR_CONNECTION,"A required media track stopped arriving. Reconnecting.",true);
+        recoverSourceIfStalled(now);
     }
     void run() {
         std::unique_ptr<MatroskaMuxer> mux; Parameters audioParameters;
@@ -213,7 +235,7 @@ struct MediaPipeline::Impl {
             if(failed) break;
             if(!hasOBS) {
                 bool calibrated,needVideo;
-                {std::lock_guard<std::mutex> lock(mutex);calibrated=frozen && bool(format);needVideo=videoGeneration && !format;}
+                {std::lock_guard<std::mutex> lock(mutex);calibrated=frozen && bool(format);needVideo=videoGeneration && (!format || sourceRecovering);}
                 if(!calibrated) {
                     auto now=chiaki_time_now_monotonic_us();
                     if(needVideo && now-lastIDR>=1000000) {request();lastIDR=now;}
@@ -287,7 +309,8 @@ ChiakiEncodedMediaSink MediaPipeline::sink() {
 SessionSnapshot MediaPipeline::snapshot() {
     auto &p=*impl_; auto stats=p.queue.stats(); std::lock_guard<std::mutex> lock(p.mutex);
     SessionSnapshot s; s.done=p.failed; s.retry=p.retry; s.status.state=p.failed?CAPTURE_FAILED:p.outputReady?CAPTURE_STREAMING:CAPTURE_WAITING_OBS;
-    s.status.error=p.error; strncpy(s.status.message,p.failed?p.message:p.lastOutputMessage.c_str(),sizeof(s.status.message)-1);
+    s.status.error=p.error; strncpy(s.status.message,p.failed?p.message:p.sourceRecovering?
+        "Source media paused; waiting for fresh audio and video. PS5 connection remains open.":p.lastOutputMessage.c_str(),sizeof(s.status.message)-1);
     s.status.video_packets=p.videoCount; s.status.audio_packets=p.audioCount; s.status.queued_bytes=stats.bytes;
     s.status.lost_video_frames=p.videoLosses;s.status.missing_audio_packets=p.audioHoles;
     s.status.output_disconnects=p.outputDisconnects;

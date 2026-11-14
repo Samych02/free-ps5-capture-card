@@ -60,6 +60,16 @@ session remain alive, while video counter diagnostics begin a new segment.
 Malformed data, unsupported reordering/codec, real audio format changes or an
 unrequested HDR-to-SDR change fail explicitly—never silently fall back.
 
+An established session's media silence is not itself a Remote Play disconnect.
+After a gap over two seconds, the pipeline keeps the core session alive but
+abandons the old output clock. Queue freshness/storage limits still close stale
+OBS output. When both valid tracks return within one fresh 250 ms observation
+window, the next output epoch gets a newly calibrated two-track clock; source
+packet counters may have advanced or restarted during the gap. No missing media
+is synthesized and no stale packet is replayed to bridge it. Unlike a compatible
+format-only update, this real-gap recovery restarts clock diagnostic spans.
+The core's disconnect event remains authoritative; Stop still terminates capture.
+
 Audio PTS advances by exact validated Opus samples with a frozen initial phase.
 Live video PTS uses first-fragment ingress times mapped onto that audio sample
 timeline: a fixed 16×25 ms bucket lower envelope of valid audio receipt-minus-media

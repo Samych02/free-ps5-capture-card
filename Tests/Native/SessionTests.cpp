@@ -31,9 +31,10 @@ struct FakeSession: SessionBackend {
             s.done=true;s.retry=false;s.status.state=CAPTURE_FAILED;s.status.error=CAPTURE_ERROR_IN_USE;
         } else if(events.ownedThenBusy && events.starts==1 && snapshots++>0) {
             s.done=true;s.retry=true;s.status.state=CAPTURE_FAILED;s.status.error=CAPTURE_ERROR_CONNECTION;
-            strcpy(s.status.message,"Source HDR metadata changed. Reconnecting both tracks.");
+            strcpy(s.status.message,"Source video stopped arriving. Reconnecting.");
         }
         if(events.transientFirst && events.starts==1) {s.done=true;s.retry=true;s.status.state=CAPTURE_FAILED;}
+        if(events.ownedThenBusy && events.starts>=3) strcpy(s.status.message,"Last OBS reset: output configuration changed.");
         return s;
     }
     void submitPin(const char *,size_t n) override { if(n==4) { ++events.pins; events.requestPin=false; } }
@@ -152,8 +153,17 @@ static MunitResult owned_busy_recovers(const MunitParameter[],void *) {
     auto engine=create(o,e);capture_engine_configure(engine,&o,&c);capture_engine_start(engine);
     munit_assert_true(waitOwnedBusy(e,true));
     munit_assert_int(e.starts.load(),==,3);munit_assert_int(e.joins.load(),==,2);
-    capture_engine_stop(engine);munit_assert_true(wait(e,CAPTURE_STOPPED));capture_engine_destroy(engine);
-    munit_assert_int(e.joins.load(),==,3);
+    capture_status status{};status.size=sizeof(status);status.version=CAPTURE_API_VERSION;
+    munit_assert_int(capture_engine_get_status(engine,&status),==,CAPTURE_OK);
+    munit_assert_not_null(strstr(status.message,"Last source retry: Source video stopped arriving."));
+    munit_assert_null(strstr(status.message,"PS5 is busy"));
+    munit_assert_not_null(strstr(status.message,"Last OBS reset:"));
+    capture_engine_stop(engine);munit_assert_true(wait(e,CAPTURE_STOPPED));
+    capture_engine_get_status(engine,&status);munit_assert_string_equal(status.message,"");
+    capture_engine_configure(engine,&o,&c);capture_engine_start(engine);munit_assert_true(wait(e,CAPTURE_WAITING_OBS));
+    capture_engine_get_status(engine,&status);munit_assert_null(strstr(status.message,"Last source retry:"));
+    capture_engine_destroy(engine);
+    munit_assert_int(e.joins.load(),==,4);
     return MUNIT_OK;
 }
 static MunitResult fresh_busy_stays_terminal(const MunitParameter[],void *) {

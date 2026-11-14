@@ -98,6 +98,12 @@ is still pending.
   this does not reset the source audio clock. A genuine unsupported format or
   HDR-to-SDR switch while HDR is selected still reports an error, not a hidden
   fallback. Keep the requested codec mode unchanged for the transition test.
+- A game transition can temporarily stop one or both media tracks. After a long
+  pause the app waits for fresh audio and video without restarting Remote Play;
+  OBS output can reconnect with a fresh timing epoch. Clock diagnostics restart
+  after this real-gap recovery, but **source retries** should not increase from
+  media silence alone. If a genuine source reconnect does happen, its most recent
+  initiating failure remains visible after recovery. Stop clears that history.
 - Transient loss retries with bounded backoff. A fresh connection reporting
   Remote Play in use, rejected credentials and incompatible media need action.
   After an established session is automatically restarted, the app allows busy

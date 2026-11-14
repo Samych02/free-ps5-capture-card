@@ -58,6 +58,20 @@ not represent an independent approval.
 
 ## Evidence and limitations
 
+### HDR media-gap recovery review scope
+
+Review the media-gap follow-up in `Pipeline.cpp`, retry-reason retention in
+`Engine.cpp`, and `test_pipeline_recovers_long_media_gaps_without_source_restart`.
+Live evidence identifies the old two-second media watchdog as the restart trigger.
+Check that source silence cannot tear down Remote Play, old output clocks/packets
+are discarded, both tracks must be freshly observed before recalibration, and
+source silence retains bounded state without preventing Stop or core-quit handling.
+This is output-epoch recovery, not preservation of audio timestamps across a gap
+with unknowable source timing. Compatible header-only changes must retain their
+existing continuity behavior. Also check that owned-session busy retries do not
+erase the initiating source failure; PIN/terminal errors must remain authoritative.
+Independent review and actual-device acceptance remain deferred release gates.
+
 ### In-place video transition review scope
 
 Review `Pipeline.cpp`, `PacketQueue.cpp`, `Timeline.cpp`, `LiveFormat.cpp` and

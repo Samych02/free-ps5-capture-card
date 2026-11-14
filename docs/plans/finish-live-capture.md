@@ -1,5 +1,56 @@
 # Finish standalone PS5 capture
 
+## Active real-HDR source retry follow-up
+
+User reports HDR game launch still disconnects/reconnects in the icon/metrics
+candidate. Screenshot shows source retries 5 and current-session OBS resets 0,
+video 59.877/s, audio 100.000/s, 480 samples/audio packet, zero current losses.
+This establishes source retries occurred but neither identifies their trigger
+nor proves five HDR-triggered disconnects: the retry count is a backoff attempt
+counter and output resets restart with each new source pipeline.
+
+Inspection finds successful replacement snapshots overwrite the source failure
+message. No raw core logs exist (deliberately disabled to protect secrets).
+A regression proves the initiating failure disappears after an owned-session busy
+retry (`build/hdr-source-retry-red.log`). Retain that bounded application-generated
+message on recovery, alongside current output reset information; do not override
+terminal errors or PIN prompts, and clear it on Stop/new capture.
+
+**Decisive live evidence:** user then captured the actual reconnect message:
+"A required media track stopped arriving. Reconnecting." This is precisely the
+two-second app-side watchdog in Pipeline::prepare, not a core quit event. The
+screenshot does not tell which track paused or why the PS5 paused that track.
+It does prove the app converted media silence into a full source restart.
+
+Correction design: after an established source's long media pause, keep Remote
+Play alive and let the core's actual disconnect event own source teardown. Keep
+all output freshness/storage limits. Discard the old output timing epoch and
+calibrate a new one only when both valid tracks are fresh in a shared 250 ms
+observation window. This is necessary because merely deleting/increasing the
+watchdog leaves Timeline's two-second gap rejection active on resumption.
+Clock positions/diagnostic spans restart for this genuine media-gap recovery;
+ordinary compatible format/HDR updates still retain their clock as before.
+Do not fabricate packets, infer missing audio from wall time, decode or fall back.
+While waiting, bounded state and periodic IDR requests remain; Stop and actual
+core connection failures still terminate normally. OBS may reconnect output-only.
+
+Regression: suppress both tracks, video alone, audio alone, and both with reset
+packet counters for 3.5 seconds. All four cases fail with SOURCE_FAILURE retry=1
+before the correction (`build/hdr-gap-red.log`); the first corrected run passes
+(`build/hdr-gap-green.log`). Verify post-gap two-track decoding, monotonic PTS,
+unchanged VCL/audio payloads and HDR transfer metadata. Focused final native,
+existing transition, app and policy checks run in parallel, with timings in
+`build/hdr-gap-timings.json`. Actual PS5 transition re-test remains required.
+
+Completed developer checks: nine native targets (10.75 s), five focused integration
+methods including all new long-gap and existing HDR/header subcases (102.59 s),
+74 app tests (7.87 s stage), and 11 Bootstrap/policy tests (1.64 s), run in parallel
+in 104.96 s including the incremental native build. Focused ASan/TSAN jobs also
+ran in parallel: 46.09/51.46 s, each four native targets plus all four long-gap
+cases. Release package `build/package-hdr-gap-recovery/Free PS5 Capture Card.app`
+passes 28 arm64 Mach-O validation and strict recursive signature verification.
+No independent review or real-device recovery pass is claimed.
+
 ## Completed build-cache isolation follow-up
 
 User requests fixing Debug/Release cache thrashing specifically, without unrelated

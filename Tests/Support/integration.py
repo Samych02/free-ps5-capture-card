@@ -490,6 +490,46 @@ class RemuxTests(unittest.TestCase):
                         process.kill(); process.wait(); self.fail("diagnostic fixture stop exceeded 3 seconds")
                     process.stderr.close()
 
+    def test_pipeline_recovers_long_media_gaps_without_source_restart(self):
+        cases=[(0,"h264-opus","gap-both"),(1,"hevc-opus","gap-video"),
+               (2,"hevc-hdr-opus","gap-audio"),(2,"hevc-hdr-opus","gap-both-reset")]
+        for mode,name,fault in cases:
+            with self.subTest(mode=name,fault=fault),tempfile.TemporaryDirectory() as tmp:
+                with socket.socket() as reserve:
+                    reserve.bind(("127.0.0.1",0));port=reserve.getsockname()[1]
+                process=subprocess.Popen([str(BUILD/"bin/capture-pipeline-fixture"),str(BUILD/"fixtures"/(name+".mkv")),
+                                          str(mode),str(port),fault],stderr=subprocess.PIPE)
+                try:
+                    with selectors.DefaultSelector() as selector:
+                        selector.register(process.stderr,selectors.EVENT_READ)
+                        self.assertTrue(selector.select(5));self.assertIn(b"READY",process.stderr.readline())
+                        # The fixture suppresses one/both tracks for 3.5 seconds.
+                        # Wait for its post-recovery marker, not a guessed sleep.
+                        while True:
+                            self.assertTrue(selector.select(9),"source never recovered from its media pause")
+                            event=process.stderr.readline()
+                            self.assertTrue(event,"source exited on a temporary media pause")
+                            self.assertNotIn(b"SOURCE_FAILURE",event)
+                            if event.startswith(b"GAP_RECOVERED"):break
+                    output=Path(tmp)/"recovered.mkv"
+                    run("ffmpeg","-v","error","-y","-analyzeduration","100000","-probesize","65536",
+                        "-f","matroska","-i",f"tcp://127.0.0.1:{port}","-t","1","-map","0","-c","copy",str(output),timeout=8)
+                    observed=probe(output,True)
+                    self.assertEqual([s["codec_type"] for s in observed["streams"]],["video","audio"])
+                    for track in (0,1):
+                        pts=[float(p["pts_time"]) for p in observed["packets"] if p["stream_index"]==track]
+                        self.assertGreater(pts[-1]-pts[0],0.8)
+                        self.assertTrue(all(b>a for a,b in zip(pts,pts[1:])))
+                    self.assert_copied_payloads(BUILD/"fixtures"/(name+".mkv"),output,mode)
+                    run("ffmpeg","-v","error","-xerror","-i",str(output),"-f","null","-",timeout=10)
+                    if mode==2:self.assertEqual(first_frame(output)["color_transfer"],"smpte2084")
+                    self.assertIsNone(process.poll(),"source was restarted instead of recovering")
+                finally:
+                    process.terminate()
+                    try:process.wait(timeout=3)
+                    except subprocess.TimeoutExpired:process.kill();process.wait();self.fail("recovery stop exceeded 3 seconds")
+                    process.stderr.close()
+
     def test_pipeline_accepts_receive_only_tcp_peer(self):
         with socket.socket() as reserve:
             reserve.bind(("127.0.0.1",0)); port=reserve.getsockname()[1]
@@ -560,7 +600,8 @@ if __name__ == "__main__":
                  "test_pipeline_accepts_late_audio_configuration_and_obs_reconnect", "test_local_transport_faults",
                  "test_pipeline_reports_output_reset_causes", "test_pipeline_accepts_receive_only_tcp_peer",
                  "test_pipeline_uses_delivery_cadence_not_sps_as_video_clock", "test_pipeline_preserves_compatible_transitions",
-                 "test_pipeline_reconfigures_headers_without_source_restart", "test_pipeline_rejects_unrequested_sdr_transition")]
+                 "test_pipeline_reconfigures_headers_without_source_restart", "test_pipeline_rejects_unrequested_sdr_transition",
+                 "test_pipeline_recovers_long_media_gaps_without_source_restart")]
     suite = unittest.TestSuite()
     if args.case in ("synthetic-clock", "all"):
         suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(ClockTests))

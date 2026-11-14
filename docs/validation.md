@@ -2,6 +2,35 @@
 
 ## Active OBS output-drop investigation
 
+### Real HDR launch: app-side source watchdog
+
+User captured the reconnect message "A required media track stopped arriving.
+Reconnecting." after starting an HDR game. This identifies Pipeline::prepare's
+two-second watchdog as the source-restart trigger, not an explicit core quit.
+Which track paused and the underlying PS5 pause reason are not established.
+
+Candidate `build/package-hdr-gap-recovery/Free PS5 Capture Card.app` keeps the
+Remote Play session alive across established-source media silence. Stale OBS
+output still closes under existing bounds; returning fresh audio/video establish
+a new output timing epoch instead of feeding the long gap into the old clock.
+There is no fabricated media, HDR fallback or guarantee of uninterrupted OBS.
+Clock spans restart for real media-gap recovery, unlike format-only changes.
+Initiating source-retry reasons also survive successful recovery and intervening
+owned-session busy retries, without raw core logging or secret retention.
+
+Red evidence: `build/hdr-gap-red.log` reproduces retry=1 in all four 3.5-second
+pause cases (both tracks, video, audio, both with counter restart). Final focused
+evidence in `build/hdr-gap-final-*.log`: nine native targets, five integration
+methods with all transition subcases, 74 direct app tests and 11 policy/build
+tests pass. The integration checks verify fresh two-track decode, monotonic PTS,
+unchanged compressed picture/audio payloads and HDR transfer metadata after gaps.
+`build/hdr-gap-asan.log` and `build/hdr-gap-tsan.log` each pass four focused native
+targets plus all four long-gap cases; TSAN uses halt_on_error=1.
+Release packaging validates 28 arm64 Mach-O files; strict recursive signature
+verification passes (`build/hdr-gap-package.log`). Independent review and actual
+PS5/OBS HDR-launch confirmation remain pending; synthetic recovery is not live
+acceptance. Stage times are in `build/hdr-gap*-timings.json`.
+
 ### Active in-place video/HDR transition correction
 
 User explicitly rejected restarting Remote Play for ordinary game/HDR changes.
