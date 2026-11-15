@@ -14,7 +14,7 @@ def main():
     if not (app / 'Contents/Frameworks/CaptureEngine.framework').exists():
         raise RuntimeError('CaptureEngine.framework is not embedded')
     source_notices = app / 'Contents/Resources/ProjectNotices/EmbeddedSources'
-    for component in ('chiaki', 'gf-complete', 'jerasure', 'nanopb'):
+    for component in ('chiaki', 'gf-complete', 'jerasure', 'nanopb', 'curl'):
         if not (source_notices / component).is_dir():
             raise RuntimeError(f'Missing embedded-source license notices: {component}')
     if (app / 'Contents/PlugIns').exists():

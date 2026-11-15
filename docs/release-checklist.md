@@ -27,7 +27,10 @@ layout evidence, **not** a substitute for interactive accessibility/device tests
 - [x] Focused sanitizer and policy/build checks pass.
 - [x] Debug/Release app builds and UI-test compilation pass.
 - [x] Light/dark/narrow screens and all setup sheets rendered/reviewed.
-- [x] Packaged runtime closure, icon, version, notices and signatures verified.
+- [x] Packaged runtime closure, icon, version and signatures verified for RC1.
+- [x] Author source audit completed; curl-notice regression fixed for new bundles.
+- [ ] Corresponding-source delivery assembled/tested and all distribution notices
+  independently reviewed. Original RC1 omits curl's required notice; do not distribute it.
 - [ ] Independent code/license/security review completed and findings resolved.
 
 Current local candidate: `build/package-release-candidate/Free PS5 Capture Card.app`
@@ -35,6 +38,16 @@ Current local candidate: `build/package-release-candidate/Free PS5 Capture Card.
 Developer verification: 88 app tests, nine native targets, 11 policy/build tests,
 focused transition/protected-content tests and ASan/TSAN checks. Thirty real-view
 test renderings are available; interactive UI automation remains unverified.
+
+The subsequent [author source audit](reviews/release-source-audit.md) covers all
+first-party production text, both locked patches and build/packaging entry points.
+It is not independent review. A separately assembled developer audit bundle at
+`build/package-source-audit/Free PS5 Capture Card.app` (also 0.1.0 build 2) adds the
+missing curl notice and updated project notices; it is not RC2. It passed 28
+Mach-O checks. Fresh audit checks: 13 Bootstrap tests and 10 CTest targets
+(upstream unit plus nine capture targets). Original RC1 and its ZIP are unchanged.
+See [source-distribution requirements](source-distribution.md) before distributing
+any binary; notices/recipes alone are not complete corresponding source.
 
 ## Hands-on acceptance still required
 

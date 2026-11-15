@@ -1,5 +1,20 @@
 # Finish standalone PS5 capture
 
+## Active release source/licensing continuation
+
+User approved a full release-focused source audit, release README and clear
+Chiaki-compatible licensing/credits. Continue sequentially under
+`docs/plans/release-source-audit.md`; record author-review coverage and findings
+without claiming independent review, legal certification or public release.
+
+Author audit is now recorded in `docs/reviews/release-source-audit.md`; README and
+upstream licensing/credits are updated. Static curl notice omission was reproduced
+and fixed for newly assembled bundles. Fresh checks: 13 Bootstrap tests, 10 CTest
+targets and 28 Mach-O package checks pass. `build/package-source-audit` is a separate
+developer audit bundle, still 0.1.0 build 2, not RC2; original RC1/ZIP are preserved.
+Follow `docs/source-distribution.md` before any public binary release: matching
+source delivery, independent review and hands-on/clean-machine gates remain open.
+
 ## Active first-release UI/status continuation
 
 User requests whole-app polish and first-release preparation and approved the

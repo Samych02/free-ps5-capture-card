@@ -31,7 +31,7 @@ root, app = map(Path, sys.argv[1:3])
 configuration = sys.argv[3]
 source = root / 'build/native' / configuration / '_deps/chiaki-src'
 destination = app / 'Contents/Resources/ProjectNotices/EmbeddedSources'
-for name, directory in [('chiaki', source)] + [(name, source / 'third-party' / name) for name in ('gf-complete', 'jerasure', 'nanopb')]:
+for name, directory in [('chiaki', source)] + [(name, source / 'third-party' / name) for name in ('gf-complete', 'jerasure', 'nanopb', 'curl')]:
     output = destination / name
     output.mkdir(parents=True)
     notices = [p for p in directory.iterdir() if p.is_file() and re.match(r'(COPYING|COPYRIGHT|LICENSE|NOTICE|AUTHORS)', p.name, re.I)]

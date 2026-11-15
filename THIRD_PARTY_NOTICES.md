@@ -1,12 +1,19 @@
 # Third-party components
 
-## Chiaki-ng
+## Chiaki and chiaki-ng
+
+Original Chiaki: https://git.sr.ht/~thestr4ng3r/chiaki
+
+Chiaki was originally developed by Florian Märkl and contributors. chiaki-ng
+continues that work, maintained by Street Pea and contributors. Their Remote Play
+implementation is the foundation of this app; we do not claim to have authored it.
+This project is separate from, and does not imply endorsement by, either upstream.
 
 Source: https://github.com/chiaki-ng/chiaki-ng
 
 Pinned revision: `43728af2e639fecb8a7af1cd68c29820a40de973`.
 
-The library is reused under its original AGPL-3.0 license terms and applicable
+The library is reused under its original AGPL-3.0-only license terms and applicable
 OpenSSL exception text, preserved in `LICENSES/`. Original source notices and
 submodule licenses remain in the fetched source. The initial patch only respects
 an explicit embedding project's deployment target; it does not change protocol
@@ -39,6 +46,20 @@ libraries in `Contents/Resources/RuntimeNotices/runtime-manifest.json` and inclu
 top-level formula license texts/build recipes alongside this project's notices.
 Independent license compatibility and source-obligation review is still required
 before redistribution; actual Homebrew FFmpeg options matter.
+
+The inspected candidate uses FFmpeg 9.0.2 (`--enable-gpl --enable-version3`),
+licensed GPL-3.0-or-later, with x264/x265 and other transitive libraries. Not using
+an encoder/decoder does not remove the licensing obligations of the linked binary.
+The statically linked curl submodule uses the curl copyright/permission license;
+its `COPYING` must accompany copies. Packaging now includes curl alongside
+Chiaki, gf-complete, Jerasure and nanopb notices. Earlier RC1 omitted curl's notice
+and must not be redistributed unchanged.
+
+See [source-distribution requirements](docs/source-distribution.md) for the actual
+candidate dependency inventory, evidence locations and unresolved release gates.
+The `EmbeddedSources` resource directory contains **notices only**, not complete
+source trees. Neither that directory nor upstream hyperlinks constitute a
+completed corresponding-source distribution.
 
 New project code is licensed under AGPL-3.0-only. This notice is not a claim that
 an arbitrary third-party binary configuration has passed redistribution review.

@@ -32,10 +32,16 @@ First-release candidate for Apple Silicon Macs running macOS 26 or later.
   stay transient; historical Keychain records are never read, migrated or deleted.
 - Debug/Release native build caches are isolated to avoid configuration thrashing.
 - Developer bundle is ad-hoc signed, not notarized. No public release is published.
+- Post-RC1 author audit: add missing static curl copyright/permission notice to
+  newly assembled developer bundles and require its directory during validation.
+  Original RC1 remains unchanged and must not be redistributed without correction.
+- Add explicit Chiaki/chiaki-ng credits, retained AGPL licensing information and
+  the dependency/corresponding-source release checklist. No license grant changed.
 
 ### Known release gates
 
 Measured live A/V sync, calibrated HDR colour, reported TV-to-OBS latency,
 long-run reliability, current-candidate manual accessibility/device acceptance,
-clean-machine launch and independent review remain open. See
+clean-machine launch, complete corresponding-source delivery and independent
+review remain open. See
 [the release checklist](docs/release-checklist.md).

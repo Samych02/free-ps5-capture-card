@@ -27,6 +27,9 @@
    formula recipes and full license texts before redistribution. Resolve actual
    FFmpeg options, GPL/AGPL/OpenSSL compatibility and transitive notice/source
    obligations. Closure checks are not legal review or a fulfilled source offer.
+   Follow [source-distribution requirements](source-distribution.md) and refresh
+   the dependency inventory for each candidate. Include static curl's `COPYING`
+   alongside the other embedded-source notices; a dylib-only inventory misses it.
 9. Test on a clean account/machine without developer paths. Independent code,
    security and license review plus real PS5/OBS evidence remain release gates.
    Do not publish, notarize, enable autostart or install without authorization.
