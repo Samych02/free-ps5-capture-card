@@ -1,9 +1,11 @@
 #include "PacketQueue.h"
+#include "platform/WideInteger.h"
 #include <algorithm>
 #include <cstring>
 #include <stdexcept>
 #include <limits>
 namespace capture {
+using platform::WideInteger;
 struct QueueBudget {
     size_t limit=PacketQueue::MaxBytes;
     std::atomic<size_t> bytes{sizeof(PacketQueue) + sizeof(QueueBudget) + 128};
@@ -51,9 +53,9 @@ void PacketQueue::resetMissing(MissingStage stage,uint64_t now) {
     missing_.audioAgeUs=now>=lastAudioReceiptUs_?now-lastAudioReceiptUs_:0;
     missing_.videoAgeUs=now>=lastVideoReceiptUs_?now-lastVideoReceiptUs_:0;
     if(startPts_ && lastAudioPts_) {
-        auto delta=__int128(*lastAudioPts_)-*startPts_;
+        auto delta=WideInteger(*lastAudioPts_)-*startPts_;
         missing_.audioStartDeltaUs=static_cast<int64_t>(std::clamp(delta,
-            __int128(std::numeric_limits<int64_t>::min()),__int128(std::numeric_limits<int64_t>::max())));
+            WideInteger(std::numeric_limits<int64_t>::min()),WideInteger(std::numeric_limits<int64_t>::max())));
     }
     reset(Reason::MissingTrack);
 }
@@ -113,14 +115,14 @@ void PacketQueue::detach() { std::lock_guard<std::mutex> lock(mutex_); reset(Rea
 void PacketQueue::pruneAudio(int64_t boundary) {
     int64_t duration = int64_t(config_.audio.samples_per_frame) * 1000000 / config_.audio.sample_rate;
     for(auto &packet : packets_)
-        if(packet && packet->track == MediaTrack::Audio && __int128(packet->timing.ptsUs) + duration <= boundary) packet.reset();
+        if(packet && packet->track == MediaTrack::Audio && WideInteger(packet->timing.ptsUs) + duration <= boundary) packet.reset();
 }
 void PacketQueue::updateReady() {
     if(ready_ || !startPts_ || !hasVideo_ || !hasAudio_) return;
     int64_t duration = int64_t(config_.audio.samples_per_frame) * 1000000 / config_.audio.sample_rate;
     for(const auto &packet : packets_) {
         if(packet && packet->track == MediaTrack::Audio && !(packet->metadata.flags & CHIAKI_ENCODED_MISSING) &&
-           __int128(packet->timing.ptsUs) + duration > *startPts_ && __int128(packet->timing.ptsUs) - *startPts_ <= MaxAgeUs) {
+           WideInteger(packet->timing.ptsUs) + duration > *startPts_ && WideInteger(packet->timing.ptsUs) - *startPts_ <= MaxAgeUs) {
             ready_ = true; return;
         }
     }
@@ -167,7 +169,7 @@ PacketQueue::Result PacketQueue::push(MediaTrack track, const ChiakiEncodedPacke
     }
     if(!audio && !startPts_ && access != VideoAccess::IDR && access != VideoAccess::CRA) return Result::Dropped;
     if(!ready_ && audio && !startPts_) {
-        auto boundary = __int128(timing.ptsUs) - MaxAgeUs;
+        auto boundary = WideInteger(timing.ptsUs) - MaxAgeUs;
         pruneAudio(boundary < INT64_MIN ? INT64_MIN : int64_t(boundary));
     }
     if(!ready_) {

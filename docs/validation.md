@@ -1,5 +1,32 @@
 # Validation evidence
 
+## Latest minimal-FFmpeg / portable-foundations developer checkpoint
+
+Current optimized developer artifact:
+`build/package-minimal-portable/Free PS5 Capture Card.app`, still 0.1.0 build 2;
+ZIP `build/FreePS5CaptureCard-minimal-portable-dev-arm64.zip`. This is not a new
+public release or additional-platform build. Apple Silicon/macOS 26 and SwiftUI
+remain unchanged. Earlier RC1/audit packages below are historical evidence.
+
+- Pinned source-built static FFmpeg: actual registry has 0 codecs, 2 parsers,
+  1 muxer, 0 demuxers and 0 protocols. Reports LGPL version 2.1 or later; project
+  license stays AGPL. Fixture-input profile is separate and never packaged.
+- 24 Bootstrap tests, 11 complete CTest targets (191.37 s including 176.59 s
+  transport), and 88 app tests (10.81 s end-to-end direct unit runner) pass.
+- Package build/check: 13.90 s; all 15 Mach-O closure/architecture/minimum OS/
+  strict-signature checks pass. Dynamic libraries reduced from 26 to 13.
+- App file bytes excluding symlink duplicates: 47,619,118 → 19,949,863 (58.11%
+  reduction). ZIP 8,542,864 bytes, CRC passes, SHA-256
+  `4d9ac1cb3008d3efc884b3372b93f4c7b640c0cd4f251084eabc73dd29095fa4`.
+  Original RC1 ZIP hash is unchanged.
+- Scoped author review: [report](reviews/minimal-ffmpeg-portability.md).
+  Exact implementation/commands/artifacts: [plan](plans/minimal-ffmpeg-portability.md).
+  Future target boundaries and remaining port work: [guide](portability.md).
+
+No Intel, Linux or Windows build was attempted. No current-build device,
+interactive UI, clean-machine, independent-review or new sanitizer gate is claimed
+passed. Complete matching source delivery remains a separate distribution gate.
+
 ## Active OBS output-drop investigation
 
 ### 0.1.0 RC1 UI/status polish developer checkpoint

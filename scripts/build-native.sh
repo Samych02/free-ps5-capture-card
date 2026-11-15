@@ -22,10 +22,14 @@ PYTHON="$ROOT/build/python/bin/python3"
 if [[ ! -x "$PYTHON" ]]; then echo "Missing isolated Python; run scripts/bootstrap.sh" >&2; exit 1; fi
 OPENSSL="$(brew --prefix openssl@3)"
 PROTOBUF="$(brew --prefix protobuf@29)"
+FFMPEG="$(python3 "$ROOT/scripts/build-ffmpeg.py")"
+FFMPEG_FIXTURES=""
+if [[ $TESTS == ON ]]; then FFMPEG_FIXTURES="$(python3 "$ROOT/scripts/build-ffmpeg.py" --fixtures)"; fi
 set -x
 cmake -S "$ROOT" -B "$BUILD_DIR" -G Ninja \
     -DCMAKE_BUILD_TYPE="$CONFIG" -DBUILD_TESTING="$TESTS" \
     -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DCMAKE_OSX_DEPLOYMENT_TARGET=26.0 \
     -DOPENSSL_ROOT_DIR="$OPENSSL" -DCMAKE_PREFIX_PATH="$OPENSSL;$PROTOBUF" \
+    -DCAPTURE_FFMPEG_ROOT="$FFMPEG" -DCAPTURE_FFMPEG_FIXTURE_ROOT="$FFMPEG_FIXTURES" \
     -DPROTOC="$PROTOBUF/bin/protoc" -DPYTHON_EXECUTABLE="$PYTHON"
 cmake --build "$BUILD_DIR" --parallel

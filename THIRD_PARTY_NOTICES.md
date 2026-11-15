@@ -47,13 +47,23 @@ top-level formula license texts/build recipes alongside this project's notices.
 Independent license compatibility and source-obligation review is still required
 before redistribution; actual Homebrew FFmpeg options matter.
 
-The inspected candidate uses FFmpeg 9.0.2 (`--enable-gpl --enable-version3`),
+The earlier RC1/audit candidate uses FFmpeg 9.0.2 (`--enable-gpl --enable-version3`),
 licensed GPL-3.0-or-later, with x264/x265 and other transitive libraries. Not using
 an encoder/decoder does not remove the licensing obligations of the linked binary.
 The statically linked curl submodule uses the curl copyright/permission license;
 its `COPYING` must accompany copies. Packaging now includes curl alongside
 Chiaki, gf-complete, Jerasure and nanopb notices. Earlier RC1 omitted curl's notice
 and must not be redistributed unchanged.
+
+Current optimized builds instead statically link a SHA-256-pinned source build
+of FFmpeg 9.0.2 with no GPL/version3 option, external codec libraries, registered
+encoders/decoders, demuxers or protocols. Required H264/HEVC parsers and Matroska
+output remain. A distinct fixture-input profile is test-only and never packaged.
+The complete upstream license texts, actual configuration/source manifest and
+build recipe are included under `ProjectNotices/EmbeddedSources/ffmpeg`.
+The smaller FFmpeg configuration does not relicense the AGPL project or erase
+static-linking/corresponding-source obligations. Do not use old candidate GPL
+metadata to describe the new runtime or vice versa.
 
 See [source-distribution requirements](docs/source-distribution.md) for the actual
 candidate dependency inventory, evidence locations and unresolved release gates.

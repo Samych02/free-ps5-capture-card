@@ -1,5 +1,10 @@
 # Release source audit — author review
 
+Historical baseline report: later minimal-FFmpeg/platform-boundary changes are
+tracked separately in [their execution plan](../plans/minimal-ffmpeg-portability.md)
+and [portability guide](../portability.md). File paths and dependency counts below
+describe this audit's baseline, not a new full audit of subsequent changes.
+
 ## Verdict
 
 **Needs Changes before public release.** First-party production-source reading,

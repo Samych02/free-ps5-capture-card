@@ -1,8 +1,10 @@
 #include "Timeline.h"
+#include "platform/WideInteger.h"
 #include <algorithm>
 #include <limits>
 #include <stdexcept>
 namespace capture {
+using platform::WideInteger;
 Timeline::Timeline(TimelineConfig config, uint64_t origin) : config_(config), originUs_(origin) {
     if(!config.fpsNum || !config.fpsDen || config.fpsNum > 1000000 || config.fpsDen > 1000000 ||
        uint64_t(config.fpsNum) > uint64_t(config.fpsDen) * 240 || !config.audioRate || config.audioRate > 192000 ||
@@ -11,7 +13,7 @@ Timeline::Timeline(TimelineConfig config, uint64_t origin) : config_(config), or
         throw std::invalid_argument("Invalid verified media clock configuration");
 }
 int64_t Timeline::mediaTime(MediaTrack track, uint64_t position) const {
-    __int128 value = position;
+    WideInteger value = position;
     if(track == MediaTrack::Video) value = value * 1000000 * config_.fpsDen / config_.fpsNum;
     else value = value * config_.samplesPerFrame * 1000000 / config_.audioRate;
     if(value > INT64_MAX) throw std::overflow_error("Media clock overflow");
@@ -66,7 +68,7 @@ std::optional<int64_t> Timeline::pts(MediaTrack track, uint64_t position) const 
     if(!frozen_ || failed_ || !clock.hasPayload || position > clock.position) return std::nullopt;
     if(track==MediaTrack::Video && config_.audioAnchoredIngressVideo)
         return position==video_.position?ingressVideoPts_:std::nullopt;
-    __int128 value;
+    WideInteger value;
     try { value = mediaTime(track, position); } catch(const std::overflow_error &) { return std::nullopt; }
     value += clock.offsetUs;
     if(track == MediaTrack::Audio) value += config_.audioOffsetUs;
@@ -91,8 +93,8 @@ bool Timeline::updateIngressVideoPts() {
     for(const auto &bucket:audioDelays_)
         if(bucket.epoch<=epoch && epoch-bucket.epoch<audioDelays_.size()) delay=std::min(delay,bucket.delayUs);
     if(delay==INT64_MAX) return false;
-    __int128 value=__int128(video_.receiptUs-originUs_)+audio_.offsetUs-delay;
-    if(ingressVideoPts_) value=std::max(value,__int128(*ingressVideoPts_)+1);
+    WideInteger value=WideInteger(video_.receiptUs-originUs_)+audio_.offsetUs-delay;
+    if(ingressVideoPts_) value=std::max(value,WideInteger(*ingressVideoPts_)+1);
     if(value<INT64_MIN || value>INT64_MAX) return false;
     ingressVideoPts_=static_cast<int64_t>(value);
     return true;

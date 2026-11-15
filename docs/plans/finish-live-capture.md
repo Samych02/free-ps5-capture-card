@@ -1,5 +1,15 @@
 # Finish standalone PS5 capture
 
+## Latest scoped follow-up
+
+User approved minimal FFmpeg and portable foundations, explicitly **not** new
+platform builds. Implementation/evidence are in `docs/plans/minimal-ffmpeg-portability.md`
+and `docs/reviews/minimal-ffmpeg-portability.md`: 24 Bootstrap tests, 11 full CTest
+targets, 88 app tests and 15 package binary checks pass. App remains Apple Silicon/
+macOS 26 with native SwiftUI. New developer artifact is under
+`build/package-minimal-portable`; original candidates are untouched. Independent,
+matching-source-delivery and hands-on/clean-machine gates remain open.
+
 ## Active release source/licensing continuation
 
 User approved a full release-focused source audit, release README and clear

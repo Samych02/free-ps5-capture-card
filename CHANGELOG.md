@@ -37,6 +37,12 @@ First-release candidate for Apple Silicon Macs running macOS 26 or later.
   Original RC1 remains unchanged and must not be redistributed without correction.
 - Add explicit Chiaki/chiaki-ng credits, retained AGPL licensing information and
   the dependency/corresponding-source release checklist. No license grant changed.
+- Replace the broad Homebrew FFmpeg runtime with a pinned private static build:
+  H264/HEVC parsing and Matroska output only, no registered codecs/input protocols.
+  Keep fixture-input libraries separate and preserve static license/build notices.
+- Prepare native networking, exact-arithmetic, export and packaging boundaries
+  for later platform ports. Builds remain Apple Silicon/macOS 26 only; no Intel,
+  Universal 2, Linux or Windows release or cross-platform UI has been added.
 
 ### Known release gates
 

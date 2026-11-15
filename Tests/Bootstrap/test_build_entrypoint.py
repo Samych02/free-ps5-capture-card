@@ -41,6 +41,7 @@ class BuildEntrypointTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="capture build paths ") as temporary:
             root=Path(temporary);(root/"scripts").mkdir();tools=root/"tools";tools.mkdir()
             script=root/"scripts/build-native.sh";script.write_text(SCRIPT.read_text())
+            (root/"scripts/build-ffmpeg.py").write_text('from pathlib import Path\nprint(Path(__file__).resolve().parents[1]/"dependencies/minimal-ffmpeg")\n')
             python=root/"build/python/bin/python3";python.parent.mkdir(parents=True)
             python.write_text("#!/bin/sh\nexit 0\n");python.chmod(0o755)
             stub=root/"stub.py"
@@ -67,6 +68,7 @@ elif tool=='brew': print(str(Path(os.environ['CAPTURE_TEST_ROOT'])/'dependencies
                 expected=str(root/"build/native"/configuration)
                 self.assertEqual(configure[configure.index("-B")+1],expected)
                 self.assertIn("-DCMAKE_BUILD_TYPE="+configuration,configure)
+                self.assertIn("-DCAPTURE_FFMPEG_ROOT="+str((root/"dependencies/minimal-ffmpeg").resolve()),configure)
                 self.assertEqual(build,["--build",expected,"--parallel"])
 
     def test_consumers_select_the_matching_configuration(self):

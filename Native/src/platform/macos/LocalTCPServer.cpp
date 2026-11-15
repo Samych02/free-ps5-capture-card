@@ -12,12 +12,22 @@ extern "C" {
 }
 
 namespace capture {
+struct LocalTCPServer::Impl {
+    int listener_=-1,client_=-1;
+    explicit Impl(uint16_t);
+    ~Impl();
+    bool acceptClient(const std::function<bool()> &);
+    int write(const uint8_t *,int,const std::function<bool()> &);
+    void disconnect();
+    bool clientAlive();
+    void rejectExtraClients();
+};
 static void nonblocking(int fd) {
     int flags = fcntl(fd, F_GETFL, 0);
     if(flags < 0 || fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0)
         throw std::system_error(errno, std::generic_category(), "nonblocking socket");
 }
-LocalTCPServer::LocalTCPServer(uint16_t port) {
+LocalTCPServer::Impl::Impl(uint16_t port) {
     listener_ = socket(AF_INET, SOCK_STREAM, 0);
     if(listener_ < 0) throw std::system_error(errno, std::generic_category(), "socket");
     try {
@@ -32,7 +42,7 @@ LocalTCPServer::LocalTCPServer(uint16_t port) {
         nonblocking(listener_);
     } catch(...) { close(listener_); listener_ = -1; throw; }
 }
-bool LocalTCPServer::acceptClient(const std::function<bool()> &cancelled) {
+bool LocalTCPServer::Impl::acceptClient(const std::function<bool()> &cancelled) {
     disconnect();
     while(!cancelled()) {
         pollfd fd{listener_, POLLIN, 0};
@@ -57,7 +67,7 @@ bool LocalTCPServer::acceptClient(const std::function<bool()> &cancelled) {
     }
     return false;
 }
-int LocalTCPServer::write(const uint8_t *data, int size, const std::function<bool()> &cancelled) {
+int LocalTCPServer::Impl::write(const uint8_t *data, int size, const std::function<bool()> &cancelled) {
     auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(500);
     int offset = 0;
     while(offset < size) {
@@ -83,10 +93,10 @@ int LocalTCPServer::write(const uint8_t *data, int size, const std::function<boo
     }
     return size;
 }
-void LocalTCPServer::disconnect() {
+void LocalTCPServer::Impl::disconnect() {
     if(client_ >= 0) { close(client_); client_ = -1; }
 }
-bool LocalTCPServer::clientAlive() {
+bool LocalTCPServer::Impl::clientAlive() {
     if(client_<0) return false;
     uint8_t byte; auto n=recv(client_,&byte,1,MSG_PEEK|MSG_DONTWAIT);
     // EOF here means the peer closed its SEND half, not necessarily its receive
@@ -94,8 +104,15 @@ bool LocalTCPServer::clientAlive() {
     // A fully closed receiver is detected by bounded writes (EPIPE/reset/timeout).
     return n>=0 || (errno==EAGAIN || errno==EWOULDBLOCK || errno==EINTR);
 }
-void LocalTCPServer::rejectExtraClients() {
+void LocalTCPServer::Impl::rejectExtraClients() {
     for(int count=0;count<8;++count) { int fd=accept(listener_,nullptr,nullptr); if(fd<0) break; close(fd); }
 }
-LocalTCPServer::~LocalTCPServer() { disconnect(); if(listener_ >= 0) close(listener_); }
+LocalTCPServer::Impl::~Impl() { disconnect(); if(listener_ >= 0) close(listener_); }
+LocalTCPServer::LocalTCPServer(uint16_t port):impl_(std::make_unique<Impl>(port)) {}
+LocalTCPServer::~LocalTCPServer() = default;
+bool LocalTCPServer::acceptClient(const std::function<bool()> &cancelled) {return impl_->acceptClient(cancelled);}
+int LocalTCPServer::write(const uint8_t *p,int n,const std::function<bool()> &cancelled) {return impl_->write(p,n,cancelled);}
+void LocalTCPServer::disconnect() {impl_->disconnect();}
+bool LocalTCPServer::clientAlive() {return impl_->clientAlive();}
+void LocalTCPServer::rejectExtraClients() {impl_->rejectExtraClients();}
 }

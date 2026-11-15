@@ -2,7 +2,17 @@
 #define CAPTURE_ENGINE_H
 #include <stdint.h>
 #include <stddef.h>
+#if defined(_WIN32) && !defined(CAPTURE_ENGINE_STATIC)
+#if defined(CAPTURE_ENGINE_BUILD)
+#define CAPTURE_API __declspec(dllexport)
+#else
+#define CAPTURE_API __declspec(dllimport)
+#endif
+#elif defined(__GNUC__)
 #define CAPTURE_API __attribute__((visibility("default")))
+#else
+#define CAPTURE_API
+#endif
 #define CAPTURE_API_VERSION 2
 #ifdef __cplusplus
 extern "C" {

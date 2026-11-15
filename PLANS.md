@@ -1,5 +1,8 @@
 # Execution Plans
 
+Active follow-up: `docs/plans/minimal-ffmpeg-portability.md` (minimal FFmpeg and
+portable foundations; current build remains Apple Silicon/macOS 26 only).
+
 Use an Execution Plan for multi-hour work spanning implementation and validation.
 Plans live in `docs/plans/` and must be restartable without chat history. Include
 Progress, Surprises & Discoveries, Decision Log, and Outcomes & Retrospective.

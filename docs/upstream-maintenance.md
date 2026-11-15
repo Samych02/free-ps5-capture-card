@@ -19,6 +19,10 @@
 6. Current Homebrew libraries require macOS 26; project targets reflect that.
    Older macOS needs separately built/tested compatible dependencies. Homebrew
    formula revisions and binary contents are not a reproducible binary lock.
+   FFmpeg runtime is now the exception: use the private pinned source builder
+   and explicit CMake prefixes. Homebrew ffmpeg/ffprobe remain fixture tools only.
+   Do not link the fixture-input profile into the app. Re-run the actual runtime
+   registry policy test after dependency/profile changes; see [portability](portability.md).
 7. Packaging recursively copies dylibs, fixes install names/removes external
    rpaths, includes formula notices and signs inside-out. Existing output is
    never overwritten; nothing installs into Applications. The bundle checker

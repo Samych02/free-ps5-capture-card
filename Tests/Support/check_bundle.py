@@ -17,6 +17,9 @@ def main():
     for component in ('chiaki', 'gf-complete', 'jerasure', 'nanopb', 'curl'):
         if not (source_notices / component).is_dir():
             raise RuntimeError(f'Missing embedded-source license notices: {component}')
+    for name in ('LICENSE.md', 'COPYING.LGPLv2.1', 'capture-build.json', 'build-ffmpeg.py'):
+        if not (source_notices / 'ffmpeg' / name).is_file():
+            raise RuntimeError(f'Missing static FFmpeg license/provenance: {name}')
     if (app / 'Contents/PlugIns').exists():
         raise RuntimeError('Developer bundle must not contain test plug-ins')
     with (app / 'Contents/Info.plist').open('rb') as stream:
@@ -46,6 +49,8 @@ def main():
                 raise RuntimeError(f'Non-bundled dependency: {dependency}')
             if re.search(r'(Qt[0-9]?|SDL|chiaki-ng)', dependency, re.I):
                 raise RuntimeError(f'Forbidden runtime GUI dependency: {dependency}')
+            if re.search(r'lib(?:avcodec|avformat|avutil|avfilter|avdevice|swscale|swresample|x264|x265)[.\-]', dependency):
+                raise RuntimeError(f'Unexpected dynamic media library; minimal FFmpeg must be static: {dependency}')
     run('codesign', '--verify', '--deep', '--strict', str(app))
     print(f'PASS: {len(code)} Mach-O files, arm64, recursive runtime closure, minimum OS and signatures.')
     print('Clean-machine launch, PS5/OBS evidence and independent license/security review remain release gates.')

@@ -1,5 +1,5 @@
 #include "SetupInternal.h"
-#include <arpa/inet.h>
+#include "platform/NetworkSetup.h"
 #include <condition_variable>
 #include <cstring>
 #include <mutex>
@@ -20,13 +20,7 @@ capture_result capture_validate_pairing(const capture_pairing_options *o) {
        !std::any_of(o->account_id, o->account_id + 8, [](uint8_t b) { return b != 0; }))
         return CAPTURE_INVALID_OPTIONS;
     if(strnlen(o->address, sizeof(o->address)) == sizeof(o->address)) return CAPTURE_INVALID_OPTIONS;
-    in_addr addr4{}; in6_addr addr6{};
-    if(inet_pton(AF_INET, o->address, &addr4) == 1) {
-        auto ip = ntohl(addr4.s_addr);
-        if(ip == 0 || ip == 0xffffffff || (ip >> 24) == 127 || (ip >> 28) >= 14)
-            return CAPTURE_INVALID_OPTIONS;
-    } else if(inet_pton(AF_INET6, o->address, &addr6) != 1 ||
-              IN6_IS_ADDR_UNSPECIFIED(&addr6) || IN6_IS_ADDR_LOOPBACK(&addr6) || IN6_IS_ADDR_MULTICAST(&addr6))
+    if(!capture::platform::validConsoleAddress(o->address))
         return CAPTURE_INVALID_OPTIONS;
     return CAPTURE_OK;
 }

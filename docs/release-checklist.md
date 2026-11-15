@@ -49,6 +49,16 @@ Mach-O checks. Fresh audit checks: 13 Bootstrap tests and 10 CTest targets
 See [source-distribution requirements](source-distribution.md) before distributing
 any binary; notices/recipes alone are not complete corresponding source.
 
+Latest optimized **developer** build (not a renamed RC1/RC2):
+`build/package-minimal-portable/Free PS5 Capture Card.app`, still 0.1.0 build 2.
+It uses the isolated static minimal-FFmpeg runtime and portability boundaries,
+while remaining arm64/macOS 26 only. Packaging passed 15 Mach-O checks with
+13 dynamic libraries (previously 28 files / 26 libraries). App file bytes fell
+from 47,619,118 to 19,949,863 (~58%); the separately named developer ZIP is
+8,542,864 bytes. Original candidate artifacts are preserved. Fresh test/device
+evidence is tracked in [the active plan](plans/minimal-ffmpeg-portability.md);
+the manual and independent gates below remain open for this build as well.
+
 ## Hands-on acceptance still required
 
 - [ ] Current candidate: sign-in/pairing/manual-IP/forget flows, cancellation and

@@ -11,6 +11,10 @@
   final handoff by user instruction; do not claim them passed beforehand.
 - No app-side media decoding/encoding, playback, preview, controller/microphone
   features, secret logging, or hidden HDR fallback.
+- Current approved follow-up: `docs/plans/minimal-ffmpeg-portability.md`. Minimize
+  FFmpeg and prepare portable engine/build boundaries only. Continue building
+  Apple Silicon/macOS 26; do not add Universal/Intel/Windows/Linux builds or GUIs
+  or lower the OS minimum as part of this work.
 - User explicitly replaced the Keychain requirement with a local unencrypted
   credentials file: owner-only directory (0700), file (0600), bounded validated
   records and atomic updates. OAuth tokens/passcodes stay transient. Start fresh;

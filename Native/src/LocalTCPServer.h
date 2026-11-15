@@ -1,6 +1,7 @@
 #pragma once
 #include <functional>
 #include <cstdint>
+#include <memory>
 
 namespace capture {
 class LocalTCPServer {
@@ -15,6 +16,7 @@ public:
     bool clientAlive();
     void rejectExtraClients();
 private:
-    int listener_ = -1, client_ = -1;
+    struct Impl;
+    std::unique_ptr<Impl> impl_;
 };
 }

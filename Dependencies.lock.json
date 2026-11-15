@@ -10,8 +10,13 @@
     ]
   },
   "python": {"protobuf": "5.29.6"},
+  "ffmpeg": {
+    "version": "9.0.2",
+    "url": "https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz",
+    "sha256": "8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e"
+  },
   "systemDependencies": {
-    "policy": "Homebrew prerequisites; installed versions are recorded in docs/validation.md, not claimed reproducible binary pins",
+    "policy": "FFmpeg libraries use the separate pinned source build; Homebrew ffmpeg/ffprobe are external test tools. Other Homebrew prerequisites are not reproducible binary pins.",
     "formulae": ["cmake", "ninja", "xcodegen", "ffmpeg", "pkg-config", "openssl@3", "protobuf@29", "json-c", "miniupnpc", "libevent", "python@3.13"]
   }
 }

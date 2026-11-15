@@ -43,5 +43,6 @@ for name, directory in [('chiaki', source)] + [(name, source / 'third-party' / n
         shutil.copytree(directory / 'LICENSES', output / 'LICENSES')
 shutil.copy2(root / 'Dependencies.lock.json', destination / 'Dependencies.lock.json')
 PY
+python3 "$ROOT/scripts/package-ffmpeg.py" --root "$ROOT" --app "$APP" --config "$CONFIG"
 cmake -DAPP="$APP" -DROOT="$ROOT" -P "$ROOT/cmake/BundleRuntime.cmake"
 python3 "$ROOT/Tests/Support/check_bundle.py" --app "$APP"

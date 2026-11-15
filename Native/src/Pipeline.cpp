@@ -6,7 +6,7 @@
 #include <atomic>
 #include <thread>
 #include <cstring>
-#include <poll.h>
+#include <chrono>
 namespace capture {
 struct MediaPipeline::Impl {
     capture_options options;
@@ -246,7 +246,7 @@ struct MediaPipeline::Impl {
                 if(!calibrated) {
                     auto now=chiaki_time_now_monotonic_us();
                     if(needVideo && now-lastIDR>=1000000) {request();lastIDR=now;}
-                    poll(nullptr,0,5);continue;
+                    std::this_thread::sleep_for(std::chrono::milliseconds(5));continue;
                 }
                 auto deadline=chiaki_time_now_monotonic_us()+20000;
                 if(!server.acceptClient([&]{return stopping || failed || chiaki_time_now_monotonic_us()>=deadline;})) continue;
@@ -261,7 +261,7 @@ struct MediaPipeline::Impl {
             }
             if(!stats.ready && now-lastIDR>=1000000) { request(); lastIDR=now; }
             auto leased=queue.pop(now);
-            if(!leased) { poll(nullptr,0,5); continue; }
+            if(!leased) { std::this_thread::sleep_for(std::chrono::milliseconds(5)); continue; }
             networkError=0;
             try {
                 if(!mux) {

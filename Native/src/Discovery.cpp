@@ -1,7 +1,5 @@
 #include "SetupInternal.h"
-#include <arpa/inet.h>
-#include <ifaddrs.h>
-#include <net/if.h>
+#include "platform/NetworkSetup.h"
 #include <cstring>
 #include <condition_variable>
 #include <mutex>
@@ -64,24 +62,10 @@ struct capture_discovery {
     }
     void run() {
         ChiakiLog log{}; chiaki_log_init(&log, CHIAKI_LOG_ERROR, log_error, this);
-        sockaddr_storage destination{};
-        auto &addr = *reinterpret_cast<sockaddr_in *>(&destination);
-        addr.sin_family = AF_INET; addr.sin_len = sizeof(addr); addr.sin_addr.s_addr = INADDR_BROADCAST;
-        std::vector<sockaddr_storage> broadcasts;
-        ifaddrs *interfaces = nullptr;
-        if(getifaddrs(&interfaces) == 0) {
-            for(auto *i = interfaces; i; i = i->ifa_next) {
-                if(!i->ifa_addr || !i->ifa_broadaddr || i->ifa_addr->sa_family != AF_INET ||
-                   !(i->ifa_flags & IFF_UP) || !(i->ifa_flags & IFF_BROADCAST) || (i->ifa_flags & IFF_LOOPBACK)) continue;
-                sockaddr_storage storage{}; memcpy(&storage, i->ifa_broadaddr, sizeof(sockaddr_in));
-                broadcasts.push_back(storage);
-            }
-            freeifaddrs(interfaces);
-        }
+        capture::platform::DiscoveryAddresses addresses;
         ChiakiDiscoveryServiceOptions options{};
         options.hosts_max = 16; options.host_drop_pings = 3; options.ping_ms = 500;
-        options.send_addr = &destination; options.send_addr_size = sizeof(sockaddr_in);
-        options.broadcast_addrs = broadcasts.data(); options.broadcast_num = broadcasts.size();
+        addresses.apply(options);
         options.cb = receive; options.cb_user = this;
         ChiakiDiscoveryService service{};
         errno = 0;

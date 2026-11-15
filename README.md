@@ -76,6 +76,10 @@ python3 -m unittest discover -s Tests/Bootstrap -v
 
 App: `build/xcode/Build/Products/Debug/FreePS5CaptureCard.app`.
 Native builds use separate `build/native/Debug` and `build/native/Release` trees.
+The first build also source-builds a SHA-256-pinned minimal FFmpeg into a private
+`build/dependencies/ffmpeg` cache. It is reused across configurations; there is
+no global install or runtime fallback to Homebrew FFmpeg. Homebrew `ffmpeg` and
+`ffprobe` are still needed as external synthetic-test tools.
 Xcode and packaging select the matching framework automatically. Each new tree
 has a one-time cold build; switching configurations then reuses its own compiled
 objects. Older artifacts directly under `build/native` are left untouched but
@@ -124,8 +128,9 @@ The exception is not a blanket relicensing of other dependencies.
 - PSN account identification adapts chiaki-ng's flow, whose original account-ID
   code credits **grill2010**.
 - **FFmpeg** provides compressed-packet parsing and Matroska muxing, not app-side
-  playback. This developer bundle uses a **GPLv3-or-later** FFmpeg build; do not
-  assume it is LGPL merely because this app does not invoke its decoders.
+  playback. Current builds use a pinned minimal static configuration, not the
+  broad Homebrew runtime shipped in earlier candidates. Its actual feature and
+  license checks are tracked separately; the project itself remains AGPL.
 
 Our changes include the SwiftUI utility, private credential-file storage,
 Chiaki encoded-media callbacks and bounds/lifetime fixes, and the two-track
@@ -137,3 +142,11 @@ See [third-party notices](THIRD_PARTY_NOTICES.md) and the
 and outstanding corresponding-source requirements. **Public binary distribution
 is not cleared:** the current bundle contains notices/recipes, not complete
 corresponding source. Attribution alone does not satisfy those obligations.
+
+## Future platforms
+
+Only **Apple Silicon/macOS 26** is built and supported today. Native networking,
+compiler arithmetic and packaging boundaries are isolated for later Intel Mac,
+Linux and Windows work; this is not a Universal 2 or cross-platform release.
+See [portable foundations](docs/portability.md) for the extension points and tests
+required before adding a target. The native SwiftUI interface remains unchanged.

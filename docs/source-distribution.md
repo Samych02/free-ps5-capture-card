@@ -28,6 +28,33 @@ license/version and any additional conditions still need review.
 
 ## Inspected dependency inventory
 
+### Current minimal-FFmpeg follow-up
+
+Current builds replace the Homebrew FFmpeg runtime with private static FFmpeg
+9.0.2, pinned by source archive SHA-256 in `Dependencies.lock.json`. Runtime and
+test-only fixture profiles are separate; no fixture-input/decoder/encoder/network
+capabilities are added to CaptureEngine. Build configuration, compiler/SDK/source
+identity and upstream licenses are copied to `EmbeddedSources/ffmpeg`; the verified
+source archive is retained locally at `build/ffmpeg-9.0.2.tar.xz`. It is **not**
+included in the app merely by copying its license files. A complete matching
+source distribution and independent review remain required, including static
+link/relink obligations. The project stays AGPL-3.0-only.
+
+The inventory below is historical RC1 evidence, not the new dependency closure.
+Re-inventory the optimized package before distribution. See
+[portable foundations](portability.md) for exact profile boundaries.
+
+Local optimized developer-package evidence: runtime policy reports **LGPL version
+2.1 or later**, zero registered codecs/demuxers/protocols, two parsers and one muxer.
+The app's dynamic manifest now contains **13 libraries** from json-c, miniupnpc,
+libevent, libidn2, OpenSSL 3 and 4, libnghttp2, libpsl, libssh2, libunistring and
+gettext. The two OpenSSL closures are still present; this work does not claim all
+Homebrew dependencies are minimized. No FFmpeg/x264/x265/other codec dylibs remain.
+Exact local package/check evidence is tracked in the
+[execution plan](plans/minimal-ffmpeg-portability.md).
+
+### Historical RC1 inventory
+
 These are the **local RC1** versions, not promises for future Homebrew builds.
 Evidence: the app's `Contents/Resources/RuntimeNotices/runtime-manifest.json`,
 the copied formula `.rb` recipes and license texts, plus the fetched upstream
