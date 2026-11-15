@@ -23,3 +23,10 @@ FetchContent_Declare(chiaki
         "-DSOURCE=<SOURCE_DIR>" "-DROOT=${PROJECT_SOURCE_DIR}"
         -P "${PROJECT_SOURCE_DIR}/cmake/ApplyChiakiPatches.cmake")
 FetchContent_MakeAvailable(chiaki)
+# A new lock entry does not necessarily rerun FetchContent's PATCH_COMMAND for
+# an existing checkout. Validate/apply the lock on every configure as well, so
+# warmed developer caches cannot silently retain an older unpatched core.
+execute_process(COMMAND "${CMAKE_COMMAND}"
+    "-DSOURCE=${chiaki_SOURCE_DIR}" "-DROOT=${PROJECT_SOURCE_DIR}"
+    -P "${PROJECT_SOURCE_DIR}/cmake/ApplyChiakiPatches.cmake"
+    COMMAND_ERROR_IS_FATAL ANY)

@@ -1,5 +1,14 @@
 # Finish standalone PS5 capture
 
+## Offline audit remediation
+
+Current follow-up: `docs/plans/offline-audit-fixes.md`; response evidence in
+`docs/reviews/offline-audit-fixes.md`. Control framing, repeated PIN progress,
+credential ACL checks and CI provisioning are repaired offline. Developer build 3
+remains Apple Silicon/macOS 26. User explicitly deferred controller/microphone
+negotiation changes until real-PS5 testing; do not change that code now. No
+device, hosted CI, independent-review or source-delivery release gate is waived.
+
 ## Latest scoped follow-up
 
 User approved minimal FFmpeg and portable foundations, explicitly **not** new

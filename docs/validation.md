@@ -1,6 +1,25 @@
 # Validation evidence
 
-## Latest minimal-FFmpeg / portable-foundations developer checkpoint
+## Latest offline-audit developer checkpoint
+
+0.1.0 **build 3**: `build/package-offline-audit/Free PS5 Capture Card.app`;
+ZIP `build/FreePS5CaptureCard-0.1.0-dev3-offline-audit-arm64.zip`.
+Four offline repairs: locked control-frame bounds/progress, typed PIN request
+identity (C API v3), descriptor ACL privacy checks, CI prerequisite provisioning.
+Existing controller/microphone negotiation remains unchanged by user decision.
+
+Fresh evidence: 27 Bootstrap checks and 92 app tests pass (8.94 s end-to-end for app tests); all 12 CTest targets pass
+(187.59 s, transport 173.82 s); parser boundary/progress/100,000-header checks pass
+under ASan/UBSan. New Release bundle passes 15 Mach-O checks with 13 dylibs (12.46 s).
+ZIP: 8,543,748 bytes, CRC passes, SHA-256
+`5317744a48a82290cd70f7b99e576b624afd4dd2cba41cea48a14d93ff262327`.
+Prior ZIP hashes are unchanged. Clean patch application and automatic repair of
+an already-populated dependency cache are verified. No hosted CI, real PS5,
+interactive UI, clean-machine or independent-review gate is claimed passed.
+See [the response report](reviews/offline-audit-fixes.md) and
+[execution plan](plans/offline-audit-fixes.md) for red/green evidence and limits.
+
+## Earlier minimal-FFmpeg / portable-foundations developer checkpoint
 
 Current optimized developer artifact:
 `build/package-minimal-portable/Free PS5 Capture Card.app`, still 0.1.0 build 2;

@@ -11,6 +11,10 @@
   final handoff by user instruction; do not claim them passed beforehand.
 - No app-side media decoding/encoding, playback, preview, controller/microphone
   features, secret logging, or hidden HDR fallback.
+- Preserve the existing upstream controller/microphone protocol negotiation for
+  now. User deferred deciding whether to remove it until real-PS5 testing is
+  available; do not change it during offline audit fixes. This does not authorize
+  app-side microphone capture or controller features.
 - Current approved follow-up: `docs/plans/minimal-ffmpeg-portability.md`. Minimize
   FFmpeg and prepare portable engine/build boundaries only. Continue building
   Apple Silicon/macOS 26; do not add Universal/Intel/Windows/Linux builds or GUIs

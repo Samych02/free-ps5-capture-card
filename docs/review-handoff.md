@@ -1,5 +1,11 @@
 # Independent review requested
 
+Latest remediation scope/evidence: [offline audit fixes](reviews/offline-audit-fixes.md).
+Review the third locked parser patch, cached-source patch enforcement, C API v3
+PIN identity and descriptor ACL validation. Hosted CI and PS5 tests are still
+pending. Controller/microphone negotiation is intentionally unchanged by user
+instruction; do not treat its removal as an approved offline change.
+
 ## Scope
 
 Review live capture changes from `6a53f90` through the final continuation commits
@@ -72,7 +78,8 @@ disabled states and focus/cancellation in account, pairing, address and PIN shee
 The single window must close/reopen without stopping an active capture, while
 Quit still waits for cleanup. Inspect actual fake-data SwiftUI screenshots in
 `build/ui-polish`; no user credential files are involved in those renderings.
-Check that C API v2 layout/version and bundled Swift client/framework match.
+Check that C API v3 layout/version and bundled Swift client/framework match,
+including typed PIN request IDs for repeated identical rejections.
 
 No independent review pass is claimed by the author. Automated, rendering and
 manual/release evidence must remain separate. Public distribution is not

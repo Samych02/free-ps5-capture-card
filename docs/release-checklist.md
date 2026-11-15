@@ -1,5 +1,14 @@
 # 0.1.0 first-release checklist
 
+Latest offline-audit **developer** build: 0.1.0 build 3 at
+`build/package-offline-audit/Free PS5 Capture Card.app`. It adds bounded control
+framing (third locked patch), C API v3 typed PIN request IDs, credential ACL
+validation and explicit CI provisioning. **27 Bootstrap checks, 92 app tests, 12 native targets and
+15 package binary checks pass**; hosted CI/device acceptance is not claimed.
+See [remediation evidence](reviews/offline-audit-fixes.md). Existing controller/
+microphone negotiation is intentionally unchanged until a later real-PS5 decision.
+All independent/source-delivery/manual gates below remain open for this build.
+
 This is a **release candidate**, not a claim that every release gate has passed.
 The supported build currently targets Apple Silicon and macOS 26+.
 
@@ -49,7 +58,7 @@ Mach-O checks. Fresh audit checks: 13 Bootstrap tests and 10 CTest targets
 See [source-distribution requirements](source-distribution.md) before distributing
 any binary; notices/recipes alone are not complete corresponding source.
 
-Latest optimized **developer** build (not a renamed RC1/RC2):
+Earlier optimized **developer** build (not a renamed RC1/RC2):
 `build/package-minimal-portable/Free PS5 Capture Card.app`, still 0.1.0 build 2.
 It uses the isolated static minimal-FFmpeg runtime and portability boundaries,
 while remaining arm64/macOS 26 only. Packaging passed 15 Mach-O checks with

@@ -37,7 +37,7 @@ final class AppModel: ObservableObject {
             let snapshot = self.engine.status()
             let current = snapshot.nativeState ?? state
             if self.isStopping && current != .stopped { return }
-            if current != .pinRequired || snapshot.message != self.status.message {
+            if current != .pinRequired || snapshot.pinRequestID != self.status.pinRequestID {
                 self.isSubmittingPIN = false
                 self.pinSubmissionError = nil
             }

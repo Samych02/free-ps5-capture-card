@@ -1,5 +1,8 @@
 # Execution Plans
 
+Current remediation: `docs/plans/offline-audit-fixes.md` (four approved offline
+audit fixes; controller/microphone negotiation remains unchanged).
+
 Active follow-up: `docs/plans/minimal-ffmpeg-portability.md` (minimal FFmpeg and
 portable foundations; current build remains Apple Silicon/macOS 26 only).
 

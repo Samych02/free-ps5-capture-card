@@ -13,7 +13,7 @@
 #else
 #define CAPTURE_API
 #endif
-#define CAPTURE_API_VERSION 2
+#define CAPTURE_API_VERSION 3
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -50,6 +50,7 @@ typedef struct {
     uint64_t video_clock_position, audio_clock_position;
     uint32_t audio_samples_per_packet;
     capture_phase phase;
+    uint64_t pin_request_id; /* new request/rejection identity; zero outside a PIN prompt */
     char message[192]; /* current issue only; sanitized, no protocol strings or credentials */
     char last_output_message[192], last_source_message[192]; /* historical diagnostics */
 } capture_status;

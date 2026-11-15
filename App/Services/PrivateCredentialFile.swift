@@ -11,12 +11,42 @@ final class PrivateCredentialFile: CredentialFileAccess {
         self.directory = directory ?? FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support/FreePS5CaptureCard", isDirectory: true)
     }
+    private func validateACL(_ fd: Int32) throws {
+        errno = 0
+        guard let acl = acl_get_fd_np(fd, ACL_TYPE_EXTENDED) else {
+            // Darwin reports a descriptor with no extended ACL as ENOENT,
+            // rather than returning an allocated empty ACL.
+            guard errno == ENOENT else { throw AuthError.storage }
+            return
+        }
+        defer { _ = acl_free(UnsafeMutableRawPointer(acl)) }
+        guard acl_valid(acl) == 0 else { throw AuthError.storage }
+        var entry: acl_entry_t?
+        var index = ACL_FIRST_ENTRY.rawValue
+        while true {
+            errno = 0
+            let result = acl_get_entry(acl, index, &entry)
+            if result != 0 {
+                // Darwin reports end-of-entries as EINVAL. The ACL was already
+                // validated and only FIRST/NEXT are used; other errors fail closed.
+                guard result == -1, errno == EINVAL else { throw AuthError.storage }
+                return
+            }
+            guard let entry else { throw AuthError.storage }
+            var tag = ACL_UNDEFINED_TAG
+            // Deny-only entries cannot widen access. Conservatively reject any
+            // granting entry, including inherited/inherit-only or owner grants.
+            guard acl_get_tag_type(entry, &tag) == 0, tag == ACL_EXTENDED_DENY else { throw AuthError.storage }
+            index = ACL_NEXT_ENTRY.rawValue
+        }
+    }
     private func validate(_ fd: Int32, directory: Bool = false) throws -> stat {
         var info = stat()
         guard fstat(fd, &info) == 0, info.st_uid == geteuid(),
               info.st_mode & mode_t(S_IFMT) == mode_t(directory ? S_IFDIR : S_IFREG),
               info.st_mode & 0o7777 == (directory ? 0o700 : 0o600),
               directory || info.st_nlink == 1 else { throw AuthError.storage }
+        try validateACL(fd)
         return info
     }
     private func openDirectory() throws -> Int32 {

@@ -3,6 +3,7 @@
 #include "Diagnostics.h"
 #include <cstring>
 #include <stdexcept>
+#include <atomic>
 namespace capture {
 ChiakiErrorCode initializeCaptureCore() {
     // Process-wide FEC tables and certificate-cache mutex must exist before
@@ -12,6 +13,13 @@ ChiakiErrorCode initializeCaptureCore() {
     return result;
 }
 namespace {
+uint64_t nextPinRequestID() {
+    static std::atomic<uint64_t> counter{0};
+    auto previous=counter.load(std::memory_order_relaxed);
+    while(previous!=UINT64_MAX)
+        if(counter.compare_exchange_weak(previous,previous+1,std::memory_order_relaxed))return previous+1;
+    return 0; // Never reuse an ID, even across replacement sessions.
+}
 void wipe(void *p,size_t n) {auto b=static_cast<volatile uint8_t *>(p);while(n--) *b++=0;}
 class LiveSession final:public SessionBackend {
     ChiakiSession session_{};
@@ -20,6 +28,7 @@ class LiveSession final:public SessionBackend {
     bool initialized_=false,started_=false;
     std::mutex mutex_;
     bool connected_=false,pinRequired_=false,pinIncorrect_=false,done_=false;
+    uint64_t pinRequestID_=0;
     ChiakiQuitReason quit_=CHIAKI_QUIT_REASON_NONE;
     std::unique_ptr<SessionMediaControl> control_;
     std::unique_ptr<MediaPipeline> pipeline_;
@@ -28,7 +37,10 @@ class LiveSession final:public SessionBackend {
         std::lock_guard<std::mutex> lock(self.mutex_);
         switch(e->type) {
             case CHIAKI_EVENT_CONNECTED:self.connected_=true;self.pinRequired_=false;break;
-            case CHIAKI_EVENT_LOGIN_PIN_REQUEST:self.pinRequired_=true;self.pinIncorrect_=e->login_pin_request.pin_incorrect;break;
+            case CHIAKI_EVENT_LOGIN_PIN_REQUEST:
+                self.pinRequestID_=nextPinRequestID();
+                if(!self.pinRequestID_) {self.done_=true;self.quit_=CHIAKI_QUIT_REASON_CTRL_UNKNOWN;break;}
+                self.pinRequired_=true;self.pinIncorrect_=e->login_pin_request.pin_incorrect;break;
             case CHIAKI_EVENT_QUIT:self.done_=true;self.quit_=e->quit.reason;break;
             default:break; // Never retain remote strings, account data or controller events.
         }
@@ -76,6 +88,7 @@ public:
             memcpy(s.status.message,result.status.message,sizeof(s.status.message));
         } else if(pinRequired_) {
             s.status.state=CAPTURE_PIN_REQUIRED;
+            s.status.pin_request_id=pinRequestID_;
             if(pinIncorrect_) strncpy(s.status.message,"PS5 login passcode was incorrect. Try again.",sizeof(s.status.message)-1);
         }
         else if(!connected_) s.status.state=CAPTURE_CONNECTING;

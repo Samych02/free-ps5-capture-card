@@ -265,21 +265,34 @@ static MunitResult native_lifecycle(const MunitParameter[],void *) {
     borrowedSession->event_cb(&event,borrowedSession->event_cb_user);
     munit_assert_int(session->snapshot().status.state,==,CAPTURE_PIN_REQUIRED);
     munit_assert_not_null(strstr(session->snapshot().status.message,"incorrect"));
+    auto firstPinRequest=session->snapshot().status.pin_request_id;
+    munit_assert_true(firstPinRequest!=0);
+    munit_assert_true(session->snapshot().status.pin_request_id==firstPinRequest);
     session->submitPin("0123",4);munit_assert_int(nativePin,==,1);
+    munit_assert_true(session->snapshot().status.pin_request_id==0);
+    borrowedSession->event_cb(&event,borrowedSession->event_cb_user);
+    auto secondPinRequest=session->snapshot().status.pin_request_id;
+    munit_assert_true(secondPinRequest>firstPinRequest);
+    munit_assert_not_null(strstr(session->snapshot().status.message,"incorrect"));
     event.type=CHIAKI_EVENT_QUIT;event.quit.reason=CHIAKI_QUIT_REASON_SESSION_REQUEST_RP_IN_USE;
     borrowedSession->event_cb(&event,borrowedSession->event_cb_user);
     auto snapshot=session->snapshot();munit_assert_true(snapshot.done);munit_assert_false(snapshot.retry);
     munit_assert_int(snapshot.status.error,==,CAPTURE_ERROR_IN_USE);
     session->stopAndJoin();session.reset();
     munit_assert_int(nativeStop,==,1);munit_assert_int(nativeJoin,==,1);munit_assert_int(nativeFini,==,1);
+    session=makeLiveSessionWithAPI(o,c,server,api);
+    event.type=CHIAKI_EVENT_LOGIN_PIN_REQUEST;
+    borrowedSession->event_cb(&event,borrowedSession->event_cb_user);
+    munit_assert_true(session->snapshot().status.pin_request_id>secondPinRequest);
+    session->stopAndJoin();session.reset();
     failStart=true;bool rejected=false;
     try {makeLiveSessionWithAPI(o,c,server,api);}catch(...){rejected=true;}
     failStart=false;munit_assert_true(rejected);
-    munit_assert_int(nativeFini,==,2);munit_assert_int(nativeJoin,==,1);
+    munit_assert_int(nativeFini,==,3);munit_assert_int(nativeJoin,==,2);
     failLibraryInit=true;rejected=false;
     try {makeLiveSessionWithAPI(o,c,server,api);}catch(...){rejected=true;}
     failLibraryInit=false;munit_assert_true(rejected);
-    munit_assert_int(nativeInit,==,2);munit_assert_int(nativeFini,==,2);
+    munit_assert_int(nativeInit,==,3);munit_assert_int(nativeFini,==,3);
     return MUNIT_OK;
 }
 int main(int argc,char **argv) {

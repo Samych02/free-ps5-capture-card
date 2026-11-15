@@ -25,11 +25,18 @@ First-release candidate for Apple Silicon Macs running macOS 26 or later.
 - Validate raw port input and exact pairing/passcode digits; improve cancellation,
   discovery progress, stopping/submission feedback and window reopen behavior.
 - Original capture-frame icon and native light/dark appearances.
+- Offline audit fixes (developer build 3): typed PIN request IDs clear repeated
+  same-text rejection progress even when intermediate states are missed; C API v3.
 
 ### Storage and distribution
 
 - Credentials use an unencrypted owner-only local file. OAuth tokens and passcodes
   stay transient; historical Keychain records are never read, migrated or deleted.
+- Reject granting extended ACLs on credential directories, lock files and records,
+  including inherited grants; preserve empty/deny-only ACLs without modifying them.
+- Reject oversized/wrapping control frames through a third locked Chiaki patch;
+  preserve existing controller/microphone negotiation until real-device review.
+- CI explicitly installs documented Homebrew prerequisites before bootstrap.
 - Debug/Release native build caches are isolated to avoid configuration thrashing.
 - Developer bundle is ad-hoc signed, not notarized. No public release is published.
 - Post-RC1 author audit: add missing static curl copyright/permission notice to

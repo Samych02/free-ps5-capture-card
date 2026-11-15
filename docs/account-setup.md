@@ -34,6 +34,11 @@ protection. This weaker storage model was explicitly chosen by the user.
 Writes validate a bounded, versioned account/console record and replace it
 atomically. Unsafe permissions, symlinks/hardlinks, unsupported records and
 concurrent changes fail closed; there is no alternate store or automatic backup.
+The directory, lock file and credential file are also checked for extended ACLs
+through their open descriptors. Granting entries—including inherited/inherit-only
+and explicit owner grants—are conservatively rejected even with 0700/0600 modes.
+Empty or deny-only ACLs are allowed; the app never strips or repairs ACLs itself.
+An unsafe inherited ACL stops creation before lock/credential data is written.
 If bounded JSON is corrupt, **Reset Local Credentials…** / **Forget Account…**
 can remove it after confirmation. Permission errors require repairing the local
 folder/file access. Never post the file contents while troubleshooting.

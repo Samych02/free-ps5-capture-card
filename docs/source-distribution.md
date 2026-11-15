@@ -22,6 +22,10 @@ license/version and any additional conditions still need review.
 - [0002](../patches/chiaki/0002-encoded-media-sink.patch) adds encoded-media sinks,
   receiver timing/generations, bounds, callback/IDR lifetime safety and typed
   rejection fixes. Upstream struct layouts change; this is a modified core.
+- [0003](../patches/chiaki/0003-control-frame-bounds.patch) rejects oversized and
+  wrapping control-frame lengths before decryption and guarantees bounded parser
+  progress with one checked byte count. Preserve this patch and its lock digest
+  when assembling matching source for the offline-audit build.
 - The app's PSN flow adapts chiaki-ng account-ID/token code. Retain its credit to
   grill2010. [Third-party notices](../THIRD_PARTY_NOTICES.md) and the README credit
   original Chiaki/Florian Märkl and chiaki-ng/Street Pea and contributors.

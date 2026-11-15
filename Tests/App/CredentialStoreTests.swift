@@ -42,6 +42,46 @@ final class CredentialStoreTests: XCTestCase {
         let attributes = try FileManager.default.attributesOfItem(atPath: path.path)
         return try XCTUnwrap(attributes[.posixPermissions] as? NSNumber).intValue
     }
+    private func acl(_ path: URL, _ entry: String?) throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/chmod")
+        process.arguments = entry.map { ["+a", $0, path.path] } ?? ["-N", path.path]
+        try process.run(); process.waitUntilExit()
+        XCTAssertEqual(process.terminationStatus, 0, "Could not prepare synthetic ACL fixture")
+    }
+    func testGrantingACLsRejectDirectoryLockAndCredentialWithoutMutation() throws {
+        for name in ["", PrivateCredentialFile.lockFileName, PrivateCredentialFile.fileName] {
+            try withFile { file, _ in
+                let bytes = Data("synthetic".utf8)
+                try file.write(bytes, replacing: nil)
+                let path = name.isEmpty ? file.directory : file.directory.appendingPathComponent(name)
+                try acl(path, name.isEmpty ? "everyone allow list,search,readattr,readextattr,readsecurity" : "everyone allow read,readattr,readextattr,readsecurity")
+                XCTAssertEqual(try mode(path), name.isEmpty ? 0o700 : 0o600)
+                XCTAssertThrowsError(try file.read(), "Granting ACL on \(name) must not pass mode-only validation")
+                XCTAssertThrowsError(try file.write(Data("replacement".utf8), replacing: bytes))
+                XCTAssertThrowsError(try file.delete(replacing: bytes))
+                XCTAssertEqual(try Data(contentsOf: file.directory.appendingPathComponent(PrivateCredentialFile.fileName)), bytes)
+            }
+        }
+    }
+    func testInheritedGrantingACLPreventsLockAndCredentialCreation() throws {
+        try withFile { file, root in
+            try acl(root, "everyone allow list,search,readattr,readextattr,readsecurity,file_inherit,directory_inherit")
+            XCTAssertThrowsError(try file.write(Data("synthetic".utf8), replacing: nil))
+            XCTAssertFalse(FileManager.default.fileExists(atPath: file.directory.appendingPathComponent(PrivateCredentialFile.fileName).path))
+            XCTAssertFalse(FileManager.default.fileExists(atPath: file.directory.appendingPathComponent(PrivateCredentialFile.lockFileName).path))
+        }
+    }
+    func testDenyOnlyACLsDoNotWeakenPrivateFileValidation() throws {
+        try withFile { file, _ in
+            let bytes = Data("synthetic".utf8); try file.write(bytes, replacing: nil)
+            let paths = [file.directory, file.directory.appendingPathComponent(PrivateCredentialFile.lockFileName),
+                         file.directory.appendingPathComponent(PrivateCredentialFile.fileName)]
+            defer { for path in paths { try? acl(path, nil) } }
+            for path in paths { try acl(path, "everyone deny delete") }
+            XCTAssertEqual(try file.read(), bytes)
+        }
+    }
     func testAccountPersistsAndCanBeForgotten() throws {
         let access = FakeCredentialFile()
         let subject = FileCredentialStore(access: access)

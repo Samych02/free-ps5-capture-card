@@ -9,6 +9,7 @@ final class EngineClientTests: XCTestCase {
         value.video_clock_elapsed_us = 180_000_000; value.audio_clock_elapsed_us = 179_990_000
         value.video_clock_position = 10620; value.audio_clock_position = 17999
         value.audio_samples_per_packet = 480
+        value.pin_request_id = UInt64.max - 1
         let result = NativeEngineClient.decodedStatus(value)
         XCTAssertEqual(result.videoClockDriftMicroseconds, -2_823_000)
         XCTAssertEqual(result.audioClockDriftMicroseconds, 700)
@@ -17,6 +18,7 @@ final class EngineClientTests: XCTestCase {
         XCTAssertEqual(result.videoClockPosition, 10620)
         XCTAssertEqual(result.audioClockPosition, 17999)
         XCTAssertEqual(result.audioSamplesPerPacket, 480)
+        XCTAssertEqual(result.pinRequestID, UInt64.max - 1)
     }
     func testNativeStatusKeepsOutputResetCauseSeparateFromSourceRetries() {
         var value = capture_status()

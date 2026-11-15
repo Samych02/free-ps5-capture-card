@@ -16,6 +16,7 @@ struct EngineStatus: Equatable {
     var videoClockElapsedMicroseconds: UInt64 = 0, audioClockElapsedMicroseconds: UInt64 = 0
     var videoClockPosition: UInt64 = 0, audioClockPosition: UInt64 = 0
     var audioSamplesPerPacket: UInt32 = 0
+    var pinRequestID: UInt64 = 0
 }
 @MainActor
 protocol EngineControlling: AnyObject {
@@ -77,7 +78,7 @@ final class NativeEngineClient: EngineControlling {
                             videoClockDriftMicroseconds: value.video_clock_drift_us, audioClockDriftMicroseconds: value.audio_clock_drift_us,
                             videoClockElapsedMicroseconds: value.video_clock_elapsed_us, audioClockElapsedMicroseconds: value.audio_clock_elapsed_us,
                             videoClockPosition: value.video_clock_position, audioClockPosition: value.audio_clock_position,
-                            audioSamplesPerPacket: value.audio_samples_per_packet)
+                             audioSamplesPerPacket: value.audio_samples_per_packet, pinRequestID: value.pin_request_id)
     }
     nonisolated static func decodedState(_ value: capture_state) -> EngineState {
         switch value {

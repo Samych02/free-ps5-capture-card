@@ -60,6 +60,9 @@ users, **not processes running as your macOS user**; it is not app-level
 encryption. Do not share or commit this file. OAuth tokens, redirect URLs,
 pairing/login codes and Sony passwords are not saved. Forget Account removes
 the local record; it does not touch historical Keychain entries or erase backups.
+The app also checks extended ACLs on its private directory, lock and credential
+files. Granting ACLs (including inherited grants) are rejected rather than silently
+removed; deny-only ACLs are permitted. See [storage troubleshooting](docs/account-setup.md).
 
 ## Build and verify
 

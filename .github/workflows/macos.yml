@@ -13,6 +13,8 @@ jobs:
       HOMEBREW_NO_AUTO_UPDATE: "1"
     steps:
       - uses: actions/checkout@v4
+      - name: Install build and synthetic-test prerequisites
+        run: brew install cmake ninja xcodegen ffmpeg pkg-config openssl@3 protobuf@29 json-c miniupnpc libevent python@3.13
       - name: Bootstrap isolated build dependencies
         run: scripts/bootstrap.sh
       - name: Build and test without PSN or a console

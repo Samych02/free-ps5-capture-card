@@ -11,6 +11,14 @@ final class FakeEngine: EngineControlling {
     var acceptsPIN = false
     var submittedPINs = 0
     var acknowledgesStop = true
+    private var pinRequests: UInt64 = 0
+    func requestPIN(incorrect: Bool = false) {
+        pinRequests += 1
+        snapshot.pinRequestID = pinRequests
+        snapshot.nativeState = .pinRequired
+        snapshot.message = incorrect ? "PS5 login passcode was incorrect. Try again." : ""
+        onState?(.pinRequired)
+    }
     func configure(options: StreamOptions, account: Account, console: PairedConsole) -> Bool { available }
     func start() -> Bool { starts += 1; return available }
     func stop() { stops += 1; if acknowledgesStop { onState?(.stopped) } }
@@ -20,6 +28,19 @@ final class FakeEngine: EngineControlling {
 }
 
 final class AppModelTests: XCTestCase {
+    @MainActor func testRepeatedIdenticalPINRejectionsClearSubmissionWithoutIntermediateState() {
+        let engine = FakeEngine(); engine.acceptsPIN = true
+        let subject = AppModel(engine: engine)
+        engine.requestPIN()
+        XCTAssertTrue(subject.submitPIN("1111"))
+        engine.requestPIN(incorrect: true)
+        XCTAssertFalse(subject.isSubmittingPIN)
+        XCTAssertTrue(subject.submitPIN("2222"))
+        engine.onState?(.pinRequired) // A periodic snapshot is not a response.
+        XCTAssertTrue(subject.isSubmittingPIN)
+        engine.requestPIN(incorrect: true)
+        XCTAssertFalse(subject.isSubmittingPIN, "A new rejection must clear progress even if state/text are identical")
+    }
     @MainActor func testInvalidVisiblePortTextCannotStartWithPreviousValidPort() throws {
         let suite = "port-tests-\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
@@ -69,6 +90,7 @@ final class AppModelTests: XCTestCase {
         engine.onState?(.pinRequired)
         XCTAssertTrue(subject.isSubmittingPIN, "An unchanged periodic status is not a new PIN response")
         engine.snapshot.message = "PS5 login passcode was incorrect. Try again."
+        engine.snapshot.pinRequestID = 1
         engine.onState?(.pinRequired)
         XCTAssertFalse(subject.isSubmittingPIN)
         engine.onState?(.streaming)
