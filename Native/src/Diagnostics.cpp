@@ -51,6 +51,24 @@ SessionSnapshot classifyQuit(ChiakiQuitReason reason) {
     SessionSnapshot s;s.done=true;s.retry=true;s.status.state=CAPTURE_FAILED;s.status.error=CAPTURE_ERROR_CONNECTION;
     const char *message="PS5 connection ended. Retrying; check power and local network access.";
     switch(reason) {
+        // Fixed local categories only: never append core/remote reason strings,
+        // HTTP requests or logs, which may contain authentication material.
+        case CHIAKI_QUIT_REASON_SESSION_REQUEST_UNKNOWN:
+            message="PS5 session request failed (SESSION_REQUEST_UNKNOWN). Retrying.";break;
+        case CHIAKI_QUIT_REASON_SESSION_REQUEST_CONNECTION_REFUSED:
+            message="PS5 session request connection refused (SESSION_REQUEST_CONNECTION_REFUSED). Retrying.";break;
+        case CHIAKI_QUIT_REASON_SESSION_REQUEST_RP_CRASH:
+            message="PS5 reported a Remote Play application failure (SESSION_REQUEST_RP_CRASH). Retrying.";break;
+        case CHIAKI_QUIT_REASON_CTRL_UNKNOWN:
+            message="PS5 control connection ended (CTRL_UNKNOWN). Retrying.";break;
+        case CHIAKI_QUIT_REASON_CTRL_CONNECT_FAILED:
+            message="PS5 control handshake failed (CTRL_CONNECT_FAILED). Retrying.";break;
+        case CHIAKI_QUIT_REASON_STREAM_CONNECTION_UNKNOWN:
+            message="PS5 media connection failed (STREAM_CONNECTION_UNKNOWN). Retrying.";break;
+        case CHIAKI_QUIT_REASON_STREAM_CONNECTION_REMOTE_DISCONNECTED:
+            message="PS5 ended the media stream (STREAM_CONNECTION_REMOTE_DISCONNECTED). Retrying.";break;
+        case CHIAKI_QUIT_REASON_STREAM_CONNECTION_REMOTE_SHUTDOWN:
+            message="PS5 ended the media stream for shutdown (STREAM_CONNECTION_REMOTE_SHUTDOWN). Retrying.";break;
         case CHIAKI_QUIT_REASON_SESSION_REQUEST_RP_IN_USE:
             s.retry=false;s.status.error=CAPTURE_ERROR_IN_USE;message="PS5 reports Remote Play is already in use. Stop any other client, or wait for the previous session to close, then try again.";break;
         case CHIAKI_QUIT_REASON_SESSION_REQUEST_RP_VERSION_MISMATCH:

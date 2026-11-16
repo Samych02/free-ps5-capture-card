@@ -1,5 +1,28 @@
 # Capture-only controller/microphone policy
 
+## Current build-6 diagnostic follow-up
+
+Build 5 shows Reconnecting to PS5 on the user's console, and Recent events repeats
+the same generic connection-ended sentence. Root cause is not established.
+`classifyQuit` collapses session-request, control and media failures into that
+sentence despite receiving a typed core quit reason. Build 6 exposes only fixed
+local allowlisted labels for those eight existing categories; retry decisions,
+negotiation, locked patches, credentials and raw logging remain unchanged.
+
+- [x] Red diagnostics regression proves distinct reasons were lost.
+- [x] Add fixed safe messages, verify diagnostics/session/native/app checks and
+  build separate candidate with unchanged five-patch negotiation. Never append
+  remote/core strings or enable raw request/hexdump logging.
+- [x] Hand off diagnostic candidate, without claiming header removal is fixed
+  or replacing the running app without authorization. Next device evidence is
+  the safe quit category, then one controlled comparison—not more protocol guesses.
+
+Build 6: `build/package-capture-diagnostics/Free PS5 Capture Card.app`. Native
+non-transport 12/12, Bootstrap 27/27, app 92/92 and package 15 Mach-O checks pass;
+all build/verification stages took 34.1 s. Package lock is identical to build 5.
+Full transport was not rerun for this fixed-message-only change. Device reason
+and recovery are pending; no protocol fix or icon/controller-slot fix claimed.
+
 Living Execution Plan under PLANS.md. Baseline `a8b19c4`, main. User explicitly
 chose **enable capture-only in a new developer candidate**, superseding the prior
 deferral. No console was available at design time; see the later device observation

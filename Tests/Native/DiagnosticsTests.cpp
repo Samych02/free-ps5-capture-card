@@ -15,6 +15,23 @@ extern "C" {
 static MunitResult quit_policy(const MunitParameter[],void *) {
     auto transient=capture::classifyQuit(CHIAKI_QUIT_REASON_STREAM_CONNECTION_REMOTE_DISCONNECTED);
     munit_assert_true(transient.done);munit_assert_true(transient.retry);
+    const struct {ChiakiQuitReason reason;const char *tag;} categories[]{
+        {CHIAKI_QUIT_REASON_SESSION_REQUEST_UNKNOWN,"SESSION_REQUEST_UNKNOWN"},
+        {CHIAKI_QUIT_REASON_SESSION_REQUEST_CONNECTION_REFUSED,"SESSION_REQUEST_CONNECTION_REFUSED"},
+        {CHIAKI_QUIT_REASON_SESSION_REQUEST_RP_CRASH,"SESSION_REQUEST_RP_CRASH"},
+        {CHIAKI_QUIT_REASON_CTRL_UNKNOWN,"CTRL_UNKNOWN"},
+        {CHIAKI_QUIT_REASON_CTRL_CONNECT_FAILED,"CTRL_CONNECT_FAILED"},
+        {CHIAKI_QUIT_REASON_STREAM_CONNECTION_UNKNOWN,"STREAM_CONNECTION_UNKNOWN"},
+        {CHIAKI_QUIT_REASON_STREAM_CONNECTION_REMOTE_DISCONNECTED,"STREAM_CONNECTION_REMOTE_DISCONNECTED"},
+        {CHIAKI_QUIT_REASON_STREAM_CONNECTION_REMOTE_SHUTDOWN,"STREAM_CONNECTION_REMOTE_SHUTDOWN"},
+    };
+    for(auto category:categories) {
+        auto failure=capture::classifyQuit(category.reason);
+        munit_assert_true(failure.done);munit_assert_true(failure.retry);
+        munit_assert_int(failure.status.error,==,CAPTURE_ERROR_CONNECTION);
+        munit_assert_not_null(strstr(failure.status.message,category.tag));
+        munit_assert_size(strlen(failure.status.message),<,sizeof(failure.status.message));
+    }
     auto auth=capture::classifyQuit(CHIAKI_QUIT_REASON_CTRL_CONNECTION_REFUSED);
     munit_assert_false(auth.retry);munit_assert_int(auth.status.error,==,CAPTURE_ERROR_IDENTITY);
     for(auto code:{CHIAKI_RP_APPLICATION_REASON_REGIST_FAILED,CHIAKI_RP_APPLICATION_REASON_INVALID_PSN_ID}) {

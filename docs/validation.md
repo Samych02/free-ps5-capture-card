@@ -2,6 +2,10 @@
 
 ## Current capture-only developer candidate
 
+Build 6 is diagnostic only: build-5 negotiation plus allowlisted failure-category
+messages. Build 5 showed an on-device reconnect loop with only a generic reason;
+the underlying failure and extra FIFA controller-slot effect remain unresolved.
+
 Build 5 extends the core policy to initial controller HTTP declarations; see the
 [policy verification report](reviews/capture-only-negotiation.md) for current
 automated evidence and artifacts. User reports build 4 works but the PS5 still

@@ -285,6 +285,13 @@ static MunitResult native_lifecycle(const MunitParameter[],void *) {
     event.type=CHIAKI_EVENT_LOGIN_PIN_REQUEST;
     borrowedSession->event_cb(&event,borrowedSession->event_cb_user);
     munit_assert_true(session->snapshot().status.pin_request_id>secondPinRequest);
+    event.type=CHIAKI_EVENT_QUIT;event.quit.reason=CHIAKI_QUIT_REASON_CTRL_CONNECT_FAILED;
+    event.quit.reason_str="synthetic-private-remote-detail";
+    borrowedSession->event_cb(&event,borrowedSession->event_cb_user);
+    auto categorized=session->snapshot();
+    munit_assert_true(categorized.done);munit_assert_true(categorized.retry);
+    munit_assert_not_null(strstr(categorized.status.message,"CTRL_CONNECT_FAILED"));
+    munit_assert_null(strstr(categorized.status.message,"synthetic-private"));
     session->stopAndJoin();session.reset();
     failStart=true;bool rejected=false;
     try {makeLiveSessionWithAPI(o,c,server,api);}catch(...){rejected=true;}

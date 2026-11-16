@@ -1,5 +1,33 @@
 # Capture-only negotiation — author verification
 
+## Build-6 safe quit-category diagnostics
+
+User supplied build 5's Recent events message, but it repeated the same generic
+"PS5 connection ended" text. Inspection proves `classifyQuit` maps eight distinct
+typed transient core categories to that sentence; the reason is lost at our
+presentation layer, not available through another UI disclosure. Protocol-failure
+root cause remains unknown. Build 6 preserves build 5's five-patch negotiation
+and only replaces those cases with fixed local allowlisted messages/tags for
+session request, control connection/handshake and media connection endings.
+No remote strings, request bytes, credential reads or raw logging are introduced;
+retry decisions and authentication/input/media behavior are unchanged.
+
+Regression `build/capture-quit-category-red.log` fails because the category tag
+is absent. Native lifecycle coverage also injects a synthetic private remote
+reason and verifies only the fixed category reaches status.
+
+Build 6 at `build/package-capture-diagnostics/Free PS5 Capture Card.app` passes:
+12/12 non-transport native targets (10.08 s), 27 Bootstrap checks, 92 app tests,
+and 15 Mach-O package checks with 13 dylibs. Build/test/package took 34.1 s total;
+logs: `build/capture-quit-category-{native-build,native,bootstrap,app,package}.log`.
+Version verified 0.1.0 build 6. Embedded dependency lock exactly matches build 5;
+no new upstream patch, negotiation or crypto/media/input change. Full transport
+was not rerun for this message-only change. Scoped author review confirms fixed
+strings, unchanged retry classification and ignored remote reason payloads.
+Do not label this diagnostic candidate a fix; next device evidence must identify
+its displayed safe category before further protocol edits. App was not silently
+switched; the running retry history is preserved for the user to control.
+
 ## Build-5 initial-control-request follow-up
 
 User now reports build 4 works on the PS5, but the Remote Play user shows keyboard,
@@ -15,6 +43,15 @@ build 4 is connected. This suggests a real extra controller-slot effect, not onl
 decorative Remote Play icons; the exact cause is still unproven. At user request,
 build 4 was gracefully quit and verified stopped before opening build 5, avoiding
 concurrent capture app instances. Build-5 FIFA/controller-slot retest is pending.
+
+Build-5 device follow-up: user screenshot shows **Reconnecting to PS5… / PS5
+connection ended. Retrying; check power and local network access.** Process path
+confirms build 5 is running. This is a failed/unstable connection observation,
+not a successful icon/controller-slot test. Missing controller headers are a
+regression suspect, not an established cause; transient console state is not
+excluded. Need the initiating Recent events reason before Stop clears it, then a
+controlled comparison with build 4. Do not stack further protocol guesses or
+claim the device issue fixed from offline tests.
 
 Locked patch 0005 extracts the real request formatter and omits those two headers
 only in capture-only mode. Legacy PS5 request is checked byte-for-byte. Client

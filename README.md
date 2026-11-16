@@ -22,6 +22,9 @@ HTTP declarations missed by build 4. Build 4 was user-reported working, but PS5
 keyboard/controller/microphone icons still appeared. Build-5 connection and icon
 behavior are **unverified**; disabled input features do not guarantee icon removal.
 There is no silent legacy fallback.
+Build 5 subsequently showed a reconnect loop on-device. **Build 6 is diagnostic
+only**: the same negotiation, but fixed safe failure-category labels replace the
+generic retry message. It is not a connection or controller-slot fix.
 See the [policy checkpoint](docs/reviews/capture-only-negotiation.md).
 
 **Credential storage:** account and PS5 keys use an unencrypted, owner-only local
