@@ -28,6 +28,15 @@ Do not label this diagnostic candidate a fix; next device evidence must identify
 its displayed safe category before further protocol edits. App was not silently
 switched; the running retry history is preserved for the user to control.
 
+Device follow-up: build 6 reports **CTRL_CONNECT_FAILED**. This establishes
+failure in ctrl_connect/control setup, before media streaming; that category
+also includes transport/request/response failures, so it does not by itself
+prove header rejection or which header is required. No further protocol edits
+were made. Build 6 was gracefully quit and verified stopped, then preserved
+build 4 was explicitly opened for a controlled comparison (not a silent fallback).
+Build 4 has the original two HTTP headers but the same no-feedback/no-mic policy.
+User must start capture; current-condition baseline result is pending.
+
 ## Build-5 initial-control-request follow-up
 
 User now reports build 4 works on the PS5, but the Remote Play user shows keyboard,

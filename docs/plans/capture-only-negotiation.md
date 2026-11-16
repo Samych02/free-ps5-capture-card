@@ -23,6 +23,13 @@ all build/verification stages took 34.1 s. Package lock is identical to build 5.
 Full transport was not rerun for this fixed-message-only change. Device reason
 and recovery are pending; no protocol fix or icon/controller-slot fix claimed.
 
+User reports build-6 CTRL_CONNECT_FAILED: control setup fails before media, but
+the category does not distinguish TCP/request/response or identify a required
+header. Build 4 was explicitly reopened as a controlled baseline comparison,
+after build 6 exited; capture was not auto-started. Wait for this baseline result
+before changing individual headers or undocumented client types. Do not mistake
+disabled input traffic for evidence of absent PS5 controller-slot allocation.
+
 Living Execution Plan under PLANS.md. Baseline `a8b19c4`, main. User explicitly
 chose **enable capture-only in a new developer candidate**, superseding the prior
 deferral. No console was available at design time; see the later device observation
