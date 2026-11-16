@@ -1,6 +1,7 @@
 # Repository work
 
-- Work on `main`; use local checkpoint commits, not per-milestone branches.
+- Keep `main` as the only local and remote branch; use local checkpoint commits,
+  not per-milestone branches.
 - Do not modify `/Users/sacherif/Projects/chiaki-ng`; dependency changes belong
   in the locked patches applied to fetched sources.
 - Multi-hour work uses a living Execution Plan as described in `PLANS.md`.
