@@ -17,10 +17,11 @@ browser login, real pairing and all three synthetic feeds in OBS.
 Real PS5-to-OBS sync, HDR output, long-run reliability and independent review
 are not yet verified.
 
-**Developer build 4 enables capture-only core negotiation:** no controller feedback
-or controller/microphone setup signaling. Offline checks cover suppression and
-preserved media paths, but PS5 acceptance is **unverified**; earlier pairing/capture
-evidence does not validate this new policy. There is no silent legacy fallback.
+**Developer build 5 extends capture-only negotiation** to omit initial controller
+HTTP declarations missed by build 4. Build 4 was user-reported working, but PS5
+keyboard/controller/microphone icons still appeared. Build-5 connection and icon
+behavior are **unverified**; disabled input features do not guarantee icon removal.
+There is no silent legacy fallback.
 See the [policy checkpoint](docs/reviews/capture-only-negotiation.md).
 
 **Credential storage:** account and PS5 keys use an unencrypted, owner-only local

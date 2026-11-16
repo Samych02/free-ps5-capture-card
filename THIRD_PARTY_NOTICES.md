@@ -52,6 +52,13 @@ Legacy core clients retain their zero-initialized default; rebuilt consumers are
 required because core struct layouts change. No silent fallback or app-side input
 features are added. Real-console acceptance of this policy is unverified.
 
+`patches/chiaki/0005-capture-only-control-handshake.patch` removes the initial
+RP-ControllerType and PS5 RP-PadProcNo declarations in capture-only mode, enabled
+in developer build 5. The legacy formatted request is preserved. Authentication,
+client identity, crypto counters and media selection remain unchanged. Build 4
+was user-reported working but still showed PS5 keyboard/controller/microphone
+icons; whether this follow-up changes those icons or is accepted is unverified.
+
 ## Build/runtime dependencies
 
 FFmpeg, OpenSSL, curl, nanopb, MUnit, gf-complete/Jerasure, json-c, miniupnpc,

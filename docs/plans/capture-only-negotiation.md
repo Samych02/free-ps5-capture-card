@@ -2,7 +2,38 @@
 
 Living Execution Plan under PLANS.md. Baseline `a8b19c4`, main. User explicitly
 chose **enable capture-only in a new developer candidate**, superseding the prior
-deferral. No real console is available; do not claim negotiation compatibility.
+deferral. No console was available at design time; see the later device observation
+and build-5 follow-up below. Do not claim unperformed negotiation acceptance.
+
+## Build-5 handshake follow-up
+
+User now reports build 4 works on the PS5 but its Remote Play user shows keyboard,
+controller and microphone icons. Running executable path confirmed build 4, not
+a stale candidate. This is user-reported basic connection evidence only; explicit
+both-track/HDR/soak acceptance is not established. The initial HTTP control request
+still declares RP-ControllerType: 3 and PS5 RP-PadProcNo: 3; patch 0004 missed that
+boundary. These declarations are proven, their causal relationship to all three
+icons is not. Do not promise icon removal or invent undocumented client types.
+
+- [x] Add real request formatter regression; show an actual assertion failure
+  while the original declarations remain.
+- [x] Guard both controller headers behind the existing capture_only policy in
+  a fifth locked patch; preserve legacy request byte-for-byte and client identity,
+  auth/encryption counters, bitrate/codec selection and transport behavior.
+- [x] Verify request bounds/paths, input suppression, media/native/app regressions,
+  focused sanitizers, pristine five-patch and cached validation.
+- [x] Package separate build 5, document evidence and checkpoint. Do not interrupt
+  the running build-4 capture or silently switch the user's app.
+
+Use focused native checks (excluding the unchanged multi-minute transport suite)
+for this request-format-only follow-up; disclose that full transport was last run
+at build 4. Keep both prior developer candidates and all unrelated user changes.
+
+Build 5 is ready at `build/package-capture-handshake/Free PS5 Capture Card.app`.
+27 Bootstrap checks, 92 app tests, 12 non-transport native targets, focused
+ASan/UBSan and 15 packaged Mach-O checks pass. Separate ZIP/hash and detailed
+scope are in the policy report. Do not claim the PS5 icons fixed: next device
+check is whether build 5 connects with both tracks and changes the icons.
 
 ## Progress
 

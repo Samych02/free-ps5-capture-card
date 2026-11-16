@@ -1,8 +1,9 @@
 # 0.1.0 first-release checklist
 
-Current **developer candidate**: 0.1.0 build 4 enables explicit capture-only core
-negotiation, suppressing controller/microphone signaling without a silent fallback.
-Real-PS5 negotiation and continuing A/V acceptance are unverified. See the
+Current **developer candidate**: 0.1.0 build 5 also suppresses initial controller
+HTTP declarations missed in build 4. Build 4 was user-reported working but PS5
+keyboard/controller/microphone icons remained. Build-5 compatibility and any icon
+change are unverified; no silent fallback exists. See the
 [policy checkpoint](reviews/capture-only-negotiation.md) for artifact/evidence.
 All independent/source-delivery/manual gates below remain open.
 

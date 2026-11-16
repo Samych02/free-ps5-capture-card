@@ -1,6 +1,52 @@
 # Capture-only negotiation — author verification
 
-## Scope and limits
+## Build-5 initial-control-request follow-up
+
+User now reports build 4 works on the PS5, but the Remote Play user shows keyboard,
+controller and microphone icons. Executable path verified build 4 was running.
+This is basic user-reported operation, not calibrated/both-track/soak evidence.
+Build-4 offline tests missed the initial HTTP request: it still declared
+`RP-ControllerType: 3` and `RP-PadProcNo: 3`. That missed signaling boundary is
+proven; whether it causes the icons is not. No undocumented client-type changes
+or icon-removal promise are justified.
+
+Locked patch 0005 extracts the real request formatter and omits those two headers
+only in capture-only mode. Legacy PS5 request is checked byte-for-byte. Client
+identity, authentication, encryption counters, streaming/bitrate fields, transport
+and media handling are preserved. `CapturePolicyCtrl.c` compiles real ctrl.c with
+normal writes and exposes only the internal formatter using synthetic strings.
+No live request, authentication material or credential file was inspected/logged.
+
+- Behavior red: `build/capture-handshake-behavior-red.log` fails at the actual
+  request's RP-ControllerType absence assertion before the policy guard.
+- Green: `build/capture-handshake-green.log` passes capture-only omission, legacy
+  exact request, PS5/older-PS4 paths, retained media fields and truncation rejection.
+- `ctest --test-dir build/native/Debug --no-tests=error -E transport --output-on-failure`:
+  **12/12 pass**, 12.07 s. Full unchanged transport was last run for build 4 below;
+  it was not repeated for this request-format-only follow-up.
+- Focused ASan/UBSan tests, real ctrl/stream wrappers, session.c and launchspec.c
+  pass; remaining dependencies uninstrumented. Log:
+  `build/capture-handshake-sanitized/verification.log`.
+- All five locked patches apply to pristine pinned source; ctrl.c matches Debug
+  byte-for-byte. Twice-cached validation succeeds in Debug and Release.
+- Bootstrap: **27/27 pass** (`build/capture-handshake-bootstrap.log`).
+- Direct app unit runner: **92/92 pass** (`build/capture-handshake-app.log`).
+- Release package: **15 Mach-O checks pass**, 13 bundled dylibs, arm64/macOS 26,
+  ad-hoc signatures/recursive closure (`build/capture-handshake-package.log`).
+  Embedded notices/lock match current source. These three checks took 20.73 s.
+- App: `build/package-capture-handshake/Free PS5 Capture Card.app`, **0.1.0 build 5**.
+  ZIP: `build/FreePS5CaptureCard-0.1.0-dev5-capture-handshake-arm64.zip`, **8,544,817
+  bytes**, CRC passes; SHA-256
+  `19feccefc704bd95fe176d9314401d5b0f9e4a387a09ff943156a517937d74e3`.
+- Scoped author review covered actual call-site use, request argument order and
+  bounds, legacy byte equivalence, unchanged crypto-counter steps/media/client
+  identity, and five-patch provenance. It is not independent review.
+- Running build 4 was not stopped/replaced. Build-5 device compatibility and icon
+  behavior remain unverified. Other manual/independent/source-delivery gates remain.
+
+The following sections preserve the build-4 checkpoint and its evidence.
+
+## Build-4 scope and limits
 
 Developer build 4 explicitly enables a new default-false Chiaki core policy.
 This supersedes the earlier negotiation deferral; it is not independent review

@@ -7,6 +7,10 @@ the historical offline-audit section below. Current plan:
 `docs/plans/capture-only-negotiation.md`; evidence:
 `docs/reviews/capture-only-negotiation.md`. Offline checks do not establish actual
 PS5 acceptance. No manual/independent/source-delivery release gate is waived.
+User subsequently reported build 4 works but PS5 keyboard/controller/mic icons
+remain. Build 5 removes two missed initial controller HTTP declarations; it is
+ready separately, without interrupting the running app. Icon/device acceptance
+of this follow-up is pending, not established by its offline tests.
 
 ## Offline audit remediation
 

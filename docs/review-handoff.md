@@ -2,8 +2,10 @@
 
 Latest scope/evidence: [capture-only policy](reviews/capture-only-negotiation.md).
 Review the fourth locked patch's input suppression, preserved media paths, feedback
-lifetime and enabled app opt-in. The user approved this new developer candidate,
-superseding the earlier deferral; actual PS5 compatibility is still unverified.
+lifetime and enabled app opt-in, plus the fifth patch's initial controller HTTP
+header suppression and byte-for-byte legacy request regression. User reports
+build 4 works but keyboard/controller/mic icons remain; build 5 has no device
+acceptance yet. The enabled policy supersedes the earlier deferral.
 Also review the [offline audit fixes](reviews/offline-audit-fixes.md): parser patch,
 cached-source enforcement, C API v3 PIN identity and descriptor ACL validation.
 Hosted CI and PS5 tests remain pending.

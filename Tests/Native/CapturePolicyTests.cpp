@@ -6,6 +6,7 @@
 #include <cstring>
 #include <vector>
 #include <iostream>
+#include <string>
 extern "C" {
 #include <takion.pb.h>
 #include <pb_decode.h>
@@ -15,11 +16,42 @@ ChiakiErrorCode capture_test_input_setup(ChiakiStreamConnection *);
 ChiakiErrorCode capture_test_ack(ChiakiStreamConnection *);
 ChiakiErrorCode capture_test_heartbeat(ChiakiStreamConnection *);
 ChiakiErrorCode capture_test_launch(ChiakiStreamConnection *);
+int capture_test_ctrl_request(ChiakiCtrl *,char *,size_t);
 }
 static int starts=0,stops=0,states=0;
 static bool failStart=false,failSend=false;
 static std::vector<int> messages;
 static bool expectedCapture=false,formattedLaunch=false;
+static void check_request(ChiakiSession &session,bool capture) {
+    char request[1024];session.target=CHIAKI_TARGET_PS5_1;
+    assert(capture_test_ctrl_request(&session.ctrl,request,sizeof(request))>0);
+    assert((strstr(request,"RP-ControllerType:")==nullptr)==capture);
+    assert((strstr(request,"RP-PadProcNo:")==nullptr)==capture);
+    if(!capture) {
+        assert(strstr(request,"RP-ControllerType: 3\r\n"));
+        assert(strstr(request,"RP-PadProcNo: 3\r\n"));
+        const std::string expected="GET /sie/ps5/rp/sess/ctrl HTTP/1.1\r\nHost: "+
+            std::string(session.connect_info.hostname)+":9295\r\nUser-Agent: remoteplay Windows\r\n"
+            "Connection: keep-alive\r\nContent-Length: 0\r\nRP-Auth: test-auth\r\nRP-Version: "+
+            chiaki_rp_version_string(session.target)+"\r\nRP-Did: test-device\r\n"
+            "RP-ControllerType: 3\r\nRP-ClientType: 11\r\nRP-OSType: test-os\r\nRP-ConPath: 1\r\n"
+            "RP-PadProcNo: 3\r\nRP-StartBitrate: test-bitrate\r\nRP-StreamingType: test-streaming\r\n\r\n";
+        assert(expected==request);
+    }
+    assert(strstr(request,"GET /sie/ps5/rp/sess/ctrl HTTP/1.1\r\n"));
+    assert(strstr(request,"RP-Auth: test-auth\r\n"));
+    assert(strstr(request,"RP-ClientType: 11\r\n"));
+    assert(strstr(request,"RP-OSType: test-os\r\n"));
+    assert(strstr(request,"RP-StartBitrate: test-bitrate\r\n"));
+    assert(strstr(request,"RP-StreamingType: test-streaming\r\n"));
+    assert(capture_test_ctrl_request(&session.ctrl,request,8)<0);
+    session.target=CHIAKI_TARGET_PS4_8;
+    assert(capture_test_ctrl_request(&session.ctrl,request,sizeof(request))>0);
+    assert(strstr(request,"GET /sce/rp/session/ctrl HTTP/1.1\r\n"));
+    assert(!strstr(request,"RP-StreamingType:") && !strstr(request,"RP-StartBitrate:"));
+    assert(!strstr(request,"RP-PadProcNo:"));
+    session.target=CHIAKI_TARGET_PS5_1;
+}
 extern "C" int capture_test_launchspec_format(char *buf,size_t size,ChiakiLaunchSpec *spec) {
     assert(spec->capture_only==expectedCapture);
     assert(chiaki_launchspec_format(buf,size,spec)>0);
@@ -74,6 +106,7 @@ struct Fixture {
 int main() {
     assert(chiaki_lib_init()==CHIAKI_ERR_SUCCESS);
     { Fixture f(true);auto &stream=f.session.stream_connection;
+      check_request(f.session,true);
       expectedCapture=true;formattedLaunch=false;
       assert(capture_test_launch(&stream)==CHIAKI_ERR_UNKNOWN && formattedLaunch);
       assert(capture_test_start_feedback(&stream)==CHIAKI_ERR_SUCCESS);
@@ -93,6 +126,7 @@ int main() {
       assert((messages==std::vector<int>{tkproto_TakionMessage_PayloadType_STREAMINFOACK,tkproto_TakionMessage_PayloadType_HEARTBEAT}));
     }
     { Fixture f(false);auto &stream=f.session.stream_connection;
+      check_request(f.session,false);
       expectedCapture=false;formattedLaunch=false;
       assert(capture_test_launch(&stream)==CHIAKI_ERR_UNKNOWN && formattedLaunch);
       assert(capture_test_start_feedback(&stream)==CHIAKI_ERR_SUCCESS);

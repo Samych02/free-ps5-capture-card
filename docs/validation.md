@@ -2,10 +2,12 @@
 
 ## Current capture-only developer candidate
 
-Build 4 enables the explicit core policy; see the
+Build 5 extends the core policy to initial controller HTTP declarations; see the
 [policy verification report](reviews/capture-only-negotiation.md) for current
-automated evidence and artifacts. Actual PS5 acceptance remains unverified.
-Earlier device results below must not be attributed to this changed negotiation.
+automated evidence and artifacts. User reports build 4 works but the PS5 still
+shows keyboard/controller/microphone icons. That is basic user-reported evidence,
+not explicit calibrated/both-track/soak acceptance. Build-5 acceptance and icon
+behavior remain unverified; do not attribute earlier results to its changed request.
 
 ## Earlier offline-audit developer checkpoint
 
