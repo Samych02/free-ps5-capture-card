@@ -1,179 +1,136 @@
 # Free PS5 Capture Card
 
-A native macOS utility forwarding compressed PS5 **video and audio** to one OBS
-Media Source over localhost TCP/Matroska. OBS decodes both tracks and performs
-any final encoding. No app preview, local sound, controller, microphone, media
-decoder, encoder or tone mapper.
+Get your PS5's picture and game audio into OBS on your Mac—without an HDMI capture
+card. Play on your TV as usual, and use OBS to record or stream.
 
-Built on the Remote Play core from **[chiaki-ng](https://github.com/chiaki-ng/chiaki-ng)**,
-which continues **[Chiaki](https://git.sr.ht/~thestr4ng3r/chiaki)**. Thanks to the
-original Chiaki authors, chiaki-ng maintainers and all upstream contributors.
-This is a separate capture-focused project, not an official Chiaki/chiaki-ng release.
+The app uses Remote Play to send compressed video and audio to a single OBS Media
+Source. It is capture-only: no game controls, microphone capture, preview or local
+playback. OBS handles decoding and any final encoding.
 
-Unofficial project; not affiliated with Sony Interactive Entertainment or the OBS Project.
+Built on **[Chiaki](https://git.sr.ht/~thestr4ng3r/chiaki)** and
+**[chiaki-ng](https://github.com/chiaki-ng/chiaki-ng)**. This is an independent,
+unofficial project, not affiliated with Sony, OBS or the upstream projects.
 
-**0.1.0 release candidate — final acceptance is pending.** Earlier builds established
-browser login, real pairing and all three synthetic feeds in OBS.
-Real PS5-to-OBS sync, HDR output, long-run reliability and independent review
-are not yet verified.
+## What you need
 
-**Current developer build 8 is a mic-disconnected experiment**, not a confirmed
-fix. It keeps build 7's handshake but explicitly declares the remote mic
-disconnected, without capturing/sending mic audio or allowing mic input. The PS5
-indicator remained in the user test; calibrated device acceptance is pending.
-The user reported it works and chose to keep this developer checkpoint despite
-the remaining controller/mic indicators. Their removal is unresolved; further
-negotiation experiments are paused. Final release gates remain open.
+- An **Apple Silicon Mac running macOS 26 or later**. Intel Macs, Windows and
+  Linux are not supported by the current build.
+- A PS5 with **Settings → System → Remote Play → Enable Remote Play** turned on.
+- OBS on your Mac, with the Mac and PS5 on the same local network. Wired Ethernet
+  is recommended for a more reliable connection.
 
-Earlier **developer build 7 is a one-header experiment**, not a confirmed fix.
-Working build 4 retains both initial controller HTTP headers; builds 5/6 omitted
-both and failed control setup. Build 7 retains ControllerType and omits only
-PadProcNo, while keeping feedback/mic traffic disabled. Device/FIFA slot results
-are pending; keep build 4 available as the working comparison.
+This uses Remote Play, not a direct HDMI feed, so your network affects quality and
+latency. There is no internet/WAN connection mode in this app.
 
-Earlier **developer build 5 extended capture-only negotiation** to omit initial controller
-HTTP declarations missed by build 4. Build 4 was user-reported working, but PS5
-keyboard/controller/microphone icons still appeared. Build-5 connection and icon
-behavior are **unverified**; disabled input features do not guarantee icon removal.
-There is no silent legacy fallback.
-Build 5 subsequently showed a reconnect loop on-device. **Build 6 is diagnostic
-only**: the same negotiation, but fixed safe failure-category labels replace the
-generic retry message. It is not a connection or controller-slot fix.
-See the [policy checkpoint](docs/reviews/capture-only-negotiation.md).
+## Get started
 
-**Credential storage:** account and PS5 keys use an unencrypted, owner-only local
-file, not Keychain. Historical Keychain records are never read, migrated or
-deleted. This UI update does not reset existing file-based credentials; users
-coming from a Keychain-only build must sign in and pair once. Current-candidate
-file-backed real-device persistence remains a manual acceptance check.
+For now, [build the app from source](#build-from-source), then:
 
-## Use
+1. Open the app, [sign in to PSN](docs/account-setup.md) and
+   [pair your PS5](docs/pairing.md).
+2. Start with **H265, 1080p, 60 fps and 15 Mbps**. Click **Start Capture**.
+3. In OBS, add one **Media Source** and turn **Local File** off. Set its input to
+   `tcp://127.0.0.1:9295` and its input format to `matroska`.
+4. Check for moving video and activity in that source's **OBS audio mixer**.
 
-Apple Silicon, **macOS 26+** for the current Homebrew-based build.
+H264 and H265 HDR are also available, along with 720p, 30 fps and adjustable
+bitrate. HDR needs a matching PS5/OBS setup; the app will not silently switch to
+SDR or tone-map the picture. See the [full setup guide](docs/setup.md).
 
-1. [Sign in](docs/account-setup.md) and [pair your PS5](docs/pairing.md).
-2. Choose H264, **H265 (Default)**, or H265 HDR; 720p/1080p; 30/60 fps;
-   2–100 Mbps; and a local port (default 9295).
-3. Start Capture. In OBS add one Media Source, turn Local File off, paste
-   `tcp://127.0.0.1:9295`, and choose input format `matroska`.
+**Closing the window does not stop capture.** Use **Stop** or quit the app.
+Reopen the window with **Window → Show Capture Window** (⌘0). Stop capture before
+changing settings. For troubleshooting, open **Show metrics → Recent events**.
 
-The media endpoint is unauthenticated: other local users/processes can connect.
-It is not encrypted or restricted to OBS. Do not expose or forward the port.
+## Current status and limitations
 
-In **OBS connection**, **Show metrics** expands all received-media, queue and clock
-statistics; **Hide metrics** collapses them. The choice is remembered, starting
-hidden. Current health and Start/Stop stay at the top; historical reset/retry
-messages appear only under **Recent events** inside metrics. Expand **Manage
-account and pairing** to change an existing PS5 or account. Closing the window
-keeps capture running; use **Window → Show Capture Window** (⌘0) to reopen it.
+The current developer version is **0.1.0, build 8**. It has been reported working
+in hands-on PS5 testing, but it is not a finished, notarized public release.
 
-See the [first-release checklist](docs/release-checklist.md) for what is verified,
-what still needs hands-on acceptance, and distribution limitations.
+- The PS5 still shows controller/microphone indicators, even though the app sends
+  no controller input or microphone audio. An extra controller slot was observed
+  in FIFA; that issue is not confirmed resolved. The current behavior has been
+  accepted for this developer version, and further experiments are paused.
+- HDR output, precise audio/video sync and long-session reliability still need
+  final validation, along with independent code, security and license review.
+- Protected content cannot be captured. The app respects Remote Play restrictions.
+- Only one OBS connection is supported at a time.
 
-See [setup and OBS instructions](docs/setup.md), [architecture](docs/architecture.md),
-and [validation / pending gates](docs/validation.md). HDR never silently falls
-back. Stop before changing setup. Closing the window does not stop capture;
-Quit disconnects asynchronously.
+See the [release checklist](docs/release-checklist.md) and
+[test results](docs/validation.md) for the details. The controller/mic investigation
+is recorded separately in the [technical notes](docs/reviews/capture-only-negotiation.md).
 
-## Local credentials
+## Privacy and local access
 
-Account identity and PS5 pairing keys are stored at
-`~/Library/Application Support/FreePS5CaptureCard/credentials.json`.
-The directory is 0700 and the file is 0600. This prevents access by other OS
-users, **not processes running as your macOS user**; it is not app-level
-encryption. Do not share or commit this file. OAuth tokens, redirect URLs,
-pairing/login codes and Sony passwords are not saved. Forget Account removes
-the local record; it does not touch historical Keychain entries or erase backups.
-The app also checks extended ACLs on its private directory, lock and credential
-files. Granting ACLs (including inherited grants) are rejected rather than silently
-removed; deny-only ACLs are permitted. See [storage troubleshooting](docs/account-setup.md).
+Your account identity and PS5 pairing keys are saved in an **unencrypted local
+file**, protected by owner-only permissions:
 
-## Build and verify
+`~/Library/Application Support/FreePS5CaptureCard/credentials.json`
 
-Install Xcode (with its command-line tools) and Homebrew, then install the build
-prerequisites. `bootstrap.sh` checks them; it does not install Homebrew formulae.
+Other programs running as your macOS user may still read it. Do not share or
+commit this file. Sony passwords, OAuth tokens and pairing/login codes are not
+saved. The app does not use Keychain or read, migrate or delete old Keychain
+records. See [account setup and storage details](docs/account-setup.md).
+
+The OBS feed is local, but **not authenticated or encrypted**: other users and
+programs on your Mac can connect to it. Do not expose or forward the port.
+
+## Build from source
+
+Install Xcode with its command-line tools and Homebrew. From the repository root:
 
 ```sh
 brew install cmake ninja xcodegen ffmpeg pkg-config openssl@3 protobuf@29 json-c miniupnpc libevent python@3.13
 scripts/bootstrap.sh
 scripts/build.sh --config Debug
+```
+
+Open `build/xcode/Build/Products/Debug/FreePS5CaptureCard.app`.
+
+The first build also compiles a pinned, minimal FFmpeg library into a private
+cache; later builds reuse it. Homebrew's FFmpeg is used for test tools, not as the
+app's media runtime. Nothing is installed into Applications automatically.
+
+### Run tests
+
+```sh
 scripts/test.sh --native --app
 python3 -m unittest discover -s Tests/Bootstrap -v
 ```
 
-App: `build/xcode/Build/Products/Debug/FreePS5CaptureCard.app`.
-Native builds use separate `build/native/Debug` and `build/native/Release` trees.
-The first build also source-builds a SHA-256-pinned minimal FFmpeg into a private
-`build/dependencies/ffmpeg` cache. It is reused across configurations; there is
-no global install or runtime fallback to Homebrew FFmpeg. Homebrew `ffmpeg` and
-`ffprobe` are still needed as external synthetic-test tools.
-Xcode and packaging select the matching framework automatically. Each new tree
-has a one-time cold build; switching configurations then reuses its own compiled
-objects. Older artifacts directly under `build/native` are left untouched but
-are no longer used by these scripts. Explicit CTest runs should select
-`--test-dir build/native/Debug` (or `Release`).
-`scripts/test.sh --ui` also needs a logged-in desktop and working Xcode UI
-automation permission. This currently fails to enable on the development host.
-Automated tests never sign in or contact a real PS5.
-If Xcode's IDE test-session connection also stalls, the explicit unit-only
-alternative is `bash scripts/test-app-unit-direct.sh`. It loads the Debug test
-bundle directly with a minimal environment; it does not test app launch or UI
-and does not silently replace a failed normal test run.
+Automated tests use synthetic data and do not sign in or contact a real PS5.
+UI tests (`scripts/test.sh --ui`) need a logged-in desktop and Xcode automation
+permissions. If the IDE test runner cannot connect, an explicit unit-only runner
+is available: `bash scripts/test-app-unit-direct.sh`. It does not test app launch
+or interactive UI.
 
-Native filters: `interface`, `pairing`, `media-sink`, `timeline`, `queue`,
-`codec-units`, `session`, `diagnostics`, `mux`, `tcp`.
-`python3 Tests/Support/integration.py --build-dir build/native/Debug --case faults`
-exercises local recovery. Synthetic encoders/decoders are test tools only.
-Dependencies are fetched into ignored build folders, never an existing Chiaki
-checkout. Homebrew binary builds are not a reproducible binary lock.
-
-## Developer bundle
+### Make a local developer bundle
 
 ```sh
 scripts/package-dev-app.sh --config Release --output build/package
 python3 Tests/Support/check_bundle.py --app "build/package/Free PS5 Capture Card.app"
 ```
 
-This copies recursive runtime libraries/notices, rewrites install names and
-ad-hoc signs inside-out. Existing output apps are never overwritten. It is **not**
-a notarized release, installation, publishing or clean-machine onboarding proof.
-See [maintenance](docs/upstream-maintenance.md) and
-[third-party notices](THIRD_PARTY_NOTICES.md) before redistribution.
+This bundles the runtime libraries and notices and applies ad-hoc developer
+signatures. It does not notarize, publish or install the app, and it will not
+overwrite an existing output app. See [dependency and bundle maintenance](docs/upstream-maintenance.md).
 
-## License and upstream credit
+## Credits and license
 
-New project code is **GNU AGPL-3.0-only**; see [LICENSE](LICENSE). This is a
-copyleft project, not MIT/BSD or a proprietary wrapper. Upstream files retain
-their original copyright notices, license terms and applicable OpenSSL exception
-in [LICENSES/AGPL-3.0-only-OpenSSL.txt](LICENSES/AGPL-3.0-only-OpenSSL.txt).
-The exception is not a blanket relicensing of other dependencies.
+This project would not exist without **Chiaki**, created by Florian Märkl and
+contributors, and **chiaki-ng**, maintained by Street Pea and contributors. The
+PSN account flow also builds on their work and credits **grill2010** for the
+original account-ID code. **FFmpeg** provides compressed-media parsing and
+Matroska output—not app-side playback.
 
-- **Chiaki**, originally by Florian Märkl and contributors, provides the foundation
-  for the Remote Play implementation.
-- **chiaki-ng**, maintained by Street Pea and contributors, provides the pinned
-  core used here: revision `43728af2e639fecb8a7af1cd68c29820a40de973`.
-- PSN account identification adapts chiaki-ng's flow, whose original account-ID
-  code credits **grill2010**.
-- **FFmpeg** provides compressed-packet parsing and Matroska muxing, not app-side
-  playback. Current builds use a pinned minimal static configuration, not the
-  broad Homebrew runtime shipped in earlier candidates. Its actual feature and
-  license checks are tracked separately; the project itself remains AGPL.
+New project code is licensed under **GNU AGPL-3.0-only**; see [LICENSE](LICENSE).
+Upstream code keeps its original notices and terms, including the applicable
+[Chiaki OpenSSL exception](LICENSES/AGPL-3.0-only-OpenSSL.txt). Dependency revisions
+and patch hashes are recorded in [Dependencies.lock.json](Dependencies.lock.json).
 
-Our changes include the SwiftUI utility, private credential-file storage,
-Chiaki encoded-media callbacks and bounds/lifetime fixes, and the two-track
-localhost output/timing/recovery pipeline. The upstream patches and their hashes
-are tracked in [Dependencies.lock.json](Dependencies.lock.json).
+**Public binary distribution is not cleared yet.** Bundled notices alone do not
+fulfill corresponding-source requirements. Before redistributing, read the
+[third-party notices](THIRD_PARTY_NOTICES.md) and
+[source-distribution checklist](docs/source-distribution.md).
 
-See [third-party notices](THIRD_PARTY_NOTICES.md) and the
-[source-distribution checklist](docs/source-distribution.md) for dependency terms
-and outstanding corresponding-source requirements. **Public binary distribution
-is not cleared:** the current bundle contains notices/recipes, not complete
-corresponding source. Attribution alone does not satisfy those obligations.
-
-## Future platforms
-
-Only **Apple Silicon/macOS 26** is built and supported today. Native networking,
-compiler arithmetic and packaging boundaries are isolated for later Intel Mac,
-Linux and Windows work; this is not a Universal 2 or cross-platform release.
-See [portable foundations](docs/portability.md) for the extension points and tests
-required before adding a target. The native SwiftUI interface remains unchanged.
+For the internals, see the [architecture](docs/architecture.md) and
+[future platform foundations](docs/portability.md).
