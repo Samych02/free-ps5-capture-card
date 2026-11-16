@@ -16,6 +16,13 @@ subsequent request, the default was changed to `main` and the old branch was
 deleted locally and remotely after confirming all its commits are in `main`.
 Only `main` remains; the draft's explicit source target is unchanged.
 
+The user then selected preparing a downloadable app plus complete matching source.
+Engineering candidates, fresh full-suite results, source reconstruction and open
+independent/manual gates are tracked in
+[first-release preparation](reviews/first-release-preparation.md) and its
+[living plan](plans/first-downloadable-release.md). Source assembly/rebuild evidence
+is not independent approval; do not publish an app asset while those gates are open.
+
 Current build 8 is an explicit microphone-disconnected experiment, approved by
 the user after the PS5 mic indicator remained. Only a negative MICCONNECTION
 declaration is added to build 7's policy; no mic enable/unmute/audio. Connection,
@@ -79,7 +86,7 @@ layout evidence, **not** a substitute for interactive accessibility/device tests
   independently reviewed. Original RC1 omits curl's required notice; do not distribute it.
 - [ ] Independent code/license/security review completed and findings resolved.
 
-Current local candidate: `build/package-release-candidate/Free PS5 Capture Card.app`
+Earlier RC1 local candidate: `build/package-release-candidate/Free PS5 Capture Card.app`
 (0.1.0 build 2), archived as `build/FreePS5CaptureCard-0.1.0-rc1-arm64.zip`.
 Developer verification: 88 app tests, nine native targets, 11 policy/build tests,
 focused transition/protected-content tests and ASan/TSAN checks. Thirty real-view

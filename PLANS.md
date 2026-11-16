@@ -1,5 +1,9 @@
 # Execution Plans
 
+Active release preparation: `docs/plans/first-downloadable-release.md`. User chose
+a downloadable build-8 app plus complete matching source, not source-only preview.
+Keep behavior fixed and release in draft while source/review/manual gates are open.
+
 Current follow-up: `docs/plans/capture-only-negotiation.md`. User chose a new
 developer candidate with capture-only policy enabled; PS5 compatibility is pending.
 

@@ -2,9 +2,18 @@
 
 ## Current status
 
-**Public binary distribution is blocked pending source assembly and independent
-license review.** This is an engineering inventory, not legal advice or a license
+**Public binary distribution remains blocked pending independent source/license
+review and final release checks.** This is an engineering inventory, not legal advice or a license
 compatibility certification. Nothing here authorizes publishing or uploading.
+
+User authorized preparing the downloadable first release. A build-8 matching-input
+source candidate has now been assembled and round-trip rebuilt on the development
+host; see [release engineering evidence](reviews/first-release-preparation.md),
+[pinned source inputs](releases/v0.1.0-sources.json) and
+[rebuild/relink instructions](releases/rebuild-v0.1.0.md). This supplies actual
+archives, patches and Git bundles rather than URLs alone, but is not independent
+review, complete historical-bottle reproduction or clean-machine approval. The
+GitHub release is still a draft with no app asset uploaded.
 
 Project code remains AGPL-3.0-only under [LICENSE](../LICENSE). Preserve upstream
 copyrights and the [Chiaki OpenSSL exception](../LICENSES/AGPL-3.0-only-OpenSSL.txt)

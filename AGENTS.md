@@ -1,5 +1,9 @@
 # Repository work
 
+- Active release preparation: `docs/plans/first-downloadable-release.md`. User
+  chose a downloadable build-8 app with complete matching source. Keep current
+  behavior fixed; source/review/manual release gates are not implicitly passed.
+
 - Keep `main` as the only local and remote branch; use local checkpoint commits,
   not per-milestone branches.
 - Do not modify `/Users/sacherif/Projects/chiaki-ng`; dependency changes belong

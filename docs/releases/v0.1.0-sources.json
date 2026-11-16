@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "app_version": "0.1.0",
+  "app_build": "8",
+  "project_revision": "a519325dcd5b345b8fa1758bf1d06cb620bdda6d",
+  "dependency_lock_sha256": "17cc695aa99935074501be6bdc4946cf8f9a17b2bbde65c3a089a979de646c01",
+  "app_tree_sha256": "dad12545a3d67886986993cff286e62ed2d88b987de7839ced8cc6bdbad4b5d8",
+  "homebrew_metadata_revision": "690fc594cba046a7139f745558258a1e9495ae70",
+  "components": [
+    {
+      "id": "json-c", "kind": "homebrew", "version": "0.19",
+      "recipe_sha256": "4d6b25671b690b98f7a4868e0a3610ddff2ab7b0836d9011f7d67f68eeaabaae",
+      "libraries": ["libjson-c.5.5.0.dylib"],
+      "assets": [{"path": "homebrew/json-c/json-c-0.19.tar.gz", "url": "https://s3.amazonaws.com/json-c_releases/releases/json-c-0.19.tar.gz", "sha256": "37ad0249902e301bd9052bf712e511fcc6acff4ecaad4b5900aad9ce564e26de"}]
+    },
+    {
+      "id": "miniupnpc", "kind": "homebrew", "version": "2.3.3",
+      "recipe_sha256": "5eaa37934c90c3d2dd9f06185a4bc232d8134d1f6118bad9235ed7c2bc8bd9c5",
+      "libraries": ["libminiupnpc.21.dylib"],
+      "assets": [{"path": "homebrew/miniupnpc/miniupnpc-2.3.3.tar.gz", "url": "https://github.com/miniupnp/miniupnp/releases/download/miniupnpc_2_3_3/miniupnpc-2.3.3.tar.gz", "sha256": "d52a0afa614ad6c088cc9ddff1ae7d29c8c595ac5fdd321170a05f41e634bd1a"}]
+    },
+    {
+      "id": "libevent", "kind": "homebrew", "version": "2.1.13_1",
+      "recipe_sha256": "11a6fec9fceac71bef76abf8f4d1f14ea8386dde621309249b702c9ef74eb92f",
+      "libraries": ["libevent-2.1.7.dylib"],
+      "assets": [{"path": "homebrew/libevent/libevent-2.1.13.tar.gz", "url": "https://github.com/libevent/libevent/releases/download/release-2.1.13-stable/libevent-2.1.13-stable.tar.gz", "sha256": "f7e9383b8c0baa81b687e5b5eecc01beefaf1b19b64151d95ed61647fe7a315c"}]
+    },
+    {
+      "id": "libidn2", "kind": "homebrew", "version": "2.3.8",
+      "recipe_sha256": "c899b49a77eabe13be5ca7961ace8ecf8e2f6d8dbd4aa1676cbb9e85abbed408",
+      "libraries": ["libidn2.0.dylib"],
+      "assets": [{"path": "homebrew/libidn2/libidn2-2.3.8.tar.gz", "url": "https://ftpmirror.gnu.org/libidn/libidn2-2.3.8.tar.gz", "sha256": "f557911bf6171621e1f72ff35f5b1825bb35b52ed45325dcdee931e5d3c0787a"}]
+    },
+    {
+      "id": "openssl@3", "kind": "homebrew", "version": "3.5.9",
+      "recipe_sha256": "3d26736b3b4882af226d2cfb0676bbe8ea6a39f7359308c70ddda983812267f5",
+      "libraries": ["libssl.3.dylib", "libcrypto.3.dylib"],
+      "assets": [{"path": "homebrew/openssl@3/openssl@3-3.5.9.tar.gz", "url": "https://github.com/openssl/openssl/releases/download/openssl-3.5.9/openssl-3.5.9.tar.gz", "sha256": "603f5602e2eef00d77fbd429d34dcd5822bb301757a1bc9cdb24c670f1eb859a"}]
+    },
+    {
+      "id": "libnghttp2", "kind": "homebrew", "version": "1.71.0",
+      "recipe_sha256": "516c1fe7d49ddb0499c9071589d3f01a0fdb8f501eeb877d33cacacfca3cad9f",
+      "libraries": ["libnghttp2.14.dylib"],
+      "assets": [{"path": "homebrew/libnghttp2/libnghttp2-1.71.0.tar.gz", "url": "https://github.com/nghttp2/nghttp2/releases/download/v1.71.0/nghttp2-1.71.0.tar.gz", "sha256": "0cdd35ecec77919b4b7b245f87fe8d2216e3d62da854eb0838c594ff058042fc"}]
+    },
+    {
+      "id": "libpsl", "kind": "homebrew", "version": "0.23.3",
+      "recipe_sha256": "c2beff47e4bc7cf87cc940672205cda5d1f06431ef4ac0de4b2b7897f247de7b",
+      "libraries": ["libpsl.5.dylib"],
+      "assets": [{"path": "homebrew/libpsl/libpsl-0.23.3.tar.gz", "url": "https://github.com/rockdaboot/libpsl/releases/download/0.23.3/libpsl-0.23.3.tar.gz", "sha256": "93941f85a1e7bd593fa94f299233cb5dfc91cd144fd9a78a6ceb75001c5b03be"}]
+    },
+    {
+      "id": "libssh2", "kind": "homebrew", "version": "1.11.1_7",
+      "recipe_sha256": "c3daa027a30cc73aabeebddd940bb7366b8ffc02a681a8ccef4dac6642d118ea",
+      "libraries": ["libssh2.1.dylib"],
+      "assets": [
+        {"path": "homebrew/libssh2/libssh2-1.11.1.tar.gz", "url": "https://libssh2.org/download/libssh2-1.11.1.tar.gz", "sha256": "d9ec76cbe34db98eec3539fe2c899d26b0c837cb3eb466a56b0f109cabf658f7"},
+        {"path": "homebrew/libssh2/patches/CVE-2025-15661.patch", "url": "https://raw.githubusercontent.com/Homebrew/homebrew-core/690fc594cba046a7139f745558258a1e9495ae70/Patches/libssh2/CVE-2025-15661.patch", "sha256": "7fbbb58149ea7e2df234f491d3ee1e7ce8416c8405b0dad0048ea6bbe5ffb5b9"},
+        {"path": "homebrew/libssh2/patches/256d04b60d80bf1190e96b0ad1e91b2174d744b1.patch", "url": "https://github.com/libssh2/libssh2/commit/256d04b60d80bf1190e96b0ad1e91b2174d744b1.patch?full_index=1", "sha256": "7c5fe26b0b58fb3ee3770c8a7648eddec09845fe016eff22b9074451d1a60c34"},
+        {"path": "homebrew/libssh2/patches/17626857d20b3c9a1addfa45979dadcee1cd84a4.patch", "url": "https://github.com/libssh2/libssh2/commit/17626857d20b3c9a1addfa45979dadcee1cd84a4.patch?full_index=1", "sha256": "a236d5cfe1995a85c3b036ab16cc2672aa316fd3e1d6299100bcc4c07a539fd7"},
+        {"path": "homebrew/libssh2/patches/CVE-2026-55200.patch", "url": "https://raw.githubusercontent.com/Homebrew/homebrew-core/690fc594cba046a7139f745558258a1e9495ae70/Patches/libssh2/CVE-2026-55200.patch", "sha256": "db9015ee5cbe95ea0861131109cc29e3cb408a4789d497c1c8812e86873533ac"},
+        {"path": "homebrew/libssh2/patches/CVE-2026-58050.patch", "url": "https://raw.githubusercontent.com/Homebrew/homebrew-core/690fc594cba046a7139f745558258a1e9495ae70/Patches/libssh2/CVE-2026-58050.patch", "sha256": "052bd73ea87ddcbb473131e2a52bd3523de065a2201051878c1259230ed3bb7f"},
+        {"path": "homebrew/libssh2/patches/a9758da45a52bc8c630ec9493804d0c6ea30b24a.patch", "url": "https://github.com/libssh2/libssh2/commit/a9758da45a52bc8c630ec9493804d0c6ea30b24a.patch?full_index=1", "sha256": "46cc7c5184d333e93c80a9cac1c86469c17340e6fc0418aecb2d0d8f6eaa5f41"},
+        {"path": "homebrew/libssh2/patches/CVE-2026-66032.patch", "url": "https://raw.githubusercontent.com/Homebrew/homebrew-core/690fc594cba046a7139f745558258a1e9495ae70/Patches/libssh2/CVE-2026-66032.patch", "sha256": "d46ed49ff9cf311306deae102fca3b8fd6bd649d43c3d794cc29be6ebb523e0a"},
+        {"path": "homebrew/libssh2/patches/a2ed82d40964bbc0d64cd717aa0a5a892117d2e6.patch", "url": "https://github.com/libssh2/libssh2/commit/a2ed82d40964bbc0d64cd717aa0a5a892117d2e6.patch?full_index=1", "sha256": "378b5f95f1a410afb790c57ceb67f2d4bd15cc42fc1db58d19fe26fd6f8acbed"},
+        {"path": "homebrew/libssh2/patches/CVE-2026-66034.patch", "url": "https://raw.githubusercontent.com/Homebrew/homebrew-core/690fc594cba046a7139f745558258a1e9495ae70/Patches/libssh2/CVE-2026-66034.patch", "sha256": "4f4eac78ba3ecb7cd43f19e9fe23b1586caf73372a3d6a325f048098fa53b3dd"},
+        {"path": "homebrew/libssh2/patches/CVE-2026-66035.patch", "url": "https://raw.githubusercontent.com/Homebrew/homebrew-core/690fc594cba046a7139f745558258a1e9495ae70/Patches/libssh2/CVE-2026-66035.patch", "sha256": "c5ff4520b0815006e3ee925eea9a0cc97ae4f5b93b70183f99428f2e9845ccca"},
+        {"path": "homebrew/libssh2/patches/631e2f82a32ef016299ebb1af66efeae0161f68e.patch", "url": "https://github.com/libssh2/libssh2/commit/631e2f82a32ef016299ebb1af66efeae0161f68e.patch?full_index=1", "sha256": "a790ab6c15c8dd6300ca8a651121ecc91e90e0eda1a221ad8108f51de05e1cf3"},
+        {"path": "homebrew/libssh2/patches/b89858b83d68d7e29e0c5b0bb803f8a68271710c.patch", "url": "https://github.com/libssh2/libssh2/commit/b89858b83d68d7e29e0c5b0bb803f8a68271710c.patch?full_index=1", "sha256": "76bdf62172e16e2f74fdde35cd3daa3db27b753c48c4a7bdfd295463444eb936"}
+      ]
+    },
+    {
+      "id": "libunistring", "kind": "homebrew", "version": "1.5",
+      "recipe_sha256": "5a0ff014063865e7acebbe3b0e1e5b4434773b8124975898e235e78440279d6d",
+      "libraries": ["libunistring.5.dylib"],
+      "assets": [{"path": "homebrew/libunistring/libunistring-1.5.tar.gz", "url": "https://ftpmirror.gnu.org/libunistring/libunistring-1.5.tar.gz", "sha256": "5b0ecd46cbf225375f20ab4056197e66a7ac590e2684c069af407ae3383c9d81"}]
+    },
+    {
+      "id": "gettext", "kind": "homebrew", "version": "1.0",
+      "recipe_sha256": "74dbc9cbf1c427c148b5d5247adfb43957b5d02be20a4e1d162aa903f0dd614e",
+      "libraries": ["libintl.8.dylib"],
+      "assets": [{"path": "homebrew/gettext/gettext-1.0.tar.gz", "url": "https://ftpmirror.gnu.org/gettext/gettext-1.0.tar.gz", "sha256": "85d99b79c981a404874c02e0342176cf75c7698e2b51fe41031cf6526d974f1a"}]
+    },
+    {
+      "id": "openssl@4", "kind": "homebrew", "version": "4.1.0",
+      "recipe_sha256": "7ff5915f10c5e950f35e65471fae7e04711bc962689f1369e646e2f68b41b19d",
+      "libraries": ["libssl.4.dylib", "libcrypto.4.dylib"],
+      "assets": [{"path": "homebrew/openssl@4/openssl@4-4.1.0.tar.gz", "url": "https://github.com/openssl/openssl/releases/download/openssl-4.1.0/openssl-4.1.0.tar.gz", "sha256": "50c17baf54cb008f6ce42d50deb4b28050a1aad711636cabd4b241c7e90cc2fd"}]
+    },
+    {
+      "id": "ffmpeg", "kind": "ffmpeg", "version": "9.0.2",
+      "assets": [{"path": "ffmpeg/ffmpeg-9.0.2.tar.xz", "url": "https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz", "sha256": "8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e"}]
+    }
+  ]
+}
