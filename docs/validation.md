@@ -1,12 +1,20 @@
 # Validation evidence
 
-## Latest offline-audit developer checkpoint
+## Current capture-only developer candidate
+
+Build 4 enables the explicit core policy; see the
+[policy verification report](reviews/capture-only-negotiation.md) for current
+automated evidence and artifacts. Actual PS5 acceptance remains unverified.
+Earlier device results below must not be attributed to this changed negotiation.
+
+## Earlier offline-audit developer checkpoint
 
 0.1.0 **build 3**: `build/package-offline-audit/Free PS5 Capture Card.app`;
 ZIP `build/FreePS5CaptureCard-0.1.0-dev3-offline-audit-arm64.zip`.
 Four offline repairs: locked control-frame bounds/progress, typed PIN request
 identity (C API v3), descriptor ACL privacy checks, CI prerequisite provisioning.
-Existing controller/microphone negotiation remains unchanged by user decision.
+That checkpoint retained legacy negotiation; the later build-4 approval supersedes
+the deferral, not its historical evidence.
 
 Fresh evidence: 27 Bootstrap checks and 92 app tests pass (8.94 s end-to-end for app tests); all 12 CTest targets pass
 (187.59 s, transport 173.82 s); parser boundary/progress/100,000-header checks pass

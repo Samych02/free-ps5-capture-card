@@ -1,0 +1,248 @@
+diff --git a/lib/include/chiaki/session.h b/lib/include/chiaki/session.h
+index 9963f25..af8a2d1 100644
+--- a/lib/include/chiaki/session.h
++++ b/lib/include/chiaki/session.h
+@@ -90,6 +90,7 @@ typedef struct chiaki_connect_info_t
+ 	uint8_t psn_account_id[CHIAKI_PSN_ACCOUNT_ID_SIZE];
+ 	double packet_loss_max;
+ 	bool enable_idr_on_fec_failure;
++	bool capture_only; // Default false preserves legacy input negotiation.
+ } ChiakiConnectInfo;
+ 
+ 
+@@ -230,6 +231,7 @@ typedef struct chiaki_session_t
+ 		bool enable_dualsense;
+ 		uint8_t psn_account_id[CHIAKI_PSN_ACCOUNT_ID_SIZE];
+ 		bool enable_idr_on_fec_failure;
++		bool capture_only;
+ 	} connect_info;
+ 
+ 	ChiakiTarget target;
+diff --git a/lib/src/session.c b/lib/src/session.c
+index dac0a3b..38ab105 100644
+--- a/lib/src/session.c
++++ b/lib/src/session.c
+@@ -279,8 +279,9 @@ CHIAKI_EXPORT ChiakiErrorCode chiaki_session_init(ChiakiSession *session, Chiaki
+ 		session->connect_info.video_profile = connect_info->video_profile;
+ 	session->connect_info.disable_audio_video = connect_info->audio_video_disabled;
+ 	session->connect_info.video_profile_auto_downgrade = connect_info->video_profile_auto_downgrade;
+-	session->connect_info.enable_keyboard = connect_info->enable_keyboard;
+-	session->connect_info.enable_dualsense = connect_info->enable_dualsense;
++	session->connect_info.capture_only = connect_info->capture_only;
++	session->connect_info.enable_keyboard = !connect_info->capture_only && connect_info->enable_keyboard;
++	session->connect_info.enable_dualsense = !connect_info->capture_only && connect_info->enable_dualsense;
+ 	session->connect_info.enable_idr_on_fec_failure = connect_info->enable_idr_on_fec_failure;
+ 
+ 	return CHIAKI_ERR_SUCCESS;
+@@ -390,6 +391,8 @@ CHIAKI_EXPORT ChiakiErrorCode chiaki_session_request_idr(ChiakiSession *session)
+ 
+ CHIAKI_EXPORT ChiakiErrorCode chiaki_session_set_controller_state(ChiakiSession *session, ChiakiControllerState *state)
+ {
++	if(session->connect_info.capture_only)
++		return CHIAKI_ERR_INVALID_DATA;
+ 	ChiakiErrorCode err = chiaki_mutex_lock(&session->stream_connection.feedback_sender_mutex);
+ 	if(err != CHIAKI_ERR_SUCCESS)
+ 		return err;
+diff --git a/lib/src/ctrl.c b/lib/src/ctrl.c
+index 86ecfe2..73068c2 100644
+--- a/lib/src/ctrl.c
++++ b/lib/src/ctrl.c
+@@ -776,6 +776,8 @@ CHIAKI_EXPORT ChiakiErrorCode ctrl_message_go_home(ChiakiCtrl *ctrl)
+ 
+ CHIAKI_EXPORT ChiakiErrorCode ctrl_message_connect_microphone(ChiakiCtrl *ctrl)
+ {
++	if(ctrl->session->connect_info.capture_only)
++		return CHIAKI_ERR_INVALID_DATA;
+ 	CHIAKI_LOGV(ctrl->session->log, "Ctrl sending microphone connect message");
+ 	uint8_t connect[2] = {0x00, 0x00};
+ 	ChiakiErrorCode err = ctrl_message_send(ctrl, CTRL_MESSAGE_TYPE_MIC_CONNECT, connect, 0x2);
+@@ -790,6 +792,8 @@ CHIAKI_EXPORT ChiakiErrorCode ctrl_message_connect_microphone(ChiakiCtrl *ctrl)
+ 
+ CHIAKI_EXPORT ChiakiErrorCode ctrl_message_toggle_microphone(ChiakiCtrl *ctrl, bool muted)
+ {
++	if(ctrl->session->connect_info.capture_only)
++		return CHIAKI_ERR_INVALID_DATA;
+ 	CHIAKI_LOGV(ctrl->session->log, "Ctrl sending toggle microphone mute message: %s", muted ? "unmute": "mute");
+ 	uint8_t toggle[0x4] = {0, 1, 1, 89};
+ 	if(muted)
+@@ -917,8 +921,11 @@ CHIAKI_EXPORT void ctrl_enable_features(ChiakiCtrl *ctrl)
+ 		ctrl_message_send(ctrl, CTRL_MESSAGE_TYPE_KEYBOARD_ENABLE, signature, 0x10);
+ 		ctrl_message_send(ctrl, CTRL_MESSAGE_TYPE_KEYBOARD_ENABLE_TOGGLE, &enable, 1);
+ 	}
+-	ctrl_message_toggle_microphone(ctrl, false);
+-	ctrl_message_toggle_microphone(ctrl, false);
++	if(!ctrl->session->connect_info.capture_only)
++	{
++		ctrl_message_toggle_microphone(ctrl, false);
++		ctrl_message_toggle_microphone(ctrl, false);
++	}
+ 	uint8_t display[0x4] = { 0x00, 0x00, 0x00, 0x00 };
+ 	ctrl_message_send(ctrl, CTRL_MESSAGE_TYPE_DISPLAY_DEVICES, display, 0x4);
+ }
+diff --git a/lib/src/streamconnection.c b/lib/src/streamconnection.c
+index 4d9f903..dfefa46 100644
+--- a/lib/src/streamconnection.c
++++ b/lib/src/streamconnection.c
+@@ -60,6 +60,9 @@ static void stream_connection_takion_data_expect_streaminfo(ChiakiStreamConnecti
+ static ChiakiErrorCode stream_connection_send_streaminfo_ack(ChiakiStreamConnection *stream_connection);
+ static void stream_connection_takion_av(ChiakiStreamConnection *stream_connection, ChiakiTakionAVPacket *packet);
+ static ChiakiErrorCode stream_connection_send_heartbeat(ChiakiStreamConnection *stream_connection);
++static ChiakiErrorCode stream_connection_send_input_setup(ChiakiStreamConnection *stream_connection);
++static ChiakiErrorCode stream_connection_start_feedback(ChiakiStreamConnection *stream_connection);
++static void stream_connection_stop_feedback(ChiakiStreamConnection *stream_connection);
+ 
+ CHIAKI_EXPORT ChiakiErrorCode chiaki_stream_connection_init(ChiakiStreamConnection *stream_connection, ChiakiSession *session, double packet_loss_max)
+ {
+@@ -93,6 +96,7 @@ CHIAKI_EXPORT ChiakiErrorCode chiaki_stream_connection_init(ChiakiStreamConnecti
+ 	stream_connection->video_receiver = NULL;
+ 	stream_connection->audio_receiver = NULL;
+ 	stream_connection->haptics_receiver = NULL;
++	stream_connection->feedback_sender_active = false;
+ 
+ 	err = chiaki_mutex_init(&stream_connection->feedback_sender_mutex, false);
+ 	if(err != CHIAKI_ERR_SUCCESS)
+@@ -298,18 +302,12 @@ CHIAKI_EXPORT ChiakiErrorCode chiaki_stream_connection_run(ChiakiStreamConnectio
+ 
+ 	CHIAKI_LOGI(session->log, "StreamConnection successfully received streaminfo");
+ 
+-	err = chiaki_mutex_lock(&stream_connection->feedback_sender_mutex);
+-	assert(err == CHIAKI_ERR_SUCCESS);
+-	err = chiaki_feedback_sender_init(&stream_connection->feedback_sender, &stream_connection->takion);
++	err = stream_connection_start_feedback(stream_connection);
+ 	if(err != CHIAKI_ERR_SUCCESS)
+ 	{
+-		chiaki_mutex_unlock(&stream_connection->feedback_sender_mutex);
+ 		CHIAKI_LOGE(stream_connection->log, "StreamConnection failed to start Feedback Sender");
+ 		goto disconnect;
+ 	}
+-	stream_connection->feedback_sender_active = true;
+-	chiaki_feedback_sender_set_controller_state(&stream_connection->feedback_sender, &session->controller_state);
+-	chiaki_mutex_unlock(&stream_connection->feedback_sender_mutex);
+ 
+ 	stream_connection->state = STATE_IDLE;
+ 	stream_connection->state_finished = false;
+@@ -335,11 +333,7 @@ CHIAKI_EXPORT ChiakiErrorCode chiaki_stream_connection_run(ChiakiStreamConnectio
+ 			CHIAKI_LOGV(stream_connection->log, "StreamConnection sent heartbeat");
+ 	}
+ 
+-	err = chiaki_mutex_lock(&stream_connection->feedback_sender_mutex);
+-	assert(err == CHIAKI_ERR_SUCCESS);
+-	stream_connection->feedback_sender_active = false;
+-	chiaki_feedback_sender_fini(&stream_connection->feedback_sender);
+-	chiaki_mutex_unlock(&stream_connection->feedback_sender_mutex);
++	stream_connection_stop_feedback(stream_connection);
+ 
+ 	err = CHIAKI_ERR_SUCCESS;
+ 
+@@ -982,17 +976,10 @@ static void stream_connection_takion_data_expect_streaminfo(ChiakiStreamConnecti
+ 
+ 	stream_connection_send_streaminfo_ack(stream_connection);
+ 	
+-	ChiakiErrorCode err = stream_connection_send_controller_connection(stream_connection);
+-	if(err != CHIAKI_ERR_SUCCESS)
+-	{
+-		CHIAKI_LOGE(stream_connection->log, "StreamConnection failed to send controller connection");
+-		goto error;
+-	}
+-
+-	err = stream_connection_enable_microphone(stream_connection);
++	ChiakiErrorCode err = stream_connection_send_input_setup(stream_connection);
+ 	if(err != CHIAKI_ERR_SUCCESS)
+ 	{
+-		CHIAKI_LOGE(stream_connection->log, "StreamConnection failed to enable microphone input");
++		CHIAKI_LOGE(stream_connection->log, "StreamConnection failed to negotiate input features");
+ 		goto error;
+ 	}
+ 
+@@ -1023,6 +1010,7 @@ static ChiakiErrorCode stream_connection_send_big(ChiakiStreamConnection *stream
+ 	launch_spec.max_fps = session->connect_info.video_profile.max_fps;
+ 	launch_spec.codec = session->connect_info.video_profile.codec;
+ 	launch_spec.bw_kbps_sent = session->connect_info.video_profile.bitrate;
++	launch_spec.capture_only = session->connect_info.capture_only;
+ 
+ 	union
+ 	{
+@@ -1137,6 +1125,50 @@ static ChiakiErrorCode stream_connection_send_big(ChiakiStreamConnection *stream
+ 	return err;
+ }
+ 
++static ChiakiErrorCode stream_connection_start_feedback(ChiakiStreamConnection *stream_connection)
++{
++	if(stream_connection->session->connect_info.capture_only)
++		return CHIAKI_ERR_SUCCESS;
++	ChiakiErrorCode err = chiaki_mutex_lock(&stream_connection->feedback_sender_mutex);
++	if(err != CHIAKI_ERR_SUCCESS)
++		return err;
++	if(stream_connection->feedback_sender_active)
++	{
++		chiaki_mutex_unlock(&stream_connection->feedback_sender_mutex);
++		return CHIAKI_ERR_SUCCESS;
++	}
++	err = chiaki_feedback_sender_init(&stream_connection->feedback_sender, &stream_connection->takion);
++	if(err == CHIAKI_ERR_SUCCESS)
++	{
++		stream_connection->feedback_sender_active = true;
++		chiaki_feedback_sender_set_controller_state(&stream_connection->feedback_sender, &stream_connection->session->controller_state);
++	}
++	chiaki_mutex_unlock(&stream_connection->feedback_sender_mutex);
++	return err;
++}
++
++static void stream_connection_stop_feedback(ChiakiStreamConnection *stream_connection)
++{
++	ChiakiErrorCode err = chiaki_mutex_lock(&stream_connection->feedback_sender_mutex);
++	assert(err == CHIAKI_ERR_SUCCESS);
++	if(stream_connection->feedback_sender_active)
++	{
++		stream_connection->feedback_sender_active = false;
++		chiaki_feedback_sender_fini(&stream_connection->feedback_sender);
++	}
++	chiaki_mutex_unlock(&stream_connection->feedback_sender_mutex);
++}
++
++static ChiakiErrorCode stream_connection_send_input_setup(ChiakiStreamConnection *stream_connection)
++{
++	if(stream_connection->session->connect_info.capture_only)
++		return CHIAKI_ERR_SUCCESS;
++	ChiakiErrorCode err = stream_connection_send_controller_connection(stream_connection);
++	if(err != CHIAKI_ERR_SUCCESS)
++		return err;
++	return stream_connection_enable_microphone(stream_connection);
++}
++
+ static ChiakiErrorCode stream_connection_send_controller_connection(ChiakiStreamConnection *stream_connection)
+ {
+ 	ChiakiSession *session = stream_connection->session;
+diff --git a/lib/include/chiaki/launchspec.h b/lib/include/chiaki/launchspec.h
+index 770eb2a..3522134 100644
+--- a/lib/include/chiaki/launchspec.h
++++ b/lib/include/chiaki/launchspec.h
+@@ -23,6 +23,7 @@ typedef struct chiaki_launch_spec_t
+ 	unsigned int max_fps;
+ 	ChiakiCodec codec;
+ 	unsigned int bw_kbps_sent;
++	bool capture_only; // Empty connected-controller list for capture-only clients.
+ } ChiakiLaunchSpec;
+ 
+ CHIAKI_EXPORT int chiaki_launchspec_format(char *buf, size_t buf_size, ChiakiLaunchSpec *launch_spec);
+diff --git a/lib/src/launchspec.c b/lib/src/launchspec.c
+index abed382..80c3cad 100644
+--- a/lib/src/launchspec.c
++++ b/lib/src/launchspec.c
+@@ -47,7 +47,7 @@ static const char launchspec_fmt[] =
+ 			"\"audioChannels\":\"5.1\","
+ 			"\"language\":\"sp\","
+ 			"\"acceptButton\":\"X\","
+-			"\"connectedControllers\":[\"xinput\",\"ds3\",\"ds4\"],"
++			"\"connectedControllers\":[%s],"
+ 			"\"yuvCoefficient\":\"bt601\","
+ 			"\"videoEncoderProfile\":\"hw4.1\","
+ 			"\"audioEncoderProfile\":\"audio1\"" // 6
+@@ -88,6 +88,7 @@ CHIAKI_EXPORT int chiaki_launchspec_format(char *buf, size_t buf_size, ChiakiLau
+ 	int written = snprintf(buf, buf_size, launchspec_fmt,
+ 			launch_spec->width, launch_spec->height, launch_spec->max_fps,
+ 			launch_spec->bw_kbps_sent, launch_spec->mtu, launch_spec->rtt,
++			launch_spec->capture_only ? "" : "\"xinput\",\"ds3\",\"ds4\"",
+ 			extras[0], extras[1], extras[2], handshake_key_b64);
+ 	if(written < 0 || written >= buf_size)
+ 		return -1;

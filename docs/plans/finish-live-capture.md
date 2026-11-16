@@ -1,12 +1,20 @@
 # Finish standalone PS5 capture
 
+## Current capture-only follow-up
+
+User approved enabled developer build 4, superseding the negotiation deferral in
+the historical offline-audit section below. Current plan:
+`docs/plans/capture-only-negotiation.md`; evidence:
+`docs/reviews/capture-only-negotiation.md`. Offline checks do not establish actual
+PS5 acceptance. No manual/independent/source-delivery release gate is waived.
+
 ## Offline audit remediation
 
-Current follow-up: `docs/plans/offline-audit-fixes.md`; response evidence in
+Earlier follow-up: `docs/plans/offline-audit-fixes.md`; response evidence in
 `docs/reviews/offline-audit-fixes.md`. Control framing, repeated PIN progress,
 credential ACL checks and CI provisioning are repaired offline. Developer build 3
-remains Apple Silicon/macOS 26. User explicitly deferred controller/microphone
-negotiation changes until real-PS5 testing; do not change that code now. No
+remains Apple Silicon/macOS 26. At that checkpoint the user deferred controller/
+microphone negotiation changes; the newer approval above supersedes that. No
 device, hosted CI, independent-review or source-delivery release gate is waived.
 
 ## Latest scoped follow-up

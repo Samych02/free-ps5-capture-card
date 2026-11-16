@@ -58,6 +58,7 @@ public:
         memcpy(info.psn_account_id,c.account_id,8);
         info.video_profile={o.width,o.height,o.fps,o.bitrate_kbps,static_cast<ChiakiCodec>(o.codec)};
         info.video_profile_auto_downgrade=false;
+        info.capture_only=true; // Explicit policy; no silent legacy-negotiation fallback.
         info.packet_loss_max=0.05;info.enable_idr_on_fec_failure=true;
         auto result=api_.init(&session_,&info,&log_);wipe(&info,sizeof(info));
         if(result!=CHIAKI_ERR_SUCCESS) throw std::runtime_error("PS5 session initialization failed");

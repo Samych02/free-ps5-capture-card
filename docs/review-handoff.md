@@ -1,10 +1,12 @@
 # Independent review requested
 
-Latest remediation scope/evidence: [offline audit fixes](reviews/offline-audit-fixes.md).
-Review the third locked parser patch, cached-source patch enforcement, C API v3
-PIN identity and descriptor ACL validation. Hosted CI and PS5 tests are still
-pending. Controller/microphone negotiation is intentionally unchanged by user
-instruction; do not treat its removal as an approved offline change.
+Latest scope/evidence: [capture-only policy](reviews/capture-only-negotiation.md).
+Review the fourth locked patch's input suppression, preserved media paths, feedback
+lifetime and enabled app opt-in. The user approved this new developer candidate,
+superseding the earlier deferral; actual PS5 compatibility is still unverified.
+Also review the [offline audit fixes](reviews/offline-audit-fixes.md): parser patch,
+cached-source enforcement, C API v3 PIN identity and descriptor ACL validation.
+Hosted CI and PS5 tests remain pending.
 
 ## Scope
 

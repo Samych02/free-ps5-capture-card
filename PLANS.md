@@ -1,5 +1,8 @@
 # Execution Plans
 
+Current follow-up: `docs/plans/capture-only-negotiation.md`. User chose a new
+developer candidate with capture-only policy enabled; PS5 compatibility is pending.
+
 Current remediation: `docs/plans/offline-audit-fixes.md` (four approved offline
 audit fixes; controller/microphone negotiation remains unchanged).
 

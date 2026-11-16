@@ -232,6 +232,7 @@ static MunitResult native_lifecycle(const MunitParameter[],void *) {
         ++nativeInit; borrowedSession=s;
         munit_assert_true(info->ps5); munit_assert_false(info->video_profile_auto_downgrade);
         munit_assert_false(info->enable_keyboard); munit_assert_false(info->enable_dualsense);
+        munit_assert_true(info->capture_only);
         munit_assert_int(info->video_profile.codec,==,CHIAKI_CODEC_H265_HDR);
         munit_assert_uint(info->video_profile.bitrate,==,15000);
         munit_assert_int(log->level_mask,==,0);

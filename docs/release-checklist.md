@@ -1,13 +1,18 @@
 # 0.1.0 first-release checklist
 
-Latest offline-audit **developer** build: 0.1.0 build 3 at
+Current **developer candidate**: 0.1.0 build 4 enables explicit capture-only core
+negotiation, suppressing controller/microphone signaling without a silent fallback.
+Real-PS5 negotiation and continuing A/V acceptance are unverified. See the
+[policy checkpoint](reviews/capture-only-negotiation.md) for artifact/evidence.
+All independent/source-delivery/manual gates below remain open.
+
+Earlier offline-audit **developer** build: 0.1.0 build 3 at
 `build/package-offline-audit/Free PS5 Capture Card.app`. It adds bounded control
 framing (third locked patch), C API v3 typed PIN request IDs, credential ACL
 validation and explicit CI provisioning. **27 Bootstrap checks, 92 app tests, 12 native targets and
 15 package binary checks pass**; hosted CI/device acceptance is not claimed.
-See [remediation evidence](reviews/offline-audit-fixes.md). Existing controller/
-microphone negotiation is intentionally unchanged until a later real-PS5 decision.
-All independent/source-delivery/manual gates below remain open for this build.
+See [remediation evidence](reviews/offline-audit-fixes.md). That build retained
+legacy negotiation; the user subsequently approved the enabled build-4 policy.
 
 This is a **release candidate**, not a claim that every release gate has passed.
 The supported build currently targets Apple Silicon and macOS 26+.

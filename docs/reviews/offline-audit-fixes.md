@@ -1,5 +1,9 @@
 # Offline audit remediation — author verification
 
+Historical build-3 checkpoint. The subsequent
+[capture-only policy checkpoint](capture-only-negotiation.md) supersedes the
+negotiation deferral below; this report describes only the earlier scope.
+
 ## Verdict and scope
 
 Four approved offline findings are repaired and automated checks pass. This is

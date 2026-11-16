@@ -61,3 +61,15 @@ target_compile_options(capture-control-frame-tests PRIVATE -UNDEBUG)
 target_include_directories(capture-control-frame-tests PRIVATE "${chiaki_SOURCE_DIR}/lib/src")
 add_test(NAME capture-control-frame COMMAND capture-control-frame-tests)
 set_tests_properties(capture-control-frame PROPERTIES TIMEOUT 15)
+add_executable(capture-input-policy-tests CapturePolicyTests.cpp CapturePolicyStream.c)
+target_compile_features(capture-input-policy-tests PRIVATE cxx_std_17)
+target_compile_options(capture-input-policy-tests PRIVATE -UNDEBUG)
+target_include_directories(capture-input-policy-tests PRIVATE "${chiaki_SOURCE_DIR}/lib/src" "${chiaki_BINARY_DIR}/lib/protobuf")
+target_compile_definitions(capture-input-policy-tests PRIVATE
+    chiaki_takion_send_message_data=capture_test_takion_send
+    chiaki_feedback_sender_init=capture_test_feedback_init
+    chiaki_feedback_sender_fini=capture_test_feedback_fini
+    chiaki_feedback_sender_set_controller_state=capture_test_feedback_state)
+target_link_libraries(capture-input-policy-tests PRIVATE chiaki-lib)
+add_test(NAME capture-input-policy COMMAND capture-input-policy-tests)
+set_tests_properties(capture-input-policy PROPERTIES TIMEOUT 15)

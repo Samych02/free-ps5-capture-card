@@ -40,9 +40,17 @@ account/registration rejection codes as typed nonretryable identity failures.
 `patches/chiaki/0003-control-frame-bounds.patch` validates received control frame
 lengths against the fixed buffer before addition/decryption, then uses one checked
 size for consumption and buffer movement. It preserves the upstream license and
-valid negotiation behavior. Existing controller/microphone negotiation is
-intentionally unchanged pending later real-console compatibility testing; this
-does not add microphone capture or controller features to the app.
+valid negotiation behavior.
+
+`patches/chiaki/0004-capture-only-input-policy.patch` adds an explicit default-false
+core capture-only policy, enabled by this app in developer build 4. It suppresses
+controller feedback/announcement (including an empty launch controller list) and
+microphone setup/connect/toggle signaling,
+overrides keyboard/DualSense feature requests, and rejects explicit controller/
+microphone input calls. Media acknowledgements, heartbeats and restrictions remain.
+Legacy core clients retain their zero-initialized default; rebuilt consumers are
+required because core struct layouts change. No silent fallback or app-side input
+features are added. Real-console acceptance of this policy is unverified.
 
 ## Build/runtime dependencies
 

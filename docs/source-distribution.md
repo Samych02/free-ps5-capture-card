@@ -26,6 +26,10 @@ license/version and any additional conditions still need review.
   wrapping control-frame lengths before decryption and guarantees bounded parser
   progress with one checked byte count. Preserve this patch and its lock digest
   when assembling matching source for the offline-audit build.
+- [0004](../patches/chiaki/0004-capture-only-input-policy.patch) adds explicit
+  capture-only input suppression and feedback lifetime guards, enabled in app
+  build 4. Include it and its lock digest in matching source; upstream core
+  struct layouts change and real-console acceptance remains unverified.
 - The app's PSN flow adapts chiaki-ng account-ID/token code. Retain its credit to
   grill2010. [Third-party notices](../THIRD_PARTY_NOTICES.md) and the README credit
   original Chiaki/Florian Märkl and chiaki-ng/Street Pea and contributors.

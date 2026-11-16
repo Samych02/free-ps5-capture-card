@@ -17,6 +17,12 @@ browser login, real pairing and all three synthetic feeds in OBS.
 Real PS5-to-OBS sync, HDR output, long-run reliability and independent review
 are not yet verified.
 
+**Developer build 4 enables capture-only core negotiation:** no controller feedback
+or controller/microphone setup signaling. Offline checks cover suppression and
+preserved media paths, but PS5 acceptance is **unverified**; earlier pairing/capture
+evidence does not validate this new policy. There is no silent legacy fallback.
+See the [policy checkpoint](docs/reviews/capture-only-negotiation.md).
+
 **Credential storage:** account and PS5 keys use an unencrypted, owner-only local
 file, not Keychain. Historical Keychain records are never read, migrated or
 deleted. This UI update does not reset existing file-based credentials; users
