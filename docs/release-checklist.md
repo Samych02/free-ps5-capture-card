@@ -1,5 +1,15 @@
 # 0.1.0 first-release checklist
 
+## First release preparation
+
+User authorized pushing the README and creating the first release. The current
+safe preparation is an **unpublished draft prerelease**, targeting the accepted
+build-8 source, with notes in `docs/releases/v0.1.0.md` and no binary attached.
+Public binary distribution remains blocked by corresponding-source assembly and
+independent review; release authorization does not establish those gates passed.
+GitHub CLI authentication is needed to create the remote draft. No public release,
+release asset upload or notarization has been performed at this checkpoint.
+
 Current build 8 is an explicit microphone-disconnected experiment, approved by
 the user after the PS5 mic indicator remained. Only a negative MICCONNECTION
 declaration is added to build 7's policy; no mic enable/unmute/audio. Connection,
