@@ -10,6 +10,12 @@ Build-4 offline tests missed the initial HTTP request: it still declared
 proven; whether it causes the icons is not. No undocumented client-type changes
 or icon-removal promise are justified.
 
+User additionally reports FIFA shows two controllers/two player slots while
+build 4 is connected. This suggests a real extra controller-slot effect, not only
+decorative Remote Play icons; the exact cause is still unproven. At user request,
+build 4 was gracefully quit and verified stopped before opening build 5, avoiding
+concurrent capture app instances. Build-5 FIFA/controller-slot retest is pending.
+
 Locked patch 0005 extracts the real request formatter and omits those two headers
 only in capture-only mode. Legacy PS5 request is checked byte-for-byte. Client
 identity, authentication, encryption counters, streaming/bitrate fields, transport
