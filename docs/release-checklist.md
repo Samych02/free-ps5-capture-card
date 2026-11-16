@@ -1,11 +1,16 @@
 # 0.1.0 first-release checklist
 
-Latest build 6 is a **diagnostic candidate**, retaining build 5's negotiation but
+Current build 7 is an explicit single-header experiment: keep ControllerType,
+omit only PadProcNo. The user confirmed returning to build 4 works after build-6
+CTRL_CONNECT_FAILED; this implicates the combined omission but not either header
+individually. Build-7 connection/FIFA-slot results are pending, not a release pass.
+
+Earlier build 6 is a **diagnostic candidate**, retaining build 5's negotiation but
 showing fixed safe quit categories. Build 5 showed a reconnect loop on-device;
 neither icon removal nor negotiation compatibility is established. See the
 [policy report](reviews/capture-only-negotiation.md) for the current investigation.
 
-Current **developer candidate**: 0.1.0 build 5 also suppresses initial controller
+Earlier **developer candidate**: 0.1.0 build 5 also suppresses initial controller
 HTTP declarations missed in build 4. Build 4 was user-reported working but PS5
 keyboard/controller/microphone icons remained. Build-5 compatibility and any icon
 change are unverified; no silent fallback exists. See the

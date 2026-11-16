@@ -1,5 +1,44 @@
 # Capture-only negotiation — author verification
 
+## Build-7 one-header experiment
+
+The user confirmed build 4 works again after build-6 CTRL_CONNECT_FAILED. This
+strongly implicates the combined initial-header omission in builds 5/6, not which
+header is needed or whether either controls icons/FIFA slots. Build 7 retains
+RP-ControllerType: 3 and omits only RP-PadProcNo in capture-only mode. Relative to
+working build 4, this is the only negotiation difference. Fixed safe diagnostic
+categories from build 6 remain; feedback/mic traffic and launch controller-list
+suppression stay. No automatic retry-to-another-policy or fallback exists.
+
+This deliberately retains one controller declaration for a controlled experiment,
+not a claim of absent controller-slot allocation or a solution to the user's FIFA
+symptom. Working build 4 is left running. The fifth patch/digest is revised;
+prior commits/packages preserve the exact earlier source. Do not add an overlapping
+sixth override patch: cached validation reverse-checks earlier patches individually.
+
+- Red: `build/capture-controller-header-red.log` fails on missing ControllerType.
+- Capture-only generated HTTP is now verified byte-for-byte equal to the legacy
+  request with exactly the PadProcNo line removed. Legacy remains exact, request
+  bounds/paths/media fields and feedback/mic suppression remain covered.
+- Pristine five-patch application matches ctrl.c; cached validation twice in Debug
+  and Release passes. Non-transport native targets: **12/12 pass**, 12.37 s
+  (`build/capture-controller-header-native.log`). Full transport was not repeated.
+- Focused ASan/UBSan real ctrl/stream/session/launchspec and policy tests pass;
+  remaining dependencies uninstrumented
+  (`build/capture-controller-header-sanitized/verification.log`).
+- Bootstrap: **27/27 pass**, app unit tests: **92/92 pass**, package: **15 Mach-O
+  checks pass**, 13 dylibs, arm64/macOS 26, ad-hoc signatures/recursive closure.
+  Logs: `build/capture-controller-header-{bootstrap,app,package}.log`; those
+  three stages took 19.72 s. App: `build/package-controller-header/Free PS5 Capture Card.app`,
+  **0.1.0 build 7**. Embedded lock/notices and every patch digest match source.
+- Scoped author review confirms the sole negotiation delta from build 4 is
+  PadProcNo omission; ControllerType, client identity, crypto order, media and
+  capture-only input suppression are unchanged. This is not independent review.
+- No app was stopped/switched during build work. At handoff process inspection
+  found no capture app running (cause unknown); build 7 was then opened without
+  starting capture. Device connection and icon/FIFA-slot results remain pending.
+  Do not call this candidate fixed or erase the working build-4 comparison.
+
 ## Build-6 safe quit-category diagnostics
 
 User supplied build 5's Recent events message, but it repeated the same generic
@@ -36,6 +75,14 @@ were made. Build 6 was gracefully quit and verified stopped, then preserved
 build 4 was explicitly opened for a controlled comparison (not a silent fallback).
 Build 4 has the original two HTTP headers but the same no-feedback/no-mic policy.
 User must start capture; current-condition baseline result is pending.
+
+User confirmed the reopened build 4 connects/works again under the comparison
+conditions. Working build 4 retains both controller HTTP headers; builds 5/6
+omit both and build 6 reports CTRL_CONNECT_FAILED. This strongly implicates the
+combined header-removal change, but does not identify which header is required
+or whether either controls PS5/FIFA slot allocation. Keep working build 4 intact.
+Next experiment should vary one header only, with feedback/mic suppression held
+constant; no further changes to client type or multiple fields together.
 
 ## Build-5 initial-control-request follow-up
 

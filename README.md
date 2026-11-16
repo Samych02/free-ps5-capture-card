@@ -17,7 +17,13 @@ browser login, real pairing and all three synthetic feeds in OBS.
 Real PS5-to-OBS sync, HDR output, long-run reliability and independent review
 are not yet verified.
 
-**Developer build 5 extends capture-only negotiation** to omit initial controller
+**Current developer build 7 is a one-header experiment**, not a confirmed fix.
+Working build 4 retains both initial controller HTTP headers; builds 5/6 omitted
+both and failed control setup. Build 7 retains ControllerType and omits only
+PadProcNo, while keeping feedback/mic traffic disabled. Device/FIFA slot results
+are pending; keep build 4 available as the working comparison.
+
+Earlier **developer build 5 extended capture-only negotiation** to omit initial controller
 HTTP declarations missed by build 4. Build 4 was user-reported working, but PS5
 keyboard/controller/microphone icons still appeared. Build-5 connection and icon
 behavior are **unverified**; disabled input features do not guarantee icon removal.

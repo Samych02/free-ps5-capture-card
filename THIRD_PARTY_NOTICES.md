@@ -52,12 +52,15 @@ Legacy core clients retain their zero-initialized default; rebuilt consumers are
 required because core struct layouts change. No silent fallback or app-side input
 features are added. Real-console acceptance of this policy is unverified.
 
-`patches/chiaki/0005-capture-only-control-handshake.patch` removes the initial
-RP-ControllerType and PS5 RP-PadProcNo declarations in capture-only mode, enabled
-in developer build 5. The legacy formatted request is preserved. Authentication,
-client identity, crypto counters and media selection remain unchanged. Build 4
-was user-reported working but still showed PS5 keyboard/controller/microphone
-icons; whether this follow-up changes those icons or is accepted is unverified.
+`patches/chiaki/0005-capture-only-control-handshake.patch` extracts a bounded initial
+control request formatter. Builds 5/6 used its first revision, omitting both
+RP-ControllerType and RP-PadProcNo; those builds failed control setup on-device,
+while a return to build 4 worked. The revised build-7 patch deliberately retains
+RP-ControllerType: 3 and omits only PS5 RP-PadProcNo in capture-only mode, as a
+single-header experiment. Legacy requests, authentication, client identity, crypto
+counters and media selection remain unchanged. Feedback/mic traffic remains
+disabled. This is not a silent fallback or a proven connection/controller-slot
+fix; build-7 device acceptance and FIFA slot behavior are pending.
 
 ## Build/runtime dependencies
 

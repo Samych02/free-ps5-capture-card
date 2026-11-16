@@ -1,8 +1,8 @@
 diff --git a/lib/src/ctrl.c b/lib/src/ctrl.c
-index 73068c2..642dcc5 100644
+index 73068c2..61bb42d 100644
 --- a/lib/src/ctrl.c
 +++ b/lib/src/ctrl.c
-@@ -1211,6 +1211,54 @@ static void parse_ctrl_response(CtrlResponse *response, ChiakiHttpResponse *http
+@@ -1211,6 +1211,56 @@ static void parse_ctrl_response(CtrlResponse *response, ChiakiHttpResponse *http
  	}
  }
  
@@ -42,7 +42,9 @@ index 73068c2..642dcc5 100644
 +	int request_len = snprintf(send_buf, send_buf_size, request_fmt,
 +			path, session->connect_info.hostname, port, auth_b64,
 +			rp_version ? rp_version : "", did_b64,
-+			session->connect_info.capture_only ? "" : "RP-ControllerType: 3\r\n", ostype_b64,
++			// Controlled experiment: retain controller type while omitting only PadProcNo.
++			// This header does not start feedback or microphone traffic.
++			"RP-ControllerType: 3\r\n", ostype_b64,
 +			// Preserve the legacy adaptive-trigger declaration outside capture-only mode.
 +			!session->connect_info.capture_only && chiaki_target_is_ps5(session->target) ? "RP-PadProcNo: 3\r\n" : "",
 +			have_bitrate ? "RP-StartBitrate: " : "",
@@ -57,7 +59,7 @@ index 73068c2..642dcc5 100644
  static ChiakiErrorCode ctrl_connect(ChiakiCtrl *ctrl)
  {
  	ctrl->crypt_counter_local = 0;
-@@ -1329,46 +1377,9 @@ static ChiakiErrorCode ctrl_connect(ChiakiCtrl *ctrl)
+@@ -1329,46 +1379,9 @@ static ChiakiErrorCode ctrl_connect(ChiakiCtrl *ctrl)
  			goto error;
  	}
  

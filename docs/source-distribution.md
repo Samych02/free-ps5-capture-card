@@ -31,9 +31,11 @@ license/version and any additional conditions still need review.
   build 4. Include it and its lock digest in matching source; upstream core
   struct layouts change and real-console acceptance remains unverified.
 - [0005](../patches/chiaki/0005-capture-only-control-handshake.patch) extracts the
-  bounded initial control request formatter and suppresses controller HTTP
-  declarations for capture-only. Include all five patches for matching build-5
-  source; build-4 source retains its four-patch provenance.
+  bounded initial control request formatter. Its original build-5/6 revision
+  omits both controller HTTP declarations; the revised build-7 digest retains
+  ControllerType and omits only PadProcNo as an isolated experiment. Match the
+  exact lock/commit, not just patch filenames, when assembling source. Build-4
+  source retains its four-patch provenance.
 - The app's PSN flow adapts chiaki-ng account-ID/token code. Retain its credit to
   grill2010. [Third-party notices](../THIRD_PARTY_NOTICES.md) and the README credit
   original Chiaki/Florian Märkl and chiaki-ng/Street Pea and contributors.

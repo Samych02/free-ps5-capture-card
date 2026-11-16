@@ -1,5 +1,34 @@
 # Capture-only controller/microphone policy
 
+## Current build-7 one-header experiment
+
+The controlled return to build 4 works; builds 5/6 omit both HTTP controller
+headers and build 6 fails CTRL_CONNECT_FAILED. This implicates the combined
+omission, without establishing which header matters or that icons/extra FIFA
+slot are controlled by either. Keep the working build 4 running and unchanged.
+
+Build 7 explicitly retains RP-ControllerType: 3 and omits only RP-PadProcNo in
+capture-only mode. Feedback/mic traffic remains suppressed; safe build-6 category
+messages stay. Relative to working build 4, the only negotiation difference is
+the missing PadProcNo header. It is an isolated experiment, not a proposed fix,
+silent fallback, or claim of absent PS5 controller-slot allocation. Revise the
+fifth locked patch/digest; earlier commits/artifacts retain build-5/6 provenance.
+
+- [x] Red test proves controller header is absent before this change.
+- [x] Retain controller header and assert capture-only HTTP equals legacy HTTP
+  with exactly the PadProcNo line removed. All other suppression tests remain.
+- [x] Pristine/cached validation, focused native/app/Bootstrap and sanitizer checks.
+- [x] Package separately, document evidence and checkpoint. Do not switch the
+  healthy running build 4 automatically; next device result is build-7 connection
+  and, only if connected, PS5 icons/FIFA slot behavior.
+
+Build 7 ready at `build/package-controller-header/Free PS5 Capture Card.app`:
+12 non-transport native targets, 27 Bootstrap checks, 92 app tests, focused
+ASan/UBSan and 15 packaged Mach-O checks pass. At completion a process check found
+no capture app running (do not infer why); build work did not stop/switch build 4.
+Build 7 was then opened for the one-header test, without auto-starting capture.
+Await user connection and controller-slot observations; do not claim a fix.
+
 ## Current build-6 diagnostic follow-up
 
 Build 5 shows Reconnecting to PS5 on the user's console, and Recent events repeats
@@ -29,6 +58,12 @@ header. Build 4 was explicitly reopened as a controlled baseline comparison,
 after build 6 exited; capture was not auto-started. Wait for this baseline result
 before changing individual headers or undocumented client types. Do not mistake
 disabled input traffic for evidence of absent PS5 controller-slot allocation.
+
+User confirmed the reopened build 4 works. The A/B result strongly implicates
+omitting the two handshake headers together (builds 5/6 fail), without identifying
+which is required. Preserve build 4 as the working candidate. Next bounded
+experiment must change only one header while keeping feedback/mic suppression
+and all other negotiation fixed; controller-slot/icon outcome remains unresolved.
 
 Living Execution Plan under PLANS.md. Baseline `a8b19c4`, main. User explicitly
 chose **enable capture-only in a new developer candidate**, superseding the prior

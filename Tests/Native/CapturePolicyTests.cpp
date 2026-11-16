@@ -25,7 +25,7 @@ static bool expectedCapture=false,formattedLaunch=false;
 static void check_request(ChiakiSession &session,bool capture) {
     char request[1024];session.target=CHIAKI_TARGET_PS5_1;
     assert(capture_test_ctrl_request(&session.ctrl,request,sizeof(request))>0);
-    assert((strstr(request,"RP-ControllerType:")==nullptr)==capture);
+    assert(strstr(request,"RP-ControllerType: 3\r\n")); // Explicit single-header experiment, not proof this header is required.
     assert((strstr(request,"RP-PadProcNo:")==nullptr)==capture);
     if(!capture) {
         assert(strstr(request,"RP-ControllerType: 3\r\n"));
@@ -37,6 +37,13 @@ static void check_request(ChiakiSession &session,bool capture) {
             "RP-ControllerType: 3\r\nRP-ClientType: 11\r\nRP-OSType: test-os\r\nRP-ConPath: 1\r\n"
             "RP-PadProcNo: 3\r\nRP-StartBitrate: test-bitrate\r\nRP-StreamingType: test-streaming\r\n\r\n";
         assert(expected==request);
+    } else {
+        char legacy[1024];session.connect_info.capture_only=false;
+        assert(capture_test_ctrl_request(&session.ctrl,legacy,sizeof(legacy))>0);
+        session.connect_info.capture_only=true;
+        std::string expected(legacy);const std::string pad="RP-PadProcNo: 3\r\n";
+        const auto position=expected.find(pad);assert(position!=std::string::npos);
+        expected.erase(position,pad.size());assert(expected==request);
     }
     assert(strstr(request,"GET /sie/ps5/rp/sess/ctrl HTTP/1.1\r\n"));
     assert(strstr(request,"RP-Auth: test-auth\r\n"));

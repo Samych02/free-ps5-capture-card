@@ -2,6 +2,10 @@
 
 ## Current capture-only developer candidate
 
+Build 7 retains ControllerType and omits only PadProcNo as a one-variable protocol
+experiment. Build 6 reported CTRL_CONNECT_FAILED; the user confirmed returning to
+build 4 works. No build-7 connection or FIFA-slot outcome is established yet.
+
 Build 6 is diagnostic only: build-5 negotiation plus allowlisted failure-category
 messages. Build 5 showed an on-device reconnect loop with only a generic reason;
 the underlying failure and extra FIFA controller-slot effect remain unresolved.
