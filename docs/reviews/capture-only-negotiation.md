@@ -1,5 +1,22 @@
 # Capture-only negotiation — author verification
 
+## Accepted developer checkpoint
+
+User accepted keeping build 8 as-is and authorized committing/pushing source.
+Basic operation is user-reported; controller/mic indicators persist and extra
+FIFA-slot resolution is not established. No further settings inspection or
+protocol experiment is active. This is acceptance of the current developer
+behavior, not a claim of mic-icon removal, calibrated A/V/HDR/soak validation,
+independent review or clearance to distribute binaries. Current app remains
+`build/package-mic-disconnected/Free PS5 Capture Card.app` (0.1.0 build 8).
+
+Fresh closeout checks: 12/12 non-transport native targets (9.33 s), 27 Bootstrap
+checks, 92 app tests, focused ASan/UBSan executable and 15 packaged Mach-O checks
+all pass. Logs: `build/capture-accepted-{native,bootstrap,app,sanitizers,bundle}.log`.
+These checks took 27.03 s. Unchanged full transport was not rerun at closeout;
+the earlier build-4 full-suite evidence is retained below. Existing local deletion
+of `docs/plans/file-credential-storage.md` remains outside the closeout commit.
+
 ## Build-8 microphone-disconnected experiment
 
 Device result: user reports **"not gone but it still works"**. Thus build 8

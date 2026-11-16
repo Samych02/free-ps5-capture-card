@@ -20,7 +20,10 @@ are not yet verified.
 **Current developer build 8 is a mic-disconnected experiment**, not a confirmed
 fix. It keeps build 7's handshake but explicitly declares the remote mic
 disconnected, without capturing/sending mic audio or allowing mic input. The PS5
-indicator may still remain; device acceptance is pending.
+indicator remained in the user test; calibrated device acceptance is pending.
+The user reported it works and chose to keep this developer checkpoint despite
+the remaining controller/mic indicators. Their removal is unresolved; further
+negotiation experiments are paused. Final release gates remain open.
 
 Earlier **developer build 7 is a one-header experiment**, not a confirmed fix.
 Working build 4 retains both initial controller HTTP headers; builds 5/6 omitted

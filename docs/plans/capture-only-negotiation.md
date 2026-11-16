@@ -1,5 +1,16 @@
 # Capture-only controller/microphone policy
 
+## Accepted closeout
+
+User chose to **keep build 8 as-is** after reporting it still works but the mic
+indicator remains, and authorized committing/pushing source. No additional
+controller/mic experiments or PS5 settings inspection are active. Retain the
+current negative mic-state message and controller-header policy; no code change
+is requested. Icons/extra FIFA controller-slot behavior are not fixed or proven
+unavoidable. Calibrated A/V/HDR/soak, independent review and matching-source binary
+distribution gates remain separate. Push main only; preserve the unrelated local
+deletion of `docs/plans/file-credential-storage.md` and existing packages.
+
 ## Current microphone-priority investigation
 
 Build-8 device result: user reports mic indicator **not gone**, but operation
