@@ -7,8 +7,12 @@ safe preparation is an **unpublished draft prerelease**, targeting the accepted
 build-8 source, with notes in `docs/releases/v0.1.0.md` and no binary attached.
 Public binary distribution remains blocked by corresponding-source assembly and
 independent review; release authorization does not establish those gates passed.
-GitHub CLI authentication is needed to create the remote draft. No public release,
-release asset upload or notarization has been performed at this checkpoint.
+GitHub CLI authentication is configured. The draft prerelease was created and
+verified: [v0.1.0 — Developer preview](https://github.com/Samych02/free-ps5-capture-card/releases/tag/untagged-9b4b73152f0766eab752),
+targeting `200b5d0036416acb2d3a3e4bb652bedec800e540` on main, with no assets.
+It is unpublished; no public release, binary upload or notarization was performed.
+The repository default branch remains `feat/native-app-shell`; it was not changed
+as part of creating this explicitly targeted draft.
 
 Current build 8 is an explicit microphone-disconnected experiment, approved by
 the user after the PS5 mic indicator remained. Only a negative MICCONNECTION
