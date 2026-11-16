@@ -1,5 +1,9 @@
 # Repository work
 
+- User explicitly authorized publishing v0.1.0 as a downloadable developer preview
+  despite the outstanding independent/manual gates, with short readable notes.
+  This supersedes the earlier draft-only hold, not the unverified gate results.
+
 - Active release preparation: `docs/plans/first-downloadable-release.md`. User
   chose a downloadable build-8 app with complete matching source. Keep current
   behavior fixed; source/review/manual release gates are not implicitly passed.

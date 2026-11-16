@@ -189,6 +189,12 @@ The frozen app tree must match, including resource bytes/link targets/file modes
 
 ## Decision Log
 
+- Follow-up user instruction: "do the release. make the note human and readable
+  easily". Publish the frozen app/source/manifest/checksums as a developer
+  prerelease now, explicitly disclosing outstanding review/manual checks. This
+  supersedes the earlier draft-only publication hold; no missing gate is passed
+  or independently certified by this decision.
+
 - User chose downloadable app preparation, not an empty/source-only first release.
 - Keep accepted build 8 and its known icons unchanged; only release tooling,
   inventories and source-delivery artifacts are in scope.

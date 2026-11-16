@@ -24,7 +24,8 @@ latency. There is no internet/WAN connection mode in this app.
 
 ## Get started
 
-For now, [build the app from source](#build-from-source), then:
+[Download the Mac developer preview](https://github.com/Samych02/free-ps5-capture-card/releases/tag/v0.1.0)
+and unzip it, or [build from source](#build-from-source), then:
 
 1. Open the app, [sign in to PSN](docs/account-setup.md) and
    [pair your PS5](docs/pairing.md).
@@ -44,7 +45,8 @@ changing settings. For troubleshooting, open **Show metrics → Recent events**.
 ## Current status and limitations
 
 The current developer version is **0.1.0, build 8**. It has been reported working
-in hands-on PS5 testing, but it is not a finished, notarized public release.
+in hands-on PS5 testing. This is an early developer preview, not a finished or
+notarized app; macOS may block it from opening.
 
 - The PS5 still shows controller/microphone indicators, even though the app sends
   no controller input or microphone audio. An extra controller slot was observed
@@ -127,8 +129,9 @@ Upstream code keeps its original notices and terms, including the applicable
 [Chiaki OpenSSL exception](LICENSES/AGPL-3.0-only-OpenSSL.txt). Dependency revisions
 and patch hashes are recorded in [Dependencies.lock.json](Dependencies.lock.json).
 
-**Public binary distribution is not cleared yet.** Bundled notices alone do not
-fulfill corresponding-source requirements. Before redistributing, read the
+The release includes a separate source archive with dependency sources, patches
+and rebuild instructions. Independent license review is still outstanding.
+Before redistributing, read the
 [third-party notices](THIRD_PARTY_NOTICES.md) and
 [source-distribution checklist](docs/source-distribution.md).
 
