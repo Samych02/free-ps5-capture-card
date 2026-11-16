@@ -2,6 +2,13 @@
 
 ## Current microphone-priority investigation
 
+Build-8 device result: user reports mic indicator **not gone**, but operation
+still works. Do not call the negative-state experiment successful mic removal or
+claim the PS5 processed the message. Pause further speculative protocol builds.
+Next evidence: PS5 Settings > Sound > Microphone > Input Device listing and
+selection while connected, distinguishing a Remote Play input from the local
+controller mic/static indicator. No new payload/client-type/id changes yet.
+
 **Approved goal:** test an explicit microphone-disconnected declaration, not mute
 or mic audio, without changing the working build-7 controller/media handshake.
 **Architecture:** in capture-only stream input setup, encode one schema-defined

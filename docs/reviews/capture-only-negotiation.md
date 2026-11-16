@@ -2,6 +2,17 @@
 
 ## Build-8 microphone-disconnected experiment
 
+Device result: user reports **"not gone but it still works"**. Thus build 8
+continues operating by user observation, but the mic indicator remains; the
+explicit connected=false declaration is not sufficient to achieve visible mic
+removal in this test. This does not establish whether the PS5 processed/ignored
+the message, whether controller_id=0 identifies the UI device, or whether the
+indicator reflects an actual selectable input. No calibrated A/V evidence is
+implied. Stop stacking payload guesses: next inspect PS5 Settings > Sound >
+Microphone > Input Device while connected, including listed/selected device, to
+distinguish an advertised Remote Play input from a local controller mic or UI-only
+indicator. Keep current operation intact; no further protocol change yet.
+
 User prioritized mic removal after reporting PS5 controller/mic indicators still
 present in build 7, and approved an explicit disconnected-state experiment rather
 than muting or keeping complete mic-message suppression. The pinned takion.proto
