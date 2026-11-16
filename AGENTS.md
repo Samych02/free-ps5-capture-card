@@ -16,6 +16,10 @@
   controller/microphone features/signaling; preserve media acknowledgements,
   heartbeats and restrictions. Test offline; real-PS5 compatibility remains
   unverified. No silent legacy fallback or app-side input features.
+- Mic follow-up: user approved a separate explicit MICCONNECTION connected=false
+  experiment, an exception to complete mic-message suppression. Never send a
+  positive connect/unmute or mic audio. Keep working handshake/media unchanged;
+  schema presence does not establish PS5 acceptance or removal of its mic icon.
 - Current approved follow-up: `docs/plans/minimal-ffmpeg-portability.md`. Minimize
   FFmpeg and prepare portable engine/build boundaries only. Continue building
   Apple Silicon/macOS 26; do not add Universal/Intel/Windows/Linux builds or GUIs

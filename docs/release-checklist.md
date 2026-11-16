@@ -1,6 +1,11 @@
 # 0.1.0 first-release checklist
 
-Current build 7 is an explicit single-header experiment: keep ControllerType,
+Current build 8 is an explicit microphone-disconnected experiment, approved by
+the user after the PS5 mic indicator remained. Only a negative MICCONNECTION
+declaration is added to build 7's policy; no mic enable/unmute/audio. Connection,
+icon removal, full A/V and FIFA slot acceptance are not established by offline tests.
+
+Earlier build 7 is an explicit single-header experiment: keep ControllerType,
 omit only PadProcNo. The user confirmed returning to build 4 works after build-6
 CTRL_CONNECT_FAILED; this implicates the combined omission but not either header
 individually. Build-7 connection/FIFA-slot results are pending, not a release pass.

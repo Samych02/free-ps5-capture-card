@@ -52,6 +52,13 @@ Legacy core clients retain their zero-initialized default; rebuilt consumers are
 required because core struct layouts change. No silent fallback or app-side input
 features are added. Real-console acceptance of this policy is unverified.
 
+Build 8 revises patch 0004, with user approval, to send the schema-defined
+MICCONNECTION negative state (controller_id=0, connected=false, no result field)
+in capture-only input setup instead of silence. This is an isolated mic-disconnect
+experiment, not mic audio/enable/unmute support. Send errors propagate; legacy
+input setup and build-7 HTTP handshake remain unchanged. Pinned schema presence
+does not prove PS5 acceptance, controller-slot binding or removal of its mic icon.
+
 `patches/chiaki/0005-capture-only-control-handshake.patch` extracts a bounded initial
 control request formatter. Builds 5/6 used its first revision, omitting both
 RP-ControllerType and RP-PadProcNo; those builds failed control setup on-device,
@@ -60,7 +67,8 @@ RP-ControllerType: 3 and omits only PS5 RP-PadProcNo in capture-only mode, as a
 single-header experiment. Legacy requests, authentication, client identity, crypto
 counters and media selection remain unchanged. Feedback/mic traffic remains
 disabled. This is not a silent fallback or a proven connection/controller-slot
-fix; build-7 device acceptance and FIFA slot behavior are pending.
+fix; calibrated A/V and FIFA slot behavior remain pending. Build 8 retains the
+same fifth patch and changes only the negative mic-state declaration in patch 0004.
 
 ## Build/runtime dependencies
 

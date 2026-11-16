@@ -30,6 +30,8 @@ license/version and any additional conditions still need review.
   capture-only input suppression and feedback lifetime guards, enabled in app
   build 4. Include it and its lock digest in matching source; upstream core
   struct layouts change and real-console acceptance remains unverified.
+  Build 8 revises its digest to add only an explicit MICCONNECTION connected=false
+  declaration; match that exact source/lock rather than an earlier patch filename.
 - [0005](../patches/chiaki/0005-capture-only-control-handshake.patch) extracts the
   bounded initial control request formatter. Its original build-5/6 revision
   omits both controller HTTP declarations; the revised build-7 digest retains

@@ -80,7 +80,7 @@ index 86ecfe2..73068c2 100644
  	ctrl_message_send(ctrl, CTRL_MESSAGE_TYPE_DISPLAY_DEVICES, display, 0x4);
  }
 diff --git a/lib/src/streamconnection.c b/lib/src/streamconnection.c
-index 4d9f903..dfefa46 100644
+index 4d9f903..df7bc10 100644
 --- a/lib/src/streamconnection.c
 +++ b/lib/src/streamconnection.c
 @@ -60,6 +60,9 @@ static void stream_connection_takion_data_expect_streaminfo(ChiakiStreamConnecti
@@ -162,7 +162,7 @@ index 4d9f903..dfefa46 100644
  
  	union
  	{
-@@ -1137,6 +1125,50 @@ static ChiakiErrorCode stream_connection_send_big(ChiakiStreamConnection *stream
+@@ -1137,6 +1125,62 @@ static ChiakiErrorCode stream_connection_send_big(ChiakiStreamConnection *stream
  	return err;
  }
  
@@ -203,7 +203,19 @@ index 4d9f903..dfefa46 100644
 +static ChiakiErrorCode stream_connection_send_input_setup(ChiakiStreamConnection *stream_connection)
 +{
 +	if(stream_connection->session->connect_info.capture_only)
-+		return CHIAKI_ERR_SUCCESS;
++	{
++		// Explicit negative state only; never enable microphone audio or input setup.
++		tkproto_TakionMessage msg = { 0 };
++		msg.type = tkproto_TakionMessage_PayloadType_MICCONNECTION;
++		msg.has_mic_connection_payload = true;
++		msg.mic_connection_payload.controller_id = 0;
++		msg.mic_connection_payload.connected = false;
++		uint8_t buf[64];
++		pb_ostream_t output = pb_ostream_from_buffer(buf, sizeof(buf));
++		if(!pb_encode(&output, tkproto_TakionMessage_fields, &msg))
++			return CHIAKI_ERR_UNKNOWN;
++		return chiaki_takion_send_message_data(&stream_connection->takion, 1, 1, buf, output.bytes_written, NULL);
++	}
 +	ChiakiErrorCode err = stream_connection_send_controller_connection(stream_connection);
 +	if(err != CHIAKI_ERR_SUCCESS)
 +		return err;

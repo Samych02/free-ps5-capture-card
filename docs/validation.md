@@ -2,6 +2,12 @@
 
 ## Current capture-only developer candidate
 
+Build 8 sends a schema-defined explicit mic-disconnected message (connected=false,
+controller_id=0), with build-7 handshake/input suppression otherwise unchanged.
+User approved this isolated negative-state experiment because silence did not
+remove the mic indicator. Schema/wire tests do not establish PS5 acceptance or
+icon removal. See the [policy report](reviews/capture-only-negotiation.md).
+
 Build 7 retains ControllerType and omits only PadProcNo as a one-variable protocol
 experiment. Build 6 reported CTRL_CONNECT_FAILED; the user confirmed returning to
 build 4 works. No build-7 connection or FIFA-slot outcome is established yet.

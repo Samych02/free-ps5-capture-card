@@ -1,6 +1,59 @@
 # Capture-only negotiation — author verification
 
+## Build-8 microphone-disconnected experiment
+
+User prioritized mic removal after reporting PS5 controller/mic indicators still
+present in build 7, and approved an explicit disconnected-state experiment rather
+than muting or keeping complete mic-message suppression. The pinned takion.proto
+defines MICCONNECTION (30), but the pinned core has no other call site: field
+existence is evidence of a schema, not evidence the PS5 honors it or hides icons.
+
+Revised patch 0004 encodes controller_id=0, connected=false, absent result in
+capture-only input setup, using the existing reliable Takion channel-1 path.
+The slot identifier is an explicit experimental assumption, not an established
+mapping. Encoding/send failure propagates through the existing setup-failure path;
+there is no enable/mute fallback, mic audio, controller feedback, HTTP/client-type
+change or extra app input feature. Build-7 handshake and patch 0005 are unchanged.
+
+- Red: `build/capture-mic-disconnected-red.log` fails on the absent MICCONNECTION.
+- Green tests decode real protobuf output and assert exact type/required fields,
+  connected=false, absent result, channel/
+  flags, no controller/mic enable setup, and send-failure propagation. Legacy
+  output, feedback lifecycle/control guards, stream ACK and heartbeat remain tested.
+- All five locked patches apply to pristine pinned source; ctrl.c and
+  streamconnection.c match current sources. Cached validation twice per Debug/
+  Release succeeds. **12/12 non-transport native targets pass**, 12.31 s
+  (`build/capture-mic-disconnected-native.log`); unchanged transport not rerun.
+- Focused ASan/UBSan policy tests and real stream/control/session/launchspec pass;
+  remaining dependencies uninstrumented
+  (`build/capture-mic-disconnected-sanitized/verification.log`).
+- Bootstrap **27/27**, direct app unit tests **92/92**, packaged **15 Mach-O checks**
+  pass, with 13 dylibs, arm64/macOS 26 and ad-hoc signatures/recursive closure.
+  These three stages took 19.94 s. Logs:
+  `build/capture-mic-disconnected-{bootstrap,app,package}.log`.
+- App: `build/package-mic-disconnected/Free PS5 Capture Card.app`, **0.1.0 build 8**.
+  Version and embedded notices/lock match source. Only patch 0004's digest changes
+  from build 7; all digests verify, including unchanged handshake patch 0005.
+- Scoped author review covers required false encoding/controller identifier,
+  reliable channel, bounded buffer, unchanged legacy/media/controller-handshake
+  behavior and propagating send errors without mic enable/fallback. This is not
+  independent review and does not establish PS5 semantics.
+- No capture app was running at handoff; build 8 was opened without stopping a
+  session or auto-starting capture. Prior candidates remain intact. Do not call
+  mic removal fixed: device acceptance must check connection, OBS game video/audio
+  and PS5 mic indicator/input-device listing separately.
+
 ## Build-7 one-header experiment
+
+Latest user observation: build 7 opens and PS5 controller/microphone indicators
+still appear. User now prioritizes removing the microphone indication. Do not
+interpret this as calibrated media acceptance or a passed FIFA slot test. Current
+capture-only code sends no mic audio, mic STREAMINFO/connect/toggle, but that
+omission has not removed the PS5 indicator. The pinned takion.proto defines
+MICCONNECTION (30) with required controller_id and connected bool; no pinned core
+call site uses it. A connected=false message is a possible explicit negative-state
+experiment, not established PS5 behavior. Muting is not equivalent to disconnecting.
+Leave controller HTTP headers alone; no new mic-enabled capability or raw logs.
 
 The user confirmed build 4 works again after build-6 CTRL_CONNECT_FAILED. This
 strongly implicates the combined initial-header omission in builds 5/6, not which

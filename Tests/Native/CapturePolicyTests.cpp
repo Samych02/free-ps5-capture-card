@@ -71,9 +71,17 @@ extern "C" ChiakiErrorCode capture_test_feedback_init(ChiakiFeedbackSender *,Chi
 }
 extern "C" void capture_test_feedback_fini(ChiakiFeedbackSender *) {++stops;}
 extern "C" ChiakiErrorCode capture_test_feedback_state(ChiakiFeedbackSender *,ChiakiControllerState *) {++states;return CHIAKI_ERR_SUCCESS;}
-extern "C" ChiakiErrorCode capture_test_takion_send(ChiakiTakion *,uint8_t,uint16_t,uint8_t *data,size_t size,ChiakiSeqNum32 *) {
+extern "C" ChiakiErrorCode capture_test_takion_send(ChiakiTakion *,uint8_t flags,uint16_t channel,uint8_t *data,size_t size,ChiakiSeqNum32 *) {
     tkproto_TakionMessage message{};auto stream=pb_istream_from_buffer(data,size);
     assert(pb_decode(&stream,tkproto_TakionMessage_fields,&message));
+    if(message.type==tkproto_TakionMessage_PayloadType_MICCONNECTION) {
+        assert(flags==1 && channel==1);
+        assert(message.has_mic_connection_payload);
+        assert(message.mic_connection_payload.controller_id==0);
+        assert(!message.mic_connection_payload.connected);
+        assert(!message.mic_connection_payload.has_result);
+        assert(!message.has_controller_connection_payload && !message.has_stream_info_payload);
+    }
     messages.push_back(message.type);return failSend?CHIAKI_ERR_NETWORK:CHIAKI_ERR_SUCCESS;
 }
 struct Fixture {
@@ -119,7 +127,8 @@ int main() {
       assert(capture_test_start_feedback(&stream)==CHIAKI_ERR_SUCCESS);
       assert(!stream.feedback_sender_active && starts==0 && states==0);
       capture_test_stop_feedback(&stream);capture_test_stop_feedback(&stream);assert(stops==0);
-      assert(capture_test_input_setup(&stream)==CHIAKI_ERR_SUCCESS);assert(messages.empty());
+      assert(capture_test_input_setup(&stream)==CHIAKI_ERR_SUCCESS);
+      assert((messages==std::vector<int>{tkproto_TakionMessage_PayloadType_MICCONNECTION}));
       ctrl_enable_features(&f.session.ctrl);assert(f.controls()==std::vector<unsigned>{0x910});
       assert(chiaki_session_connect_microphone(&f.session)!=CHIAKI_ERR_SUCCESS);
       assert(chiaki_session_toggle_microphone(&f.session,false)!=CHIAKI_ERR_SUCCESS);
@@ -130,7 +139,7 @@ int main() {
       assert(memcmp(&original,&f.session.controller_state,sizeof(original))==0);
       assert(f.controls().empty());
       assert(capture_test_ack(&stream)==CHIAKI_ERR_SUCCESS);assert(capture_test_heartbeat(&stream)==CHIAKI_ERR_SUCCESS);
-      assert((messages==std::vector<int>{tkproto_TakionMessage_PayloadType_STREAMINFOACK,tkproto_TakionMessage_PayloadType_HEARTBEAT}));
+      assert((messages==std::vector<int>{tkproto_TakionMessage_PayloadType_MICCONNECTION,tkproto_TakionMessage_PayloadType_STREAMINFOACK,tkproto_TakionMessage_PayloadType_HEARTBEAT}));
     }
     { Fixture f(false);auto &stream=f.session.stream_connection;
       check_request(f.session,false);
@@ -149,6 +158,11 @@ int main() {
       assert(chiaki_session_connect_microphone(&f.session)==CHIAKI_ERR_SUCCESS);
       assert(chiaki_session_toggle_microphone(&f.session,false)==CHIAKI_ERR_SUCCESS);
       assert((f.controls()==std::vector<unsigned>{0x30,0x36}));
+    }
+    { Fixture f(true);failSend=true;
+      assert(capture_test_input_setup(&f.session.stream_connection)==CHIAKI_ERR_NETWORK);
+      assert((messages==std::vector<int>{tkproto_TakionMessage_PayloadType_MICCONNECTION}));
+      assert(starts==0 && states==0 && f.controls().empty());
     }
     { Fixture f(false);failStart=true;
       assert(capture_test_start_feedback(&f.session.stream_connection)==CHIAKI_ERR_THREAD);

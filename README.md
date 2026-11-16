@@ -17,7 +17,12 @@ browser login, real pairing and all three synthetic feeds in OBS.
 Real PS5-to-OBS sync, HDR output, long-run reliability and independent review
 are not yet verified.
 
-**Current developer build 7 is a one-header experiment**, not a confirmed fix.
+**Current developer build 8 is a mic-disconnected experiment**, not a confirmed
+fix. It keeps build 7's handshake but explicitly declares the remote mic
+disconnected, without capturing/sending mic audio or allowing mic input. The PS5
+indicator may still remain; device acceptance is pending.
+
+Earlier **developer build 7 is a one-header experiment**, not a confirmed fix.
 Working build 4 retains both initial controller HTTP headers; builds 5/6 omitted
 both and failed control setup. Build 7 retains ControllerType and omits only
 PadProcNo, while keeping feedback/mic traffic disabled. Device/FIFA slot results

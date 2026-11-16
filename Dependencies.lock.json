@@ -8,7 +8,7 @@
       {"file": "patches/chiaki/0001-embeddable-build.patch", "sha256": "6a5d30e12da836f6a61de7f052ccb467148673d322878b8ccbfc77771505d4a3"},
       {"file": "patches/chiaki/0002-encoded-media-sink.patch", "sha256": "177585e8b2281287730a2297775ece23595f363f8a6b35a0c8552e96c13cc125"},
       {"file": "patches/chiaki/0003-control-frame-bounds.patch", "sha256": "1fdb7ee3b1e57c5604b28d6bea65c05f5891d529f52c442471dee93f0a6a1e7f"},
-      {"file": "patches/chiaki/0004-capture-only-input-policy.patch", "sha256": "dd033201ce708ead33ed9efee48de8f0706e1dc704448b36d853c41c40672e0d"},
+      {"file": "patches/chiaki/0004-capture-only-input-policy.patch", "sha256": "59d4399ed9579cc790d8b9308963de9ae7e6b118c1e8d3e1238e7737f0a48859"},
       {"file": "patches/chiaki/0005-capture-only-control-handshake.patch", "sha256": "611a0a81d89783a1b49c98799e4dfb2b11806c2173fd884b8276ee0903d7048e"}
     ]
   },

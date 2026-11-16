@@ -1,5 +1,71 @@
 # Capture-only controller/microphone policy
 
+## Current microphone-priority investigation
+
+**Approved goal:** test an explicit microphone-disconnected declaration, not mute
+or mic audio, without changing the working build-7 controller/media handshake.
+**Architecture:** in capture-only stream input setup, encode one schema-defined
+MICCONNECTION with controller_id=0, connected=false and no result field. Slot 0 is
+the experiment's explicit identifier, not proven PS5 binding. Retain the guarded
+legacy path, real control-entrypoint rejection and zero feedback/mic-audio setup.
+Send on Takion reliable message channel 1 using the existing input-setup path;
+encoding/send errors propagate through that path, never fallback/mute/enable.
+**Constraints:** user approved negative-state signaling as an exception to prior
+complete mic-message suppression. Keep build 7/its package; no HTTP/client-type,
+credential/logging, preview, app input or media ACK/heartbeat/restriction changes.
+**Acceptance:** offline exact protobuf and failure tests pass, legacy unchanged;
+device icon removal/session A/V acceptance remains a separate user test.
+
+### Task 1: Negative-state payload regression and implementation
+
+- [x] Update `Tests/Native/CapturePolicyTests.cpp` to assert exactly MICCONNECTION,
+  controller_id=0, connected=false, absent result; no STREAMINFO/controller-connect
+  or feedback. Preserve control guards and media ACK/heartbeat checks. Add forced
+  send-failure coverage. Run `cmake --build build/native/Debug --target
+  capture-input-policy-tests --parallel` and the test executable: fail on absent
+  negative-state message before implementation.
+- [x] Update the capture-only branch in locked patch 0004's real stream input
+  setup, revise its digest in `Dependencies.lock.json`, synchronize fetched Debug/
+  Release and advance `project.yml` to build 8. Do not change patch 0005/HTTP setup.
+  Re-run the policy executable: exact payload and error checks pass.
+
+### Task 2: Offline checkpoint and separate device candidate
+
+- [x] Verify pristine locked patch application and cached validation twice in
+  both configurations; regenerate focused ASan/UBSan policy executable using
+  Ninja compile/link flags (stream/ctrl wrappers, session/launchspec and tests).
+- [x] Run `scripts/build-native.sh --config Debug --tests`, then
+  `ctest --test-dir build/native/Debug --no-tests=error -E transport --output-on-failure`,
+  Bootstrap unittest discovery and `bash scripts/test-app-unit-direct.sh`. Expect
+  no failures; do not re-run unchanged multi-minute transport for this small test.
+- [x] Update notices/evidence and package via `scripts/package-dev-app.sh --output
+  build/package-mic-disconnected`; verify build 8, embedded lock/notices and binary
+  checks. Commit scoped files on main, preserving the unrelated deleted doc.
+- [x] Hand off as unverified mic-disconnect experiment, not a fix or guaranteed
+  absent mic icon; no automatic switch of an active working capture session.
+
+Build 8 at `build/package-mic-disconnected/Free PS5 Capture Card.app`: native
+12/12 non-transport targets, Bootstrap 27/27, app 92/92, focused policy sanitizers
+and 15 packaged Mach-O checks pass. No capture app was running at handoff, so
+build 8 was opened without stopping a session or auto-starting capture. User must
+verify connection, OBS video/game audio and mic-indicator/device-list behavior.
+
+Design/plan author review: Approved for bounded implementation. Message fields,
+slot assumption, ordering, send errors, no-input boundaries, build provenance and
+missing console evidence are explicit. User approved the direction in-chat; per
+repo instruction continue without another milestone approval or worktree.
+
+User reports build 7 still shows PS5 controller/mic indicators and asks to remove
+at least the mic. Mic audio and enable/connect/toggle signaling are already absent;
+do not claim icon removal from that fact. Pinned takion.proto defines unused
+MICCONNECTION with controller_id and connected bool. Proposed next design is an
+isolated explicit connected=false message in a separate candidate, holding the
+working controller headers/media/authentication fixed. This changes the prior
+"no mic signaling" policy to allow only an explicit negative-state declaration;
+user approved that experiment, then test serialized payload/failure paths
+before device handoff. No support for mic input, no mute-only substitution and no
+claim that an unused schema field establishes actual PS5 acceptance/icon behavior.
+
 ## Current build-7 one-header experiment
 
 The controlled return to build 4 works; builds 5/6 omit both HTTP controller
